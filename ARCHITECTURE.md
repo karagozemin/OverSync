@@ -303,7 +303,9 @@ and verified by the resolver before it locks destination-side funds.
   timelock, asset, amount, safety_deposit)` — locks the asset under
   the standard HTLC commitments. Stores the entire order in a
   Soroban `Map<u64, Order>` keyed by an autoincrementing
-  `next_order_id`. Emits the `OrderCreated` event.
+  `next_order_id`. When a registry is configured,
+  `ResolverRegistry.is_active(sender)` must return true. Emits the
+  `OrderCreated` event.
 - `claim_order(env, order_id, preimage)` — `sha256(preimage) ==
   hashlock` and `env.ledger().timestamp() <= timelock` are required.
   Asset transferred to `beneficiary`, safety deposit to `caller`.

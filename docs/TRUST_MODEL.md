@@ -111,10 +111,10 @@ custody*. There are operator-controlled assumptions that affect
   (already done via `ResolverRegistry`) and let arbitrage incentives
   attract honest resolvers.
 - **Soroban resolver registry binding.** The HTLC contract on Soroban
-  has a soft hook for the registry but does not yet enforce
-  `is_authorised` at create time. This is intentional for v2.0 — the
-  HTLC is correct without the check — and will be tightened in v2.1
-  once the registry is battle-tested.
+  calls the registry's `is_active` check during `create_order` when a
+  registry is configured. `claim_order` and `refund_order` remain
+  permissionless so the hashlock and timelock recovery paths keep
+  working even if registry administration is compromised.
 
 ## References
 

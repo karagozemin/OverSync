@@ -16,4 +16,5 @@ doctest = false
 soroban-sdk = { workspace = true }
 
 [dev-dependencies]
+oversync-resolver-registry = { path = "../resolver-registry" }
 soroban-sdk = { workspace = true, features = ["testutils"] }

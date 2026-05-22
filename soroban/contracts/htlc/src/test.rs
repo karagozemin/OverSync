@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::{Error, HtlcContract, HtlcContractClient, Order, OrderStatus};
+use oversync_resolver_registry::{ResolverRegistry, ResolverRegistryClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     token::{StellarAssetClient, TokenClient},
@@ -28,6 +29,19 @@ fn setup(env: &Env, min_safety_deposit: i128) -> (Address, HtlcContractClient<'_
     env.mock_all_auths();
     client.initialize(&admin, &min_safety_deposit);
     (admin, client)
+}
+
+fn deploy_registry<'a>(
+    env: &Env,
+    admin: &Address,
+    stake_asset: &Address,
+    min_stake: i128,
+    slash_beneficiary: &Address,
+) -> (Address, ResolverRegistryClient<'a>) {
+    let registry_id = env.register(ResolverRegistry, ());
+    let registry = ResolverRegistryClient::new(env, &registry_id);
+    registry.initialize(admin, stake_asset, &min_stake, slash_beneficiary);
+    (registry_id, registry)
 }
 
 fn advance_ledger(env: &Env, seconds: u64) {
@@ -344,4 +358,67 @@ fn initialise_twice_fails() {
     let again = Address::generate(&env);
     let res = htlc.try_initialize(&again, &0);
     assert_eq!(res.err().unwrap().unwrap(), Error::AlreadyInitialised.into());
+}
+
+#[test]
+fn active_resolver_can_create_order_when_registry_is_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (admin, htlc) = setup(&env, 0);
+
+    let sender = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&sender, &100_0000000);
+
+    let (registry_id, registry) = deploy_registry(&env, &admin, &asset, 10_0000000, &admin);
+    registry.register(&sender, &10_0000000);
+    htlc.set_resolver_registry(&registry_id);
+
+    let preimage = Bytes::from_array(&env, &[11u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+    let order_id = htlc.create_order(
+        &sender,
+        &beneficiary,
+        &sender,
+        &asset,
+        &20_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+
+    assert_eq!(order_id, 1);
+}
+
+#[test]
+fn inactive_resolver_cannot_create_order_when_registry_is_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (admin, htlc) = setup(&env, 0);
+
+    let sender = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&sender, &100_0000000);
+
+    let (registry_id, _registry) = deploy_registry(&env, &admin, &asset, 10_0000000, &admin);
+    htlc.set_resolver_registry(&registry_id);
+
+    let preimage = Bytes::from_array(&env, &[12u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+    let res = htlc.try_create_order(
+        &sender,
+        &beneficiary,
+        &sender,
+        &asset,
+        &20_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+
+    assert_eq!(res.err().unwrap().unwrap(), Error::ResolverNotAuthorised.into());
 }
