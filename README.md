@@ -239,6 +239,8 @@ threat model.
 
 ## Documentation
 
+For contribution guidelines, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 | Document | What it covers |
 |---|---|
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
@@ -249,6 +251,7 @@ threat model.
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributor onboarding, branch workflow, test guidance, and PR expectations |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
 
 ---
