@@ -5,6 +5,8 @@
 
 import { EventEmitter } from 'events';
 import { ethers } from 'ethers';
+
+const RPC_TIMEOUT_MS = Number(process.env.RELAYER_RPC_TIMEOUT_MS) || 30_000;
 // Mock interfaces for now
 interface EnhancedBridgeConfig {
   // placeholder
@@ -395,26 +397,65 @@ export class Phase6BridgeService extends EventEmitter {
   }
 
   /**
+   * Probe Ethereum RPC with a timeout. Returns true if eth_blockNumber succeeds.
+   */
+  async checkEthereumConnection(): Promise<boolean> {
+    try {
+      await Promise.race([
+        this.config.ethereumProvider.getBlockNumber(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), RPC_TIMEOUT_MS)
+        ),
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Probe Stellar Horizon with a timeout. Returns true if GET / succeeds (HTTP 200).
+   */
+  async checkStellarConnection(): Promise<boolean> {
+    const horizonUrl =
+      (process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org').replace(/\/$/, '');
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
+      const res = await fetch(`${horizonUrl}/`, { signal: controller.signal });
+      clearTimeout(timer);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Get system health status
    */
-  getHealthStatus(): {
+  async getHealthStatus(): Promise<{
     isHealthy: boolean;
     ethereumConnection: boolean;
     stellarConnection: boolean;
     activeOrders: number;
     errorRate: number;
-  } {
+  }> {
     const activeOrders = this.getActiveOrdersCount();
-    const errorRate = this.statistics.totalOrders > 0 
-      ? (this.statistics.failedOrders / this.statistics.totalOrders) * 100 
+    const errorRate = this.statistics.totalOrders > 0
+      ? (this.statistics.failedOrders / this.statistics.totalOrders) * 100
       : 0;
-    
+
+    const [ethereumConnection, stellarConnection] = await Promise.all([
+      this.checkEthereumConnection(),
+      this.checkStellarConnection(),
+    ]);
+
     return {
-      isHealthy: this.isRunning && errorRate < 5, // Less than 5% error rate
-      ethereumConnection: true, // TODO: Add actual connection check
-      stellarConnection: true, // TODO: Add actual connection check
+      isHealthy: this.isRunning && errorRate < 5 && ethereumConnection && stellarConnection,
+      ethereumConnection,
+      stellarConnection,
       activeOrders,
-      errorRate
+      errorRate,
     };
   }
 
