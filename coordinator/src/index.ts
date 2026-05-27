@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   const log = getLogger(cfg.logLevel);
   log.info({ network: cfg.network, port: cfg.port }, "OverSync coordinator starting");
 
-  const db = openDatabase(cfg.databaseUrl);
+  const db = await openDatabase(cfg.databaseUrl);
   const repo = new OrdersRepository(db);
   const orders = new OrderService(repo, log);
   const secrets = new SecretService(orders, log);
@@ -42,7 +42,10 @@ async function main(): Promise<void> {
     ethListener.stop();
     sorobanListener.stop();
     server.close(() => {
-      db.close();
+      // Close database if it has a close method (SQLite)
+      if ('close' in db) {
+        (db as any).close();
+      }
       process.exit(0);
     });
   };

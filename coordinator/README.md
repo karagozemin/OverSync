@@ -70,10 +70,30 @@ This replaces the 3276-line monolithic `relayer/src/index.ts` from v1.
 
 ## Persistence
 
+The coordinator stores order state in a local database. Two database engines are supported:
+
+### SQLite (Local Development - Default)
+
 We use Node's built-in `node:sqlite` driver — no native addons, no
-build step. For production, swap the URL to a Postgres connection
-string and replace the driver in `src/persistence/db.ts`. The schema
-in `schema.sql` is portable across both engines.
+build step. By default, the coordinator writes to `./oversync.db` in the working directory.
+
+```bash
+pnpm dev
+# Writes to ./oversync.db (file:./oversync.db)
+```
+
+### PostgreSQL (Production)
+
+For production deployments, swap the database to Postgres by setting the
+`DATABASE_URL` environment variable:
+
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5432/oversync pnpm start
+```
+
+The schema in `coordinator/migrations/` is applied automatically on startup.
+All migrations are idempotent, so it's safe to run the coordinator against
+an existing database.
 
 ## Tests
 
@@ -83,4 +103,44 @@ pnpm test
 
 The test suite covers the order service state transitions, secret
 validation (rejects preimages that don't hash to the stored hashlock),
-and the schema bootstrapping.
+and the schema bootstrapping on SQLite.
+
+### Testing with PostgreSQL
+
+To test the coordinator against a PostgreSQL database:
+
+```bash
+# Start a Postgres container (requires Docker)
+docker run -d \
+  --name oversync-postgres \
+  -e POSTGRES_DB=oversync \
+  -e POSTGRES_PASSWORD=password \
+  -p 5432:5432 \
+  postgres:15
+
+# Set DATABASE_URL and run the coordinator
+DATABASE_URL=postgresql://postgres:password@localhost:5432/oversync pnpm dev
+
+# In another terminal, test an order creation
+curl -X POST http://localhost:3001/api/orders/announce \
+  -H "Content-Type: application/json" \
+  -d '{
+    "direction": "eth_to_xlm",
+    "hashlock": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "srcChain": "ethereum",
+    "srcAddress": "0x1111111111111111111111111111111111111111",
+    "srcAsset": "native",
+    "srcAmount": "1000000000000000000",
+    "srcSafetyDeposit": "1000000000000000",
+    "dstChain": "stellar",
+    "dstAddress": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB422",
+    "dstAsset": "native",
+    "dstAmount": "100000000"
+  }'
+
+# Cleanup
+docker stop oversync-postgres && docker rm oversync-postgres
+```
+
+The schema migrations in `coordinator/migrations/` are applied automatically
+on startup, making it easy to manage database versions.

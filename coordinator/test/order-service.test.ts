@@ -15,14 +15,14 @@ const VALID_HASHLOCK = "0x" + "a".repeat(64);
 const VALID_ETH_ADDR = "0x1111111111111111111111111111111111111111";
 const VALID_STELLAR_ADDR = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB422";
 
-function freshDb() {
+async function freshDb() {
   const dir = mkdtempSync(resolve(tmpdir(), "oversync-test-"));
   return openDatabase(`file:${dir}/test.db`);
 }
 
 describe("OrderService", () => {
-  it("announces an eth->xlm order and round-trips it via getById/history", () => {
-    const db = freshDb();
+  it("announces an eth->xlm order and round-trips it via getById/history", async () => {
+    const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
 
     const order = orders.announce({
@@ -49,8 +49,8 @@ describe("OrderService", () => {
     expect(list).toHaveLength(1);
   });
 
-  it("rejects duplicate hashlocks", () => {
-    const db = freshDb();
+  it("rejects duplicate hashlocks", async () => {
+    const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
     orders.announce({
       direction: "eth_to_xlm",
@@ -83,8 +83,8 @@ describe("OrderService", () => {
     ).toThrowError(OrderValidationError);
   });
 
-  it("rejects mismatched direction / chains", () => {
-    const db = freshDb();
+  it("rejects mismatched direction / chains", async () => {
+    const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
     expect(() =>
       orders.announce({
@@ -105,8 +105,8 @@ describe("OrderService", () => {
 });
 
 describe("SecretService", () => {
-  it("rejects a preimage that doesn't hash to the order's hashlock", () => {
-    const db = freshDb();
+  it("rejects a preimage that doesn't hash to the order's hashlock", async () => {
+    const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
     const order = orders.announce({
       direction: "eth_to_xlm",
