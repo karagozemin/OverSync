@@ -21,7 +21,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error,
-    symbol_short, token, Address, Bytes, BytesN, Env, Symbol,
+    symbol_short, token, vec, Address, Bytes, BytesN, Env, IntoVal, Symbol,
 };
 
 #[cfg(test)]
@@ -238,20 +238,26 @@ impl HtlcContract {
             panic_with_error!(&env, Error::SafetyDepositTooSmall);
         }
 
-        // If a resolver registry is configured, require the sender to
-        // be either an authorised resolver or a regular user explicitly
-        // allowed by the registry. The registry contract owns this
-        // policy decision.
-        if let Some(_registry) = env
+        // If a resolver registry is configured, require the sender to be
+        // an active resolver. The registry contract owns the membership
+        // policy (stake, slash, activation). The HTLC remains correct
+        // even without this check — funds are still gated by hashlock +
+        // timelock — but enforcing it here keeps the off-chain order
+        // book sybil-resistant. Claim and refund stay permissionless
+        // regardless of registry state.
+        if let Some(registry) = env
             .storage()
             .instance()
             .get::<DataKey, Address>(&DataKey::ResolverRegistry)
         {
-            // Phase 3 wires this into the actual ResolverRegistry contract
-            // via cross-contract `is_authorised(sender)` call. The HTLC
-            // is correct without this check (funds are still locked by
-            // hashlock + timelock), so we keep it as a soft hook for
-            // now.
+            let active: bool = env.invoke_contract(
+                &registry,
+                &Symbol::new(&env, "is_active"),
+                vec![&env, sender.into_val(&env)],
+            );
+            if !active {
+                panic_with_error!(&env, Error::ResolverNotAuthorised);
+            }
         }
 
         let now = env.ledger().timestamp();

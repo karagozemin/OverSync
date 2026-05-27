@@ -110,11 +110,14 @@ custody*. There are operator-controlled assumptions that affect
   refuse to fill specific orders. Mitigation: open the resolver set
   (already done via `ResolverRegistry`) and let arbitrage incentives
   attract honest resolvers.
-- **Soroban resolver registry binding.** The HTLC contract on Soroban
-  has a soft hook for the registry but does not yet enforce
-  `is_authorised` at create time. This is intentional for v2.0 — the
-  HTLC is correct without the check — and will be tightened in v2.1
-  once the registry is battle-tested.
+- **Soroban resolver registry binding.** Enforced. When a
+  `ResolverRegistry` address is bound to the Soroban HTLC, every
+  `create_order` performs a cross-contract `is_active(sender)` call and
+  reverts with `ResolverNotAuthorised` if the sender is not an active
+  staked resolver. The HTLC is correct without this check — funds are
+  still locked by hashlock + timelock — but enforcement closes the
+  sybil vector on the off-chain order book. `claim_order` and
+  `refund_order` remain permissionless regardless of registry state.
 
 ## References
 

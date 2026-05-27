@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::{Error, HtlcContract, HtlcContractClient, Order, OrderStatus};
+use oversync_resolver_registry::{ResolverRegistry, ResolverRegistryClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     token::{StellarAssetClient, TokenClient},
@@ -344,4 +345,201 @@ fn initialise_twice_fails() {
     let again = Address::generate(&env);
     let res = htlc.try_initialize(&again, &0);
     assert_eq!(res.err().unwrap().unwrap(), Error::AlreadyInitialised.into());
+}
+
+// ---------------------------------------------------------------------
+// Resolver-registry binding (cross-contract enforcement of `is_active`)
+// ---------------------------------------------------------------------
+
+/// Deploy + initialise a ResolverRegistry next to the HTLC, using the
+/// same SAC asset for stake. Returns the registry client and the
+/// minimum stake value used.
+fn setup_registry<'a>(
+    env: &'a Env,
+    stake_asset: &Address,
+) -> (Address, ResolverRegistryClient<'a>, i128) {
+    let registry_admin = Address::generate(env);
+    let slash_beneficiary = Address::generate(env);
+    let min_stake: i128 = 100_0000000; // 100 stake-asset units
+    let registry_id = env.register(ResolverRegistry, ());
+    let registry = ResolverRegistryClient::new(env, &registry_id);
+    registry.initialize(&registry_admin, stake_asset, &min_stake, &slash_beneficiary);
+    (registry_id, registry, min_stake)
+}
+
+#[test]
+fn create_order_succeeds_for_active_registered_resolver() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let (registry_id, registry, min_stake) = setup_registry(&env, &asset);
+    htlc.set_resolver_registry(&registry_id);
+
+    // Fund and register the resolver as an active staker.
+    let resolver = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&resolver, &(min_stake + 500_0000000));
+    registry.register(&resolver, &min_stake);
+    assert!(registry.is_active(&resolver));
+
+    let preimage = Bytes::from_array(&env, &[42u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    let amount = 100_0000000i128;
+    let order_id = htlc.create_order(
+        &resolver,
+        &beneficiary,
+        &resolver,
+        &asset,
+        &amount,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+    assert_eq!(order_id, 1);
+    assert_eq!(token.balance(&htlc.address), amount);
+
+    // Claim path must remain permissionless even though the registry is
+    // configured — the registry only gates create_order.
+    let outsider = Address::generate(&env);
+    htlc.claim_order(&order_id, &preimage, &outsider);
+    let order: Order = htlc.get_order(&order_id).unwrap();
+    assert_eq!(order.status, OrderStatus::Claimed);
+}
+
+#[test]
+fn create_order_rejects_unregistered_sender_when_registry_is_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let (registry_id, _registry, _min_stake) = setup_registry(&env, &asset);
+    htlc.set_resolver_registry(&registry_id);
+
+    // `stranger` was never registered with the registry.
+    let stranger = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&stranger, &100_0000000);
+
+    let preimage = Bytes::from_array(&env, &[11u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    let res = htlc.try_create_order(
+        &stranger,
+        &beneficiary,
+        &stranger,
+        &asset,
+        &10_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+    assert_eq!(
+        res.err().unwrap().unwrap(),
+        Error::ResolverNotAuthorised.into()
+    );
+}
+
+#[test]
+fn create_order_rejects_resolver_made_inactive_by_slash() {
+    // A resolver whose stake is slashed below the minimum is marked
+    // inactive by the registry. The HTLC must consult the live state on
+    // every create_order, not a cached snapshot.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let (registry_id, registry, min_stake) = setup_registry(&env, &asset);
+    htlc.set_resolver_registry(&registry_id);
+
+    let resolver = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&resolver, &(min_stake + 100_0000000));
+    registry.register(&resolver, &min_stake);
+    assert!(registry.is_active(&resolver));
+
+    // Slash the full stake — registry drops the resolver below the
+    // minimum and flips `active` to false.
+    registry.slash(&resolver, &min_stake);
+    assert!(!registry.is_active(&resolver));
+
+    let preimage = Bytes::from_array(&env, &[12u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+    let res = htlc.try_create_order(
+        &resolver,
+        &beneficiary,
+        &resolver,
+        &asset,
+        &10_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+    assert_eq!(
+        res.err().unwrap().unwrap(),
+        Error::ResolverNotAuthorised.into()
+    );
+}
+
+#[test]
+fn clear_resolver_registry_restores_permissionless_create_order() {
+    // After clear_resolver_registry the HTLC must accept any sender
+    // again — proves the binding is dynamic, not baked in at deploy.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let (registry_id, _registry, _min_stake) = setup_registry(&env, &asset);
+    htlc.set_resolver_registry(&registry_id);
+
+    let stranger = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&stranger, &100_0000000);
+
+    let preimage = Bytes::from_array(&env, &[13u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    // Blocked while registry is bound.
+    let blocked = htlc.try_create_order(
+        &stranger,
+        &beneficiary,
+        &stranger,
+        &asset,
+        &10_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+    assert_eq!(
+        blocked.err().unwrap().unwrap(),
+        Error::ResolverNotAuthorised.into()
+    );
+
+    // Admin clears the binding; the HTLC stays correct (hashlock +
+    // timelock still gate funds) and create_order becomes open again.
+    htlc.clear_resolver_registry();
+    let order_id = htlc.create_order(
+        &stranger,
+        &beneficiary,
+        &stranger,
+        &asset,
+        &10_0000000i128,
+        &0i128,
+        &hashlock,
+        &600u64,
+    );
+    assert_eq!(order_id, 1);
 }
