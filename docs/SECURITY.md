@@ -68,7 +68,7 @@ Pre-audit (Tranche 1):
 - [x] `SafeERC20` on every token transfer
 - [x] OpenZeppelin v5 used (`Ownable2Step` for the registry)
 - [x] 10 Soroban unit tests + 21 Hardhat unit tests in CI
-- [ ] Foundry fuzz + invariant tests (planned)
+- [x] Foundry fuzz + invariant tests (`contracts/test/foundry/HTLCEscrow.t.sol`, gated in CI)
 - [ ] Slither must-not-fail CI gate (currently advisory)
 - [ ] Differential testing: same hashlock works on both chains
 

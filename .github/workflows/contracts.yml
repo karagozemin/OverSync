@@ -11,6 +11,36 @@ on:
       - '.github/workflows/contracts.yml'
 
 jobs:
+  foundry:
+    name: Foundry fuzz + invariant tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace (for OZ remapping)
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Run Foundry fuzz + invariant tests
+        working-directory: contracts
+        run: forge test --match-path "test/foundry/*" -v
+
   slither:
     name: Slither static analysis (v2)
     runs-on: ubuntu-latest
