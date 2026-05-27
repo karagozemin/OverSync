@@ -5,4 +5,5 @@ packages:
   - 'frontend'
   - 'resolver'
   - 'coordinator'
+  - 'e2e'
   - 'packages/*'

@@ -206,6 +206,11 @@ pnpm --filter @oversync/contracts exec hardhat test test/v2
 # Build + test Soroban contracts
 cd soroban && cargo test --release && cd ..
 
+# Run the cross-chain differential test harness (EVM ↔ Soroban hashlock
+# parity, using the shared @oversync/sdk secret helpers). No live RPC
+# required — the harness drives in-memory simulators of each chain.
+pnpm test:e2e
+
 # Run coordinator
 pnpm --filter @oversync/coordinator dev
 
