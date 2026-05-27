@@ -64,5 +64,10 @@ export default defineConfig(({ mode }) => {
         'wagmi',
       ],
     },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+    },
   }
 }) 

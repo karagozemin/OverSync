@@ -50,6 +50,9 @@ jobs:
       - name: Test — SDK
         run: pnpm --filter @oversync/sdk test
 
+      - name: Test — frontend
+        run: pnpm --filter @oversync/frontend test
+
       - name: Test — coordinator
         run: pnpm --filter @oversync/coordinator test
 

@@ -4,6 +4,7 @@ import { createWalletClient, createPublicClient, custom, http, type Address } fr
 import { mainnet, sepolia } from "viem/chains";
 import { makeEthereumHTLCClient } from "../../lib/sdk-context";
 import { isTestnet } from "../../config/networks";
+import { useNetworkMode } from "../../lib/useNetworkMode";
 
 /**
  * Two on-chain refund flavors are supported:
@@ -79,6 +80,8 @@ export function RefundDialog(props: RefundDialogProps) {
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
+  const networkState = useNetworkMode({ ethAddress: props.userAddress });
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 5_000);
     return () => window.clearInterval(id);
@@ -94,6 +97,14 @@ export function RefundDialog(props: RefundDialogProps) {
   );
 
   async function handleRefund() {
+    if (networkState.hasAnyMismatch) {
+      setError(
+        `Wallet connected to ${networkState.metamaskChainId === "0x1" ? "Mainnet" : "wrong network"} while app is in ${networkState.mode === "testnet" ? "Testnet" : "Mainnet"} mode. Switch networks to continue.`
+      );
+      setPhase("error");
+      return;
+    }
+
     setError(null);
     setPhase("submitting");
     try {
@@ -235,7 +246,7 @@ export function RefundDialog(props: RefundDialogProps) {
 
       <button
         onClick={handleRefund}
-        disabled={phase !== "ready" && phase !== "error"}
+        disabled={(phase !== "ready" && phase !== "error") || networkState.hasAnyMismatch}
         className="brand-cta flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
       >
         {phase === "submitting" && <RefreshCw className="h-4 w-4 animate-spin" />}
