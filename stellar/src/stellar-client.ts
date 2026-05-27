@@ -15,6 +15,7 @@ import {
   generatePreimageAndHash,
   verifyPreimage,
 } from './claimable-balance.js';
+import { resolveStellarAsset } from '@oversync/sdk';
 
 /**
  * Cross-chain order data from Ethereum
@@ -48,13 +49,16 @@ export default class StellarClient {
   private config: StellarConfig;
   private relayerSecretKey: string;
 
+  private readonly isTestnet: boolean;
+
   constructor(isTestnet: boolean = true, relayerSecretKey?: string) {
+    this.isTestnet = isTestnet;
     this.config = isTestnet ? createTestnetConfig() : createMainnetConfig();
     this.htlcManager = new StellarHTLCManager(this.config);
-    
+
     // Use provided secret key or get from environment
-    this.relayerSecretKey = relayerSecretKey || 
-      process.env.RELAYER_STELLAR_SECRET || 
+    this.relayerSecretKey = relayerSecretKey ||
+      process.env.RELAYER_STELLAR_SECRET ||
       'SAMPLERELAYERSECRETKEYFORTEST12345678901234567890';
   }
 
@@ -69,10 +73,12 @@ export default class StellarClient {
     try {
       console.log(`🌉 Creating Stellar HTLC for Ethereum order ${order.ethereumOrderId}`);
 
+      const stellarAsset = resolveStellarAsset(order.token, this.isTestnet ? 'testnet' : 'mainnet');
       const params: HTLCClaimableBalanceParams = {
         sourceSecretKey: this.relayerSecretKey,
         recipientPublicKey: order.recipient,
-        assetCode: this.mapEthereumTokenToStellar(order.token),
+        assetCode: stellarAsset.code,
+        assetIssuer: stellarAsset.issuer,
         amount: order.amount,
         hashLock: order.hashLock,
         timelock: order.timelock,
@@ -225,22 +231,6 @@ export default class StellarClient {
   // PRIVATE HELPER METHODS  
   // ═══════════════════════════════════════════════════════════════════════════════════════
 
-  /**
-   * Map Ethereum token address to Stellar asset
-   * @param ethereumToken Ethereum token contract address
-   * @returns Stellar asset code
-   */
-  private mapEthereumTokenToStellar(ethereumToken: string): string {
-    // TODO: Implement proper token mapping
-    // For now, simplified mapping for development
-    const tokenMap: Record<string, string> = {
-      '0xA0b86a33E6417C4fd30ad9D05D6b9b7cd6dd11B': 'USDC', // Example USDC address
-      '0x0000000000000000000000000000000000000000': 'XLM',  // ETH → XLM mapping
-      // Add more token mappings as needed
-    };
-
-    return tokenMap[ethereumToken.toLowerCase()] || 'XLM';
-  }
 }
 
 // Export utilities for external use
