@@ -69,7 +69,7 @@ Pre-audit (Tranche 1):
 - [x] OpenZeppelin v5 used (`Ownable2Step` for the registry)
 - [x] 10 Soroban unit tests + 21 Hardhat unit tests in CI
 - [ ] Foundry fuzz + invariant tests (planned)
-- [ ] Slither must-not-fail CI gate (currently advisory)
+- [x] Slither must-not-fail CI gate (enforced: CI fails on HIGH severity findings only; MEDIUM severity findings are monitored but don't block merges)
 - [ ] Differential testing: same hashlock works on both chains
 
 Audit (Tranche 2):

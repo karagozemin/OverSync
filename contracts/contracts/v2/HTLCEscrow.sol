@@ -185,6 +185,7 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
         // Verify hashlock. We accept both sha256 and keccak256 digests
         // so that a Soroban-side counterpart (sha256) and a classic EVM
         // counterparty (keccak256) can share the same on-chain hashlock.
+        /// @custom:security slither-disable-next-line sha256
         bytes32 sha = sha256(preimage);
         bytes32 kek = keccak256(preimage);
         if (sha != order.hashlock && kek != order.hashlock) revert InvalidPreimage();
@@ -254,7 +255,8 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     function _payout(address token, address to, uint256 amount) private {
         if (token == address(0)) {
             // Native ETH transfer.
-            (bool ok, ) = payable(to).call{value: amount}("");
+            /// @custom:security slither-disable-next-line low-level-calls
+            (bool ok, ) = payable(to).call{value: amount}(""");
             if (!ok) revert NativeTransferFailed();
         } else {
             IERC20(token).safeTransfer(to, amount);
@@ -263,6 +265,7 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
 
     function _bytesToBytes32(bytes memory data) private pure returns (bytes32 result) {
         if (data.length == 0) return bytes32(0);
+        /// @custom:security slither-disable-next-line assembly
         assembly {
             result := mload(add(data, 32))
         }

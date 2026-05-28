@@ -194,6 +194,7 @@ contract ResolverRegistry is IResolverRegistry, Ownable2Step, ReentrancyGuard {
     // Internals
     // ---------------------------------------------------------------
 
+    /// @custom:security slither-disable-next-line assembly
     function _removeFromList(address resolver, uint256 idx) private {
         uint256 i = idx - 1; // 0-based
         uint256 last = _resolverList.length - 1;
