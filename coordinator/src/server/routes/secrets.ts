@@ -11,10 +11,10 @@ export function secretsRoutes(secrets: SecretService): Router {
     txHash: z.string().min(1)
   });
 
-  router.post("/secrets/reveal", (req, res, next) => {
+  router.post("/secrets/reveal", async (req, res, next) => {
     try {
       const body = revealSchema.parse(req.body);
-      secrets.reveal(body.publicId, body.preimage, body.txHash);
+      await secrets.reveal(body.publicId, body.preimage, body.txHash);
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -29,13 +29,17 @@ export function secretsRoutes(secrets: SecretService): Router {
     }
   });
 
-  router.get("/secrets/:publicId", (req, res) => {
-    const preimage = secrets.get(req.params.publicId);
-    if (!preimage) {
-      res.status(404).json({ error: "not_revealed" });
-      return;
+  router.get("/secrets/:publicId", async (req, res, next) => {
+    try {
+      const preimage = await secrets.get(req.params.publicId);
+      if (!preimage) {
+        res.status(404).json({ error: "not_revealed" });
+        return;
+      }
+      res.json({ publicId: req.params.publicId, preimage });
+    } catch (err) {
+      next(err);
     }
-    res.json({ publicId: req.params.publicId, preimage });
   });
 
   return router;

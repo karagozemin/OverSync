@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import pino from "pino";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { openDatabase } from "../src/persistence/db.js";
+import { openDatabase, PostgresStatement } from "../src/persistence/db.js";
 import { OrdersRepository } from "../src/persistence/orders-repo.js";
 import { OrderService, OrderValidationError } from "../src/services/order-service.js";
 import { SecretService } from "../src/services/secret-service.js";
@@ -25,7 +25,7 @@ describe("OrderService", () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
 
-    const order = orders.announce({
+    const order = await orders.announce({
       direction: "eth_to_xlm",
       hashlock: VALID_HASHLOCK,
       srcChain: "ethereum",
@@ -41,18 +41,18 @@ describe("OrderService", () => {
     expect(order.publicId).toMatch(/^[a-f0-9]{32}$/);
     expect(order.status).toBe("announced");
 
-    const byId = orders.get(order.publicId);
+    const byId = await orders.get(order.publicId);
     expect(byId).not.toBeNull();
     expect(byId!.hashlock).toBe(VALID_HASHLOCK);
 
-    const list = orders.history(VALID_ETH_ADDR);
+    const list = await orders.history(VALID_ETH_ADDR);
     expect(list).toHaveLength(1);
   });
 
   it("rejects duplicate hashlocks", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
-    orders.announce({
+    await orders.announce({
       direction: "eth_to_xlm",
       hashlock: VALID_HASHLOCK,
       srcChain: "ethereum",
@@ -66,7 +66,7 @@ describe("OrderService", () => {
       dstAmount: "1"
     });
 
-    expect(() =>
+    await expect(
       orders.announce({
         direction: "eth_to_xlm",
         hashlock: VALID_HASHLOCK,
@@ -80,13 +80,13 @@ describe("OrderService", () => {
         dstAsset: "native",
         dstAmount: "1"
       })
-    ).toThrowError(OrderValidationError);
+    ).rejects.toThrowError(OrderValidationError);
   });
 
   it("rejects mismatched direction / chains", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
-    expect(() =>
+    await expect(
       orders.announce({
         direction: "eth_to_xlm",
         hashlock: VALID_HASHLOCK,
@@ -100,7 +100,7 @@ describe("OrderService", () => {
         dstAsset: "native",
         dstAmount: "1"
       })
-    ).toThrowError(OrderValidationError);
+    ).rejects.toThrowError(OrderValidationError);
   });
 });
 
@@ -108,7 +108,7 @@ describe("SecretService", () => {
   it("rejects a preimage that doesn't hash to the order's hashlock", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
-    const order = orders.announce({
+    const order = await orders.announce({
       direction: "eth_to_xlm",
       hashlock: VALID_HASHLOCK,
       srcChain: "ethereum",
@@ -123,13 +123,34 @@ describe("SecretService", () => {
     });
     const secrets = new SecretService(orders, log);
     // Need src_locked status first
-    orders.recordSrcLock({
+    await orders.recordSrcLock({
       publicId: order.publicId,
       orderId: "1",
       txHash: "0xdead",
       blockNumber: 1,
       timelock: 0
     });
-    expect(() => secrets.reveal(order.publicId, "0xdeadbeef", "0xtx")).toThrow();
+    await expect(secrets.reveal(order.publicId, "0xdeadbeef", "0xtx")).rejects.toThrow();
+  });
+});
+
+describe("PostgresStatement", () => {
+  it("uses async execution and converts SQLite timestamp expressions", async () => {
+    const query = vi.fn(async () => ({ rowCount: 1, rows: [] }));
+    const stmt = new PostgresStatement(
+      { query } as unknown as ConstructorParameters<typeof PostgresStatement>[0],
+      `
+        UPDATE orders
+        SET updated_at = CAST(strftime('%s','now') AS INTEGER)
+        WHERE public_id = :publicId
+      `
+    );
+
+    await stmt.runAsync({ publicId: "order-1" });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("CAST(EXTRACT(EPOCH FROM NOW()) AS INTEGER)"),
+      ["order-1"]
+    );
   });
 });

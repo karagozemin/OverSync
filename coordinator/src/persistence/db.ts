@@ -55,11 +55,14 @@ export class PostgresStatement {
 
   private convertSqliteToPostgres(sql: string, params: any[]): { sql: string; params: any[] } {
     let index = 1;
-    let converted = sql;
+    let converted = sql.replace(
+      /CAST\(strftime\('%s','now'\) AS INTEGER\)/g,
+      "CAST(EXTRACT(EPOCH FROM NOW()) AS INTEGER)"
+    );
     const paramMap: { [key: string]: any } = {};
 
     // Extract named parameters
-    const namedParams = sql.match(/:(\w+)/g) || [];
+    const namedParams = converted.match(/:(\w+)/g) || [];
     namedParams.forEach((param) => {
       const name = param.slice(1);
       if (params.length > 0 && typeof params[0] === 'object' && params[0] !== null && !(params[0] instanceof Array)) {
@@ -73,7 +76,7 @@ export class PostgresStatement {
     });
 
     // Also handle ? placeholders
-    const questionMarks = (sql.match(/\?/g) || []).length;
+    const questionMarks = converted.match(/\?/g)?.length ?? 0;
     if (questionMarks > 0) {
       index = 1;
       converted = converted.replace(/\?/g, () => {

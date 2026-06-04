@@ -33,7 +33,7 @@ export class EthereumListener {
 
   start(): void {
     if (!this.cfg.ethereum.htlcEscrow) {
-      this.log.warn("ETH_HTLC_ESCROW not configured — Ethereum listener disabled");
+      this.log.warn("ETH_HTLC_ESCROW not configured - Ethereum listener disabled");
       return;
     }
     const address = this.cfg.ethereum.htlcEscrow;
@@ -44,30 +44,30 @@ export class EthereumListener {
         address,
         event: ORDER_CREATED,
         onLogs: (logs) => {
-          for (const log of logs) {
-            const hashlock = log.args.hashlock!;
-            const existing = (this.orders as any).repo?.findByHashlock?.(hashlock);
-            // OrderService doesn't expose direct repo access — we look up
-            // via getByHashlock through a thin helper at the service.
-            // For now we attempt by hashlock; if there is no announce
-            // record we log and skip so we never invent an order.
-            const order = existing ?? (this.orders as any).findByHashlock?.(hashlock);
-            if (!order) {
-              this.log.info({ hashlock, orderId: log.args.orderId?.toString() }, "ETH order observed without local announce");
-              return;
+          void (async () => {
+            for (const log of logs) {
+              const hashlock = log.args.hashlock!;
+              try {
+                const order = await this.orders.findByHashlock(hashlock);
+                if (!order) {
+                  this.log.info(
+                    { hashlock, orderId: log.args.orderId?.toString() },
+                    "ETH order observed without local announce"
+                  );
+                  continue;
+                }
+                await this.orders.recordSrcLock({
+                  publicId: order.publicId,
+                  orderId: log.args.orderId!.toString(),
+                  txHash: log.transactionHash,
+                  blockNumber: Number(log.blockNumber),
+                  timelock: Number(log.args.timelock!)
+                });
+              } catch (err) {
+                this.log.warn({ err, hashlock }, "could not record src lock");
+              }
             }
-            try {
-              this.orders.recordSrcLock({
-                publicId: order.publicId,
-                orderId: log.args.orderId!.toString(),
-                txHash: log.transactionHash,
-                blockNumber: Number(log.blockNumber),
-                timelock: Number(log.args.timelock!)
-              });
-            } catch (err) {
-              this.log.warn({ err, hashlock }, "could not record src lock");
-            }
-          }
+          })();
         }
       })
     );

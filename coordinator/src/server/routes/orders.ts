@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { OrderRow } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 
-function serialiseOrder(order: ReturnType<OrderService["get"]>) {
+function serialiseOrder(order: OrderRow | null) {
   if (!order) return null;
   return {
     id: order.publicId,
@@ -44,10 +45,10 @@ function serialiseOrder(order: ReturnType<OrderService["get"]>) {
 export function ordersRoutes(orders: OrderService): Router {
   const router = Router();
 
-  router.post("/orders/announce", (req, res, next) => {
+  router.post("/orders/announce", async (req, res, next) => {
     try {
       const parsed = announceSchema.parse(req.body);
-      const order = orders.announce(parsed);
+      const order = await orders.announce(parsed);
       res.status(201).json(serialiseOrder(order));
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -62,17 +63,21 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
-  router.get("/orders/:id", (req, res) => {
+  router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
-    const order = orders.get(id);
-    if (!order) {
-      res.status(404).json({ error: "not_found" });
-      return;
+    try {
+      const order = await orders.get(id);
+      if (!order) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      res.json(serialiseOrder(order));
+    } catch (err) {
+      next(err);
     }
-    res.json(serialiseOrder(order));
   });
 
-  router.get("/orders/history", (req, res) => {
+  router.get("/orders/history", async (req, res, next) => {
     const address = (req.query.address as string | undefined) ?? "";
     if (!address) {
       res.status(400).json({ error: "address_required" });
@@ -80,11 +85,15 @@ export function ordersRoutes(orders: OrderService): Router {
     }
     const limit = Math.min(Number(req.query.limit ?? 50), 200);
     const offset = Math.max(Number(req.query.offset ?? 0), 0);
-    const list = orders.history(address, limit, offset);
-    res.json({
-      transactions: list.map((o) => serialiseOrder(o)).filter(Boolean),
-      pagination: { limit, offset, count: list.length }
-    });
+    try {
+      const list = await orders.history(address, limit, offset);
+      res.json({
+        transactions: list.map((o) => serialiseOrder(o)).filter(Boolean),
+        pagination: { limit, offset, count: list.length }
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   const lockSchema = z.object({
@@ -94,10 +103,10 @@ export function ordersRoutes(orders: OrderService): Router {
     timelock: z.coerce.number().int().nonnegative()
   });
 
-  router.post("/orders/:id/src-locked", (req, res, next) => {
+  router.post("/orders/:id/src-locked", async (req, res, next) => {
     try {
       const body = lockSchema.parse(req.body);
-      orders.recordSrcLock({ publicId: req.params.id, ...body });
+      await orders.recordSrcLock({ publicId: req.params.id, ...body });
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -112,10 +121,10 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
-  router.post("/orders/:id/dst-locked", (req, res, next) => {
+  router.post("/orders/:id/dst-locked", async (req, res, next) => {
     try {
       const body = lockSchema.extend({ resolver: z.string().nullable().optional() }).parse(req.body);
-      orders.recordDstLock({
+      await orders.recordDstLock({
         publicId: req.params.id,
         orderId: body.orderId,
         txHash: body.txHash,

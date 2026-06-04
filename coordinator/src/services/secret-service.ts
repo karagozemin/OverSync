@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Logger } from "pino";
+import { keccak256, toHex } from "viem";
 import type { OrderService } from "./order-service.js";
 
 function bufferFromHex(s: string): Buffer {
@@ -11,11 +12,6 @@ function sha256Hex(buf: Buffer): string {
 }
 
 function keccak256Hex(buf: Buffer): string {
-  // Node has no built-in keccak; use the viem helper.
-  // We import lazily to keep this file pure-Node-stdlib friendly when
-  // possible.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { keccak256, toHex } = require("viem") as typeof import("viem");
   return keccak256(toHex(buf)) as `0x${string}`;
 }
 
@@ -39,8 +35,8 @@ export class SecretService {
    * coordinator verifies the preimage hashes to the order's hashlock
    * before storing it, so a malicious caller cannot poison the cache.
    */
-  reveal(publicId: string, preimage: string, txHash: string): { ok: true } {
-    const order = this.orders.get(publicId);
+  async reveal(publicId: string, preimage: string, txHash: string): Promise<{ ok: true }> {
+    const order = await this.orders.get(publicId);
     if (!order) {
       throw new Error(`unknown order ${publicId}`);
     }
@@ -54,7 +50,7 @@ export class SecretService {
       );
       throw new Error("preimage does not match order hashlock");
     }
-    this.orders.recordSecret(publicId, preimage, txHash);
+    await this.orders.recordSecret(publicId, preimage, txHash);
     return { ok: true };
   }
 
@@ -62,8 +58,8 @@ export class SecretService {
    * Look up a previously revealed preimage. Returns null if not
    * revealed yet.
    */
-  get(publicId: string): string | null {
-    const order = this.orders.get(publicId);
+  async get(publicId: string): Promise<string | null> {
+    const order = await this.orders.get(publicId);
     return order?.preimage ?? null;
   }
 }

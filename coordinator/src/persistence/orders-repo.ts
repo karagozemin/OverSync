@@ -3,6 +3,12 @@ import type { Database } from "./db.js";
 
 type DatabaseT = Database;
 type Statement = ReturnType<DatabaseT["prepare"]>;
+type StatementResult = { changes: number; lastInsertRowid: number };
+type AsyncCapableStatement = Statement & {
+  runAsync?: (...params: any[]) => Promise<StatementResult>;
+  getAsync?: (...params: any[]) => Promise<unknown>;
+  allAsync?: (...params: any[]) => Promise<unknown[]>;
+};
 
 export type OrderStatus =
   | "announced"
@@ -93,7 +99,7 @@ interface OrderDbRow {
 
 function rowToOrder(r: OrderDbRow): OrderRow {
   return {
-    id: r.id,
+    id: Number(r.id),
     publicId: r.public_id,
     direction: r.direction,
     status: r.status,
@@ -197,66 +203,98 @@ export class OrdersRepository {
     `);
   }
 
+  private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
+    const asyncStmt = stmt as AsyncCapableStatement;
+    if (asyncStmt.runAsync) {
+      return asyncStmt.runAsync(...params);
+    }
+    const result = stmt.run(...params);
+    return {
+      changes: Number(result.changes),
+      lastInsertRowid: Number(result.lastInsertRowid)
+    };
+  }
+
+  private async get<T>(stmt: Statement, ...params: any[]): Promise<T | undefined> {
+    const asyncStmt = stmt as AsyncCapableStatement;
+    if (asyncStmt.getAsync) {
+      return ((await asyncStmt.getAsync(...params)) ?? undefined) as T | undefined;
+    }
+    return stmt.get(...params) as T | undefined;
+  }
+
+  private async all<T>(stmt: Statement, ...params: any[]): Promise<T[]> {
+    const asyncStmt = stmt as AsyncCapableStatement;
+    if (asyncStmt.allAsync) {
+      return (await asyncStmt.allAsync(...params)) as T[];
+    }
+    return stmt.all(...params) as T[];
+  }
+
   /** Returns the public id of the new order. */
-  announce(input: AnnounceOrderInput): OrderRow {
+  async announce(input: AnnounceOrderInput): Promise<OrderRow> {
     const publicId = randomBytes(16).toString("hex");
-    this.insertStmt.run({ publicId, ...input });
-    const row = this.byPublicId.get(publicId) as OrderDbRow | undefined;
+    await this.run(this.insertStmt, { publicId, ...input });
+    const row = await this.get<OrderDbRow>(this.byPublicId, publicId);
     if (!row) throw new Error("Failed to insert order");
     return rowToOrder(row);
   }
 
-  findByPublicId(publicId: string): OrderRow | null {
-    const row = this.byPublicId.get(publicId) as OrderDbRow | undefined;
+  async findByPublicId(publicId: string): Promise<OrderRow | null> {
+    const row = await this.get<OrderDbRow>(this.byPublicId, publicId);
     return row ? rowToOrder(row) : null;
   }
 
-  findByHashlock(hashlock: string): OrderRow | null {
-    const row = this.byHashlock.get(hashlock) as OrderDbRow | undefined;
+  async findByHashlock(hashlock: string): Promise<OrderRow | null> {
+    const row = await this.get<OrderDbRow>(this.byHashlock, hashlock);
     return row ? rowToOrder(row) : null;
   }
 
-  findBySrcOrderId(chain: Chain, orderId: string): OrderRow | null {
-    const row = this.bySrcOrderId.get({ chain, orderId }) as OrderDbRow | undefined;
+  async findBySrcOrderId(chain: Chain, orderId: string): Promise<OrderRow | null> {
+    const row = await this.get<OrderDbRow>(this.bySrcOrderId, { chain, orderId });
     return row ? rowToOrder(row) : null;
   }
 
-  findByDstOrderId(chain: Chain, orderId: string): OrderRow | null {
-    const row = this.byDstOrderId.get({ chain, orderId }) as OrderDbRow | undefined;
+  async findByDstOrderId(chain: Chain, orderId: string): Promise<OrderRow | null> {
+    const row = await this.get<OrderDbRow>(this.byDstOrderId, { chain, orderId });
     return row ? rowToOrder(row) : null;
   }
 
-  findByAddress(addr: string, limit = 50, offset = 0): OrderRow[] {
-    const rows = this.byAddress.all({ addr, limit, offset }) as unknown as OrderDbRow[];
+  async findByAddress(addr: string, limit = 50, offset = 0): Promise<OrderRow[]> {
+    const rows = await this.all<OrderDbRow>(this.byAddress, { addr, limit, offset });
     return rows.map(rowToOrder);
   }
 
-  setStatus(publicId: string, status: OrderStatus): void {
-    this.updateStatus.run({ publicId, status });
+  async setStatus(publicId: string, status: OrderStatus): Promise<void> {
+    await this.run(this.updateStatus, { publicId, status });
   }
 
-  recordSrcLock(input: {
+  async recordSrcLock(input: {
     publicId: string;
     orderId: string;
     txHash: string;
     blockNumber: number;
     timelock: number;
-  }): void {
-    this.updateSrcLock.run(input);
+  }): Promise<void> {
+    await this.run(this.updateSrcLock, input);
   }
 
-  recordDstLock(input: {
+  async recordDstLock(input: {
     publicId: string;
     orderId: string;
     txHash: string;
     blockNumber: number;
     timelock: number;
     resolver: string | null;
-  }): void {
-    this.updateDstLock.run(input);
+  }): Promise<void> {
+    await this.run(this.updateDstLock, input);
   }
 
-  recordSecretRevealed(input: { publicId: string; preimage: string; txHash: string }): void {
-    this.updateSecret.run(input);
+  async recordSecretRevealed(input: {
+    publicId: string;
+    preimage: string;
+    txHash: string;
+  }): Promise<void> {
+    await this.run(this.updateSecret, input);
   }
 }

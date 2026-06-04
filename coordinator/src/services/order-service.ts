@@ -65,81 +65,85 @@ export class OrderService {
    * to all resolvers and the user can later attach the on-chain
    * `srcOrderId` once they have locked.
    */
-  announce(input: AnnounceInput): OrderRow {
+  async announce(input: AnnounceInput): Promise<OrderRow> {
     validateChainAddress(input.srcChain, input.srcAddress);
     validateChainAddress(input.dstChain, input.dstAddress);
     validateDirectionAgainstChains(input);
 
-    const existing = this.repo.findByHashlock(input.hashlock);
+    const existing = await this.repo.findByHashlock(input.hashlock);
     if (existing) {
       throw new OrderValidationError(
         `An order with hashlock ${input.hashlock} already exists (publicId=${existing.publicId})`
       );
     }
 
-    const order = this.repo.announce(input as AnnounceOrderInput);
+    const order = await this.repo.announce(input as AnnounceOrderInput);
     this.log.info({ publicId: order.publicId, direction: order.direction }, "order announced");
     return order;
   }
 
-  get(publicId: string): OrderRow | null {
+  get(publicId: string): Promise<OrderRow | null> {
     return this.repo.findByPublicId(publicId);
   }
 
-  history(address: string, limit?: number, offset?: number): OrderRow[] {
+  history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
     return this.repo.findByAddress(address, limit, offset);
   }
 
-  recordSrcLock(input: {
+  findByHashlock(hashlock: string): Promise<OrderRow | null> {
+    return this.repo.findByHashlock(hashlock);
+  }
+
+  async recordSrcLock(input: {
     publicId: string;
     orderId: string;
     txHash: string;
     blockNumber: number;
     timelock: number;
-  }): void {
-    const order = this.repo.findByPublicId(input.publicId);
+  }): Promise<void> {
+    const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
     if (!canTransition(order.status, "src_locked") && order.status !== "src_locked") {
       throw new OrderValidationError(`cannot record src lock from status ${order.status}`);
     }
-    this.repo.recordSrcLock(input);
+    await this.repo.recordSrcLock(input);
     this.log.info({ publicId: input.publicId, srcOrderId: input.orderId }, "src lock recorded");
   }
 
-  recordDstLock(input: {
+  async recordDstLock(input: {
     publicId: string;
     orderId: string;
     txHash: string;
     blockNumber: number;
     timelock: number;
     resolver: string | null;
-  }): void {
-    const order = this.repo.findByPublicId(input.publicId);
+  }): Promise<void> {
+    const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
     if (!canTransition(order.status, "dst_locked") && order.status !== "dst_locked") {
       throw new OrderValidationError(`cannot record dst lock from status ${order.status}`);
     }
-    this.repo.recordDstLock(input);
+    await this.repo.recordDstLock(input);
     this.log.info({ publicId: input.publicId, dstOrderId: input.orderId }, "dst lock recorded");
   }
 
-  recordSecret(publicId: string, preimage: string, txHash: string): void {
-    const order = this.repo.findByPublicId(publicId);
+  async recordSecret(publicId: string, preimage: string, txHash: string): Promise<void> {
+    const order = await this.repo.findByPublicId(publicId);
     if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
     if (!canTransition(order.status, "secret_revealed") && order.status !== "secret_revealed") {
       throw new OrderValidationError(`cannot record secret from status ${order.status}`);
     }
-    this.repo.recordSecretRevealed({ publicId, preimage, txHash });
+    await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
     this.log.info({ publicId }, "secret recorded");
   }
 
-  markStatus(publicId: string, status: OrderRow["status"]): void {
-    const order = this.repo.findByPublicId(publicId);
+  async markStatus(publicId: string, status: OrderRow["status"]): Promise<void> {
+    const order = await this.repo.findByPublicId(publicId);
     if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
     if (!canTransition(order.status, status)) {
       throw new OrderValidationError(`cannot transition from ${order.status} to ${status}`);
     }
-    this.repo.setStatus(publicId, status);
+    await this.repo.setStatus(publicId, status);
     this.log.info({ publicId, status }, "status updated");
   }
 }
