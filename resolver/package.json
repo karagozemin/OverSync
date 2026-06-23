@@ -12,12 +12,15 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "readiness": "tsx src/index.ts readiness"
   },
   "dependencies": {
+    "@oversync/sdk": "workspace:*",
     "@stellar/stellar-sdk": "^13.0.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
