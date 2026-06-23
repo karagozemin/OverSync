@@ -55,7 +55,7 @@ contract ResolverRegistry is IResolverRegistry, Ownable2Step, ReentrancyGuard {
     event Unregistered(address indexed resolver, uint256 stakeReturned);
     event Slashed(address indexed resolver, uint256 amount, address beneficiary);
     event MinStakeUpdated(uint256 oldMinStake, uint256 newMinStake);
-    event SlashBeneficiaryUpdated(address oldBeneficiary, address newBeneficiary);
+    event SlashBeneficiaryUpdated(address indexed oldBeneficiary, address indexed newBeneficiary);
 
     error InvalidAmount();
     error InvalidAddress();

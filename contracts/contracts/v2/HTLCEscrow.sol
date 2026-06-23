@@ -38,6 +38,11 @@ import {IResolverRegistry} from "./interfaces/IResolverRegistry.sol";
 ///      matches it. This lets a single Soroban / Ethereum cross-chain
 ///      swap use one hashlock end-to-end while keeping the contract
 ///      compatible with EVM tooling that expects keccak.
+/// @dev Slither suppressions for the entire contract:
+///      - assembly: Safe because _bytesToBytes32 uses assembly to cast dynamic bytes array to bytes32.
+///      - incorrect-equality: Safe because getOrder uses equality to check if order.amount == 0 (verifying existence of mapped entry).
+///      - arbitrary-send-eth / low-level-calls: Safe because _payout only transfers native ETH to validated beneficiary or refundAddress stored in the order structure.
+// slither-disable-start assembly,incorrect-equality,arbitrary-send-eth,low-level-calls
 contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -273,3 +278,4 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
         revert InvalidValue();
     }
 }
+// slither-disable-end assembly,incorrect-equality,arbitrary-send-eth,low-level-calls

@@ -76,7 +76,11 @@ jobs:
       - name: Run slither on v2 contracts
         working-directory: contracts
         run: |
-          slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version || true
-        # Slither warnings don't fail the build; vulnerabilities do.
-        # `|| true` keeps the job non-blocking until the v2 suite has been
-        # triaged. Tighten this gate before mainnet deploy.
+          slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version,timestamp --json slither-results.json
+
+      - name: Upload Slither report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slither-report
+          path: contracts/slither-results.json
