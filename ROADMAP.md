@@ -53,7 +53,7 @@ setting `VITE_MAINNET_ENABLED=true` in the frontend env (see
 | Foundry fuzz + invariant suite for `HTLCEscrow.sol` | 🛠 | `contracts/test/foundry/` directory + CI gate | GitHub Actions |
 | Slither must-not-fail CI gate (currently advisory) | 🛠 | Slither failure breaks the build | GitHub Actions |
 | Differential test harness across EVM ↔ Soroban (same hashlock and preimage round-trip) | 🗓 | `e2e/cross-chain.test.ts` | Local + CI |
-| Sepolia load test (1k concurrent orders, 2-week soak) | 🗓 | Public Sepolia dashboard + report | Dashboard URL |
+| Sepolia load test (1k concurrent orders, 2-week soak) | 🗓 | Public Sepolia dashboard + report (harness: [`e2e/load-test/`](e2e/load-test/harness.ts) · dry-run: `pnpm load-test` · live: `pnpm load-test:live`) | Dashboard URL |
 | Soroban resolver-registry binding enforcement in HTLC (currently soft) | 🗓 | Contract upgrade + 2 new tests | Soroban testnet |
 | Coordinator Postgres migration path | 🗓 | `coordinator/migrations/` + integration test | CI |
 | Coordinator observability stack (Prometheus + Grafana) | 🗓 | `coordinator/ops/` Docker compose | Repo |
