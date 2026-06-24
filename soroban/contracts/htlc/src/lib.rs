@@ -36,6 +36,17 @@ const MAX_TIMELOCK_SECONDS: u64 = 86_400;
 /// Ensures there is enough time for the user to actually claim.
 const MIN_TIMELOCK_SECONDS: u64 = 300;
 
+/// Ledger threshold below which instance storage TTL is extended on initialize.
+const INSTANCE_TTL_THRESHOLD: u32 = 50_000;
+/// Target TTL (in ledgers) for instance storage after an extend (~14 days at 5 s/ledger).
+const INSTANCE_TTL_TARGET: u32 = 100_000;
+
+/// Ledger threshold below which a persistent order entry TTL is extended.
+/// Applied on every write (create, claim, refund) so funded orders never expire.
+pub(crate) const ORDER_TTL_THRESHOLD: u32 = 50_000;
+/// Target TTL (in ledgers) for persistent order entries after an extend.
+pub(crate) const ORDER_TTL_TARGET: u32 = 100_000;
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -164,7 +175,7 @@ impl HtlcContract {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::NextOrderId, &1u64);
         env.storage().instance().set(&DataKey::MinSafetyDeposit, &min_safety_deposit);
-        env.storage().instance().extend_ttl(50_000, 100_000);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_TARGET);
     }
 
     /// Set or update the resolver registry contract address. Pass
@@ -301,7 +312,7 @@ impl HtlcContract {
         env.storage().persistent().set(&DataKey::Order(order_id), &order);
         env.storage()
             .persistent()
-            .extend_ttl(&DataKey::Order(order_id), 50_000, 100_000);
+            .extend_ttl(&DataKey::Order(order_id), ORDER_TTL_THRESHOLD, ORDER_TTL_TARGET);
 
         env.events().publish(
             (topic_created(), sender, beneficiary, hashlock),
@@ -358,6 +369,9 @@ impl HtlcContract {
         order.preimage = preimage.clone();
         order.finalised_at = env.ledger().timestamp();
         env.storage().persistent().set(&DataKey::Order(order_id), &order);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Order(order_id), ORDER_TTL_THRESHOLD, ORDER_TTL_TARGET);
 
         env.events().publish(
             (topic_claimed(), order.beneficiary.clone(), order.hashlock.clone()),
@@ -402,6 +416,9 @@ impl HtlcContract {
         order.status = OrderStatus::Refunded;
         order.finalised_at = env.ledger().timestamp();
         env.storage().persistent().set(&DataKey::Order(order_id), &order);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Order(order_id), ORDER_TTL_THRESHOLD, ORDER_TTL_TARGET);
 
         env.events().publish(
             (topic_refunded(), order.refund_address.clone(), order.hashlock.clone()),

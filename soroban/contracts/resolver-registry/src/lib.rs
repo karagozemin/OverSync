@@ -18,6 +18,21 @@ use soroban_sdk::{
     symbol_short, token, Address, Env, Symbol, Vec,
 };
 
+#[cfg(test)]
+mod test;
+
+/// Ledger threshold below which instance storage TTL is extended on initialize.
+const INSTANCE_TTL_THRESHOLD: u32 = 50_000;
+/// Target TTL (in ledgers) for instance storage after an extend (~14 days at 5 s/ledger).
+const INSTANCE_TTL_TARGET: u32 = 100_000;
+
+/// Ledger threshold below which a persistent resolver entry TTL is extended.
+/// Applied on every write (register, increase_stake, slash) so resolver records
+/// used by the HTLC `is_active` check never expire unexpectedly.
+pub(crate) const RESOLVER_TTL_THRESHOLD: u32 = 50_000;
+/// Target TTL (in ledgers) for persistent resolver entries after an extend.
+pub(crate) const RESOLVER_TTL_TARGET: u32 = 100_000;
+
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -85,7 +100,7 @@ impl ResolverRegistry {
         env.storage()
             .instance()
             .set(&DataKey::ResolverList, &Vec::<Address>::new(&env));
-        env.storage().instance().extend_ttl(50_000, 100_000);
+        env.storage().instance().extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_TARGET);
     }
 
     /// Register `resolver` by transferring `stake` from `resolver` into
@@ -123,7 +138,7 @@ impl ResolverRegistry {
             .set(&DataKey::Resolver(resolver.clone()), &info);
         env.storage()
             .persistent()
-            .extend_ttl(&DataKey::Resolver(resolver.clone()), 50_000, 100_000);
+            .extend_ttl(&DataKey::Resolver(resolver.clone()), RESOLVER_TTL_THRESHOLD, RESOLVER_TTL_TARGET);
 
         let mut list: Vec<Address> = env
             .storage()
@@ -162,6 +177,9 @@ impl ResolverRegistry {
         env.storage()
             .persistent()
             .set(&DataKey::Resolver(resolver.clone()), &info);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Resolver(resolver.clone()), RESOLVER_TTL_THRESHOLD, RESOLVER_TTL_TARGET);
         env.events()
             .publish((topic_increased(), resolver), (additional,));
     }
@@ -239,6 +257,9 @@ impl ResolverRegistry {
         env.storage()
             .persistent()
             .set(&DataKey::Resolver(resolver.clone()), &info);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Resolver(resolver.clone()), RESOLVER_TTL_THRESHOLD, RESOLVER_TTL_TARGET);
         env.events()
             .publish((topic_slashed(), resolver), (take,));
     }
