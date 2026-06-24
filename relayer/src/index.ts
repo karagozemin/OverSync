@@ -31,6 +31,15 @@ import { resolveEthereumRpcUrl } from './ethereum-rpc-url.js';
 // Load environment variables from root directory
 config({ path: resolve(process.cwd(), '../.env') });
 
+// ── Strict env validation — fail fast before any service code runs ──
+import { validateRelayerEnv } from './env-validation.js';
+try {
+  validateRelayerEnv();
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+
 // ✅ NETWORK-AWARE Dynamic Safety Deposit Helper Function
 function calculateDynamicSafetyDeposit(amountInWei: string | bigint, networkMode?: string): bigint {
   const ETH_USD_PRICE = 3500; // $3500 per ETH

@@ -1,6 +1,52 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+
+/**
+ * Build-time env validation plugin.
+ * Runs during `vite build` (and on dev-server start) so misconfigured
+ * testnet/mainnet deployments fail before any assets are compiled.
+ */
+function envValidationPlugin(env: Record<string, string>): Plugin {
+  return {
+    name: 'oversync-env-validation',
+    // Only validate during actual builds, not during vitest / dev server.
+    apply: 'build',
+    buildStart() {
+      const errors: string[] = [];
+
+      const apiBase = env['VITE_API_BASE_URL']?.trim();
+      if (!apiBase) {
+        errors.push('VITE_API_BASE_URL is required (e.g. http://localhost:3001)');
+      } else if (!apiBase.startsWith('http://') && !apiBase.startsWith('https://')) {
+        errors.push(`VITE_API_BASE_URL must be a valid HTTP(S) URL (got "${apiBase}")`);
+      }
+
+      const networkMode = (env['VITE_NETWORK'] ?? env['VITE_NETWORK_MODE'])?.trim();
+      if (!networkMode) {
+        errors.push("VITE_NETWORK is required ('testnet' or 'mainnet')");
+      } else if (networkMode !== 'testnet' && networkMode !== 'mainnet') {
+        errors.push(`VITE_NETWORK must be 'testnet' or 'mainnet' (got "${networkMode}")`);
+      }
+
+      const mainnetEnabled = env['VITE_MAINNET_ENABLED'] === 'true';
+      const auditConfirmed = env['VITE_MAINNET_AUDIT_CONFIRMED'] === 'true';
+      if (mainnetEnabled && !auditConfirmed) {
+        errors.push(
+          'VITE_MAINNET_ENABLED=true requires VITE_MAINNET_AUDIT_CONFIRMED=true. ' +
+          'Complete docs/DEPLOYMENT.md#mainnet-rollout-checklist first.'
+        );
+      }
+
+      if (errors.length > 0) {
+        throw new Error(
+          'Frontend build aborted — fix these env vars:\n' +
+          errors.map((e) => `  - ${e}`).join('\n')
+        );
+      }
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,7 +56,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
 
   return {
-    plugins: [react()],
+    plugins: [react(), envValidationPlugin(env)],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

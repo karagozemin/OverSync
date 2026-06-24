@@ -153,10 +153,65 @@ pnpm exec hardhat verify --network sepolia <ESCROW_ADDRESS> <REGISTRY_ADDRESS> <
 pnpm exec hardhat verify --network sepolia <REGISTRY_ADDRESS> <STAKE_ASSET> <MIN_STAKE> <SLASH_BENEFICIARY> <OWNER>
 ```
 
-## Mainnet rollout checklist
+## Environment validation
 
-Before setting `VITE_MAINNET_ENABLED=true` and flipping backend
-`NETWORK_MODE=mainnet`:
+Every service validates its configuration at startup and **exits immediately** with a
+descriptive error if required vars are missing or malformed. This prevents silent
+misconfiguration in CI/CD pipelines.
+
+| Service | Validation point | Behaviour on failure |
+|---|---|---|
+| coordinator | `loadConfig()` in `src/config.ts` | throws, `main()` calls `process.exit(1)` |
+| resolver | `loadConfig()` in `src/config.ts` | throws, `program.parseAsync()` bubbles it |
+| relayer | `validateRelayerEnv()` in `src/env-validation.ts` called at module load | `process.exit(1)` |
+| frontend | `envValidationPlugin` in `vite.config.ts` (build) + `src/config/env.ts` (runtime) | Vite build aborts |
+
+### Required variables per service
+
+**Coordinator** (`coordinator/`)
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NETWORK_MODE` | no (default `testnet`) | `testnet` or `mainnet` |
+| `MAINNET_AUDIT_CONFIRMED` | **yes when mainnet** | must be `true` |
+| `SEPOLIA_RPC_URL` / `INFURA_API_KEY` | yes | Ethereum RPC source |
+| `COORDINATOR_PORT` | no (default `3001`) | |
+| `DATABASE_URL` | no (default SQLite) | |
+
+**Resolver** (`resolver/`)
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NETWORK_MODE` | no (default `testnet`) | |
+| `MAINNET_AUDIT_CONFIRMED` | **yes when mainnet** | |
+| `RESOLVER_ETH_PRIVATE_KEY` | **yes** | 0x-prefixed 32-byte key |
+| `SEPOLIA_RPC_URL` / `INFURA_API_KEY` | yes | |
+
+**Relayer** (`relayer/`)
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NETWORK_MODE` | no (default `testnet`) | |
+| `MAINNET_AUDIT_CONFIRMED` | **yes when mainnet** | |
+| `SEPOLIA_RPC_URL` / `MAINNET_RPC_URL` / `INFURA_API_KEY` | **yes** | at least one |
+| `RELAYER_PRIVATE_KEY` | **yes** | 0x-prefixed 32-byte key |
+| `RELAYER_STELLAR_SECRET` | **yes** | Stellar secret key |
+| `RELAYER_STELLAR_PUBLIC` | **yes** | Stellar public key |
+| `RELAYER_RPC_TIMEOUT_MS` | no (default `30000`) | |
+
+**Frontend** (`frontend/`)
+
+| Variable | Required | Notes |
+|---|---|---|
+| `VITE_API_BASE_URL` | **yes** | e.g. `http://localhost:3001` |
+| `VITE_NETWORK` | **yes** | `testnet` or `mainnet` |
+| `VITE_MAINNET_ENABLED` | no (default `false`) | |
+| `VITE_MAINNET_AUDIT_CONFIRMED` | **yes when mainnet enabled** | must accompany `VITE_MAINNET_ENABLED=true` |
+
+### Mainnet rollout checklist
+
+Before setting `VITE_MAINNET_ENABLED=true` / `VITE_MAINNET_AUDIT_CONFIRMED=true` and
+flipping `NETWORK_MODE=mainnet` / `MAINNET_AUDIT_CONFIRMED=true`:
 
 - [ ] Both HTLC contracts independently audited (see [`SECURITY.md`](SECURITY.md))
 - [ ] `ResolverRegistry.owner` transferred to a 2/3 multisig
