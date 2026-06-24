@@ -10,6 +10,7 @@ import {
   type Keypair,
   type Transaction
 } from "@stellar/stellar-sdk";
+import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
 
 export interface SorobanHTLCClientOptions {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -127,7 +128,7 @@ export class SorobanHTLCClient {
     return this.simulateSignSubmit(callerAccountId, op, signer);
   }
 
-  async getOrder(orderId: bigint): Promise<unknown | null> {
+  async getOrder(orderId: bigint): Promise<SorobanOrderData | null> {
     const op = this.contract.call(
       "get_order",
       nativeToScVal(orderId, { type: "u64" })
@@ -147,7 +148,8 @@ export class SorobanHTLCClient {
     }
     const result = (sim as any).result;
     if (!result || !result.retval) return null;
-    return scValToNative(result.retval);
+    const native = scValToNative(result.retval);
+    return parseSorobanOrder(native);
   }
 
   private async simulateSignSubmit(
@@ -198,5 +200,113 @@ export function makeKeypairSigner(keypair: Keypair): SorobanSigner {
     const tx = TransactionBuilder.fromXDR(req.xdr, req.networkPassphrase) as Transaction;
     tx.sign(keypair);
     return tx.toXDR();
+  };
+}
+
+// ---------------------------------------------------------------
+// Soroban order parsing helpers
+// ---------------------------------------------------------------
+
+const STATUS_MAP: Record<string, SorobanOrderStatus> = {
+  Funded: "Funded",
+  Claimed: "Claimed",
+  Refunded: "Refunded",
+};
+
+function bytesToHex(value: unknown): `0x${string}` {
+  if (value instanceof Uint8Array || Buffer.isBuffer(value as Buffer)) {
+    return ("0x" +
+      Array.from(value as Uint8Array, (b) => b.toString(16).padStart(2, "0")).join("")) as `0x${string}`;
+  }
+  if (typeof value === "string") {
+    // Already a hex string (some SDK versions surface as string).
+    return (value.startsWith("0x") ? value : "0x" + value) as `0x${string}`;
+  }
+  throw new Error(`parseSorobanOrder: cannot convert value to hex: ${typeof value}`);
+}
+
+function toBigInt(value: unknown, field: string): bigint {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(value);
+  if (typeof value === "string") {
+    try {
+      return BigInt(value);
+    } catch {
+      throw new Error(`parseSorobanOrder: field "${field}" is not a numeric type (got string "${value}")`);
+    }
+  }
+  throw new Error(`parseSorobanOrder: field "${field}" is not a numeric type (got ${typeof value})`);
+}
+
+function toString(value: unknown, field: string): string {
+  if (typeof value === "string") return value;
+  throw new Error(`parseSorobanOrder: field "${field}" is not a string (got ${typeof value})`);
+}
+
+/**
+ * Parse/normalise a raw `scValToNative` return value from the Soroban
+ * HTLC contract's `get_order` into a typed {@link SorobanOrderData}.
+ *
+ * Returns `null` when `raw` is null/undefined (order not found).
+ * Throws a descriptive error for malformed payloads.
+ *
+ * This is exported as a pure function so callers that obtain the raw
+ * value through other means (e.g. event streaming) can still benefit
+ * from the typed normalisation.
+ */
+export function parseSorobanOrder(raw: unknown): SorobanOrderData | null {
+  if (raw === null || raw === undefined) return null;
+
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`parseSorobanOrder: expected an object, got ${Array.isArray(raw) ? "array" : typeof raw}`);
+  }
+
+  const r = raw as Record<string, unknown>;
+
+  const requiredFields = [
+    "id", "sender", "beneficiary", "refund_address", "asset",
+    "amount", "safety_deposit", "hashlock", "timelock",
+    "status", "preimage", "created_at", "finalised_at",
+  ] as const;
+
+  for (const f of requiredFields) {
+    if (!(f in r)) {
+      throw new Error(`parseSorobanOrder: missing required field "${f}"`);
+    }
+  }
+
+  const rawStatus = r["status"];
+  const status: SorobanOrderStatus =
+    typeof rawStatus === "string" && rawStatus in STATUS_MAP
+      ? STATUS_MAP[rawStatus]
+      : (() => { throw new Error(`parseSorobanOrder: unknown status value "${rawStatus}"`); })();
+
+  // preimage is an empty Bytes in Funded state; normalise to "".
+  let preimage: `0x${string}` | "" = "";
+  const rawPreimage = r["preimage"];
+  if (
+    rawPreimage !== null &&
+    rawPreimage !== undefined &&
+    !(rawPreimage instanceof Uint8Array && rawPreimage.length === 0) &&
+    !(Buffer.isBuffer(rawPreimage) && (rawPreimage as Buffer).length === 0) &&
+    rawPreimage !== ""
+  ) {
+    preimage = bytesToHex(rawPreimage);
+  }
+
+  return {
+    id: toBigInt(r["id"], "id"),
+    sender: toString(r["sender"], "sender"),
+    beneficiary: toString(r["beneficiary"], "beneficiary"),
+    refundAddress: toString(r["refund_address"], "refund_address"),
+    asset: toString(r["asset"], "asset"),
+    amount: toBigInt(r["amount"], "amount"),
+    safetyDeposit: toBigInt(r["safety_deposit"], "safety_deposit"),
+    hashlock: bytesToHex(r["hashlock"]),
+    timelock: toBigInt(r["timelock"], "timelock"),
+    status,
+    preimage,
+    createdAt: toBigInt(r["created_at"], "created_at"),
+    finalisedAt: toBigInt(r["finalised_at"], "finalised_at"),
   };
 }

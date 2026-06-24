@@ -1,6 +1,39 @@
 export type Chain = "ethereum" | "stellar";
 export type Direction = "eth_to_xlm" | "xlm_to_eth";
 
+// ---------------------------------------------------------------
+// Soroban HTLC order types
+// ---------------------------------------------------------------
+
+/** Lifecycle status returned by the Soroban HTLC contract. */
+export type SorobanOrderStatus = "Funded" | "Claimed" | "Refunded";
+
+/**
+ * Typed representation of a Soroban HTLC order, normalised from the
+ * raw `scValToNative` response. Field names use camelCase to match the
+ * Ethereum `OrderData` ergonomics.
+ */
+export interface SorobanOrderData {
+  id: bigint;
+  sender: string;
+  beneficiary: string;
+  refundAddress: string;
+  /** Stellar asset contract address. */
+  asset: string;
+  /** Amount in the asset's smallest unit (stroops for XLM). */
+  amount: bigint;
+  safetyDeposit: bigint;
+  /** sha256 hashlock as a 0x-prefixed hex string. */
+  hashlock: `0x${string}`;
+  /** Absolute unix-second timestamp after which refund is valid. */
+  timelock: bigint;
+  status: SorobanOrderStatus;
+  /** Revealed preimage as 0x-prefixed hex, empty string when not yet claimed. */
+  preimage: `0x${string}` | "";
+  createdAt: bigint;
+  finalisedAt: bigint;
+}
+
 export type OrderStatus =
   | "announced"
   | "src_locked"

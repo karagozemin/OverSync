@@ -12,6 +12,7 @@ export {
 export {
   SorobanHTLCClient,
   makeKeypairSigner,
+  parseSorobanOrder,
   type SorobanHTLCClientOptions,
   type SorobanCreateOrderInput,
   type SorobanSigner
