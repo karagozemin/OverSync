@@ -38,11 +38,6 @@ import {IResolverRegistry} from "./interfaces/IResolverRegistry.sol";
 ///      matches it. This lets a single Soroban / Ethereum cross-chain
 ///      swap use one hashlock end-to-end while keeping the contract
 ///      compatible with EVM tooling that expects keccak.
-/// @dev Slither suppressions for the entire contract:
-///      - assembly: Safe because _bytesToBytes32 uses assembly to cast dynamic bytes array to bytes32.
-///      - incorrect-equality: Safe because getOrder uses equality to check if order.amount == 0 (verifying existence of mapped entry).
-///      - arbitrary-send-eth / low-level-calls: Safe because _payout only transfers native ETH to validated beneficiary or refundAddress stored in the order structure.
-// slither-disable-start assembly,incorrect-equality,arbitrary-send-eth,low-level-calls
 contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -182,6 +177,8 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
         Order storage order = _orders[orderId];
         if (order.status != OrderStatus.Funded) {
             // Either non-existent or already finalised; both look the same to the caller.
+            // Suppress incorrect-equality: Safe because we check order.amount == 0 to verify the existence of the mapping entry.
+            // slither-disable-next-line incorrect-equality
             if (order.amount == 0) revert OrderNotFound();
             revert OrderNotClaimable();
         }
@@ -215,6 +212,8 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     function refundOrder(uint256 orderId) external nonReentrant {
         Order storage order = _orders[orderId];
         if (order.status != OrderStatus.Funded) {
+            // Suppress incorrect-equality: Safe because we check order.amount == 0 to verify the existence of the mapping entry.
+            // slither-disable-next-line incorrect-equality
             if (order.amount == 0) revert OrderNotFound();
             revert OrderNotRefundable();
         }
@@ -241,6 +240,8 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     /// @inheritdoc IHTLCEscrow
     function getOrder(uint256 orderId) external view returns (Order memory) {
         Order memory order = _orders[orderId];
+        // Suppress incorrect-equality: Safe because we check order.amount == 0 to verify the existence of the mapping entry.
+        // slither-disable-next-line incorrect-equality
         if (order.amount == 0) revert OrderNotFound();
         return order;
     }
@@ -256,6 +257,9 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
     // Internals
     // ---------------------------------------------------------------
 
+    /// @dev Suppress arbitrary-send-eth and low-level-calls: Safe because _payout only transfers native ETH to the validated beneficiary or refundAddress stored in the order structure.
+    // slither-disable-next-line arbitrary-send-eth
+    // slither-disable-next-line low-level-calls
     function _payout(address token, address to, uint256 amount) private {
         if (token == address(0)) {
             // Native ETH transfer.
@@ -266,6 +270,8 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
         }
     }
 
+    /// @dev Suppress assembly: Safe because _bytesToBytes32 only uses assembly to cast a dynamic bytes array to bytes32.
+    // slither-disable-next-line assembly
     function _bytesToBytes32(bytes memory data) private pure returns (bytes32 result) {
         if (data.length == 0) return bytes32(0);
         assembly {
@@ -278,4 +284,3 @@ contract HTLCEscrow is IHTLCEscrow, ReentrancyGuard {
         revert InvalidValue();
     }
 }
-// slither-disable-end assembly,incorrect-equality,arbitrary-send-eth,low-level-calls

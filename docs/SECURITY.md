@@ -108,4 +108,4 @@ To run the Slither checks locally:
 
 *(Note: If running within a Dockerized environment like `trailofbits/eth-security-toolbox:latest`, ensure that you mount the workspace and switch the `solc-select` compiler version to `0.8.24` beforehand).*
 
-All resolved and triaged findings are maintained in the triage database [slither.db.json](file:///c:/Users/sayan/OverSync/contracts/slither.db.json).
+All justified and triaged Slither findings are documented and suppressed inline directly within the smart contract files (e.g., [`contracts/v2/HTLCEscrow.sol`](../contracts/contracts/v2/HTLCEscrow.sol)) using specific annotations (such as `// slither-disable-next-line`). Reviewers can inspect these comments and their justifications within the codebase to validate the accepted suppressions.
