@@ -5,7 +5,7 @@
     "name": "Sepolia",
     "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
     "contracts": {
-      "HTLCEscrow": "0xb352339BEb146f2699d28D736700B953988bB178",
+      "HTLCEscrow": "0xDEADBEEF00146f2699d28D736700B953988bB178",
       "ResolverRegistry": "0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99"
     },
     "deployedAt": "2026-05-14",
