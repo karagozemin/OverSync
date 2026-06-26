@@ -11,8 +11,6 @@
  * to prevent accidental production deployments.
  */
 
-type Env = Record<string, string | undefined>;
-
 function e(key: string): string | undefined {
   return (import.meta as any).env?.[key]?.trim() || undefined;
 }
