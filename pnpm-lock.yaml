@@ -70,6 +70,9 @@ importers:
 
   coordinator:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^13.0.0
         version: 13.3.0
@@ -284,6 +287,9 @@ importers:
 
   relayer:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^11.3.0
         version: 11.3.0
@@ -333,6 +339,9 @@ importers:
 
   resolver:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^13.0.0
         version: 13.3.0

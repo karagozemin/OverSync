@@ -2,6 +2,7 @@ import { loadConfig } from "../config.js";
 import { getLogger } from "../logger.js";
 import { EthereumListener } from "../listeners/ethereum.js";
 import { SorobanListener } from "../listeners/soroban.js";
+import { redactLogObject } from "@oversync/sdk/logging";
 
 export async function runCommand(): Promise<void> {
   const cfg = loadConfig();
@@ -19,7 +20,7 @@ export async function runCommand(): Promise<void> {
       // observe-only and the reference coordinator handles secret relay.
     },
     onOrderClaimed: (e) => {
-      log.info({ orderId: e.orderId.toString(), preimage: e.preimage }, "ETH order claimed");
+      log.info(redactLogObject({ orderId: e.orderId.toString(), preimage: e.preimage }), "ETH order claimed");
     },
     onOrderRefunded: (e) => {
       log.info({ orderId: e.orderId.toString() }, "ETH order refunded");

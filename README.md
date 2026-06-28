@@ -95,6 +95,17 @@ source code or block explorer.
 
 ---
 
+### Log Redaction
+
+Coordinator, resolver, and relayer logs use `@oversync/sdk/logging` for
+log-safe payloads. Redaction matches sensitive keys case-insensitively
+after removing separators, including `secret`, `preimage`, `privateKey`,
+`token`, `authorization`, `signedXdr`, and `mnemonic`. Safe debugging
+context such as order IDs, chain names, addresses, statuses, transaction
+hashes, and failure codes should remain visible.
+
+---
+
 ## How a swap actually works (60-second tour)
 
 ```

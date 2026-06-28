@@ -11,6 +11,7 @@ import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { ethers } from 'ethers';
+import { redactLogString } from '@oversync/sdk/logging';
 import { startRefundWatchdog } from './refund-watchdog.js';
 import { startContractEventPoller, type ContractEventBinding, type ContractEventPollerHandle } from './contract-event-poller.js';
 import { startAdaptivePoll, type AdaptivePollHandle } from './adaptive-poll.js';
@@ -1411,7 +1412,7 @@ async function initializeRelayer() {
           
           console.log('💰 REAL MODE: Sending actual ETH transaction (process endpoint)');
           console.log('🔗 RPC URL:', rpcUrl);
-          console.log('🔑 Using real private key:', privateKey.substring(0, 10) + '...');
+          console.log('🔑 Using real private key:', redactLogString(privateKey));
           
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const relayerWallet = new ethers.Wallet(privateKey, provider);
@@ -1890,7 +1891,7 @@ async function initializeRelayer() {
         
         console.log('💰 REAL MODE: Sending actual ETH transaction');
         console.log('🔗 RPC URL:', rpcUrl);
-        console.log('🔑 Using real private key:', privateKey.substring(0, 10) + '...');
+        console.log('🔑 Using real private key:', redactLogString(privateKey));
         
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         const relayerWallet = new ethers.Wallet(privateKey, provider);
