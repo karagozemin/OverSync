@@ -3,6 +3,8 @@ import { Clock, CheckCircle, XCircle, ArrowRight, ExternalLink, RefreshCw, Undo2
 import { isTestnet } from '../config/networks';
 import RefundDialog from '../features/refund/RefundDialog';
 import CopyableIdentifier from './CopyableIdentifier';
+import OrderStaleBanner from './OrderStaleBanner';
+import { classifyOrderFreshness } from '../lib/orderFreshness';
 import type { Address } from 'viem';
 
 interface Transaction {
@@ -485,6 +487,15 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
                   )}
                 </div>
               </div>
+
+              <OrderStaleBanner
+                freshness={classifyOrderFreshness({
+                  status: tx.status,
+                  updatedAt: tx.timestamp,
+                  nowMs: Date.now(),
+                  timelockUnixSeconds: tx.timelockUnixSeconds,
+                })}
+              />
             </div>
           ))
         )}
