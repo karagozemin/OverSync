@@ -39,6 +39,15 @@ program
     await unregisterCommand();
   });
 
+program
+  .command("check")
+  .description("Run a preflight check to verify if the resolver is active in configured registries.")
+  .action(async () => {
+    const { checkCommand } = await import("./commands/check.js");
+    await checkCommand();
+  });
+
+
 program.parseAsync().catch((err) => {
   console.error(err);
   process.exit(1);
