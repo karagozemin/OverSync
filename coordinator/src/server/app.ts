@@ -15,15 +15,19 @@ import type { QuoteService } from "../services/quote-service.js";
 export interface AppDeps {
   log: Logger;
   corsOrigin: string;
+  /** Maximum allowed JSON request body size in bytes. Default: 65536 (64 KiB). */
+  maxRequestBodyBytes: number;
   orders: OrderService;
   secrets: SecretService;
   quotes: QuoteService;
 }
 
 export function createApp(deps: AppDeps): Express {
+  const { maxRequestBodyBytes } = deps;
   const app = express();
   app.use(pinoHttp({ logger: deps.log }));
-  app.use(express.json({ limit: "1mb" }));
+  // Reject bodies exceeding the configured limit before any route logic runs.
+  app.use(express.json({ limit: maxRequestBodyBytes }));
   app.use(
     cors({
       origin: deps.corsOrigin === "*" ? true : deps.corsOrigin.split(","),
@@ -46,6 +50,25 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api", ordersRoutes(deps.orders));
   app.use("/api", secretsRoutes(deps.secrets));
   app.use("/api", quotesRoutes(deps.quotes));
+
+  // 413 handler — catches oversized request bodies before the generic error handler.
+  app.use(
+    (
+      err: Error & { type?: string; status?: number },
+      _req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (err.type === "entity.too.large" || err.status === 413) {
+        res.status(413).json({
+          error: "payload_too_large",
+          message: `Request body exceeds the ${maxRequestBodyBytes}-byte limit`
+        });
+        return;
+      }
+      next(err);
+    }
+  );
 
   // Final error handler — never leak a stack trace to clients.
   app.use(
