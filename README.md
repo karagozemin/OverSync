@@ -252,6 +252,7 @@ threat model.
 | [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md) | Non-custodial proofs and per-actor threat analysis |
 | [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) | Comparison with CCTP v2, Axelar ITS, Allbridge; where OverSync is the right vs wrong tool |
 | [`docs/TRACTION.md`](docs/TRACTION.md) | Go-to-market, KPIs we publish, partnership pipeline |
+| [`docs/METRICS_SCHEMA.md`](docs/METRICS_SCHEMA.md) | Public metrics schema: definitions, units, sources, cadence, and privacy boundaries |
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
