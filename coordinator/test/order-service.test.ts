@@ -49,7 +49,7 @@ describe("OrderService", () => {
     expect(list).toHaveLength(1);
   });
 
-  it("rejects duplicate hashlocks", async () => {
+  it("rejects duplicate hashlocks with VALIDATION_FAILED code", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
     await orders.announce({
@@ -66,8 +66,8 @@ describe("OrderService", () => {
       dstAmount: "1"
     });
 
-    await expect(
-      orders.announce({
+    try {
+      await orders.announce({
         direction: "eth_to_xlm",
         hashlock: VALID_HASHLOCK,
         srcChain: "ethereum",
@@ -79,15 +79,19 @@ describe("OrderService", () => {
         dstAddress: VALID_STELLAR_ADDR,
         dstAsset: "native",
         dstAmount: "1"
-      })
-    ).rejects.toThrowError(OrderValidationError);
+      });
+      throw new Error("Should have failed");
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(OrderValidationError);
+      expect(err.code).toBe("VALIDATION_FAILED");
+    }
   });
 
-  it("rejects mismatched direction / chains", async () => {
+  it("rejects mismatched direction / chains with VALIDATION_FAILED code", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
-    await expect(
-      orders.announce({
+    try {
+      await orders.announce({
         direction: "eth_to_xlm",
         hashlock: VALID_HASHLOCK,
         srcChain: "stellar",
@@ -99,8 +103,12 @@ describe("OrderService", () => {
         dstAddress: VALID_ETH_ADDR,
         dstAsset: "native",
         dstAmount: "1"
-      })
-    ).rejects.toThrowError(OrderValidationError);
+      });
+      throw new Error("Should have failed");
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(OrderValidationError);
+      expect(err.code).toBe("VALIDATION_FAILED");
+    }
   });
 });
 

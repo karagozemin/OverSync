@@ -44,6 +44,71 @@ export type OrderStatus =
   | "failed"
   | "expired";
 
+export type FailureCode = 
+  | "ORDER_EXPIRED" 
+  | "INSUFFICIENT_LIQUIDITY" 
+  | "RESOLVER_TIMEOUT" 
+  | "SETTLEMENT_REJECTED" 
+  | "INVALID_SIGNATURE" 
+  | "CHAIN_RPC_UNAVAILABLE" 
+  | "VALIDATION_FAILED" 
+  | "ORDER_NOT_FOUND"
+  | "INTERNAL_ERROR";
+
+export interface FailureCodeDetail {
+  code: FailureCode;
+  message: string;
+  category: "user-actionable" | "system-transient" | "permanent";
+}
+
+export const FAILURE_CODE_CATALOG: Record<FailureCode, FailureCodeDetail> = {
+  ORDER_EXPIRED: {
+    code: "ORDER_EXPIRED",
+    message: "The order has expired and can now be refunded.",
+    category: "user-actionable",
+  },
+  INSUFFICIENT_LIQUIDITY: {
+    code: "INSUFFICIENT_LIQUIDITY",
+    message: "Insufficient liquidity to complete the order at this time.",
+    category: "system-transient",
+  },
+  RESOLVER_TIMEOUT: {
+    code: "RESOLVER_TIMEOUT",
+    message: "The resolver failed to respond within the expected time.",
+    category: "system-transient",
+  },
+  SETTLEMENT_REJECTED: {
+    code: "SETTLEMENT_REJECTED",
+    message: "The settlement transaction was rejected by the network.",
+    category: "permanent",
+  },
+  INVALID_SIGNATURE: {
+    code: "INVALID_SIGNATURE",
+    message: "The provided signature is invalid.",
+    category: "user-actionable",
+  },
+  CHAIN_RPC_UNAVAILABLE: {
+    code: "CHAIN_RPC_UNAVAILABLE",
+    message: "The blockchain network is currently unreachable.",
+    category: "system-transient",
+  },
+  VALIDATION_FAILED: {
+    code: "VALIDATION_FAILED",
+    message: "The order failed validation checks.",
+    category: "user-actionable",
+  },
+  ORDER_NOT_FOUND: {
+    code: "ORDER_NOT_FOUND",
+    message: "The requested order could not be found.",
+    category: "permanent",
+  },
+  INTERNAL_ERROR: {
+    code: "INTERNAL_ERROR",
+    message: "An unexpected internal error occurred.",
+    category: "permanent",
+  },
+};
+
 /** Cross-chain swap order as visible to clients of the SDK. */
 export interface Order {
   publicId: string;

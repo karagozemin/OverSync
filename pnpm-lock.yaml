@@ -70,6 +70,9 @@ importers:
 
   coordinator:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^13.0.0
         version: 13.3.0
@@ -333,6 +336,9 @@ importers:
 
   resolver:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^13.0.0
         version: 13.3.0
@@ -3857,7 +3863,7 @@ packages:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.17
-      vite: 5.4.19(@types/node@20.19.7)
+      vite: 5.4.19(@types/node@22.19.19)
     dev: true
 
   /@vitest/pretty-format@2.1.9:
