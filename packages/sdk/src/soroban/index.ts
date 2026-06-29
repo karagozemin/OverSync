@@ -12,6 +12,8 @@ import {
 } from "@stellar/stellar-sdk";
 import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
 import { assertValidSecretFormat } from "../secrets/index.js";
+import * as Errors from "../errors/index.js";
+const { OverSyncError, OverSyncErrorCode, normalizeError } = Errors;
 
 export interface SorobanHTLCClientOptions {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */

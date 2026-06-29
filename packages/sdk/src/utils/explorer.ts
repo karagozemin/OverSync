@@ -3,13 +3,13 @@ export type SupportedNetwork = "sepolia" | "ethereum-mainnet" | "stellar-testnet
 /**
  * Returns the block explorer URL for a given transaction hash.
  * Mainnet UI paths are intentionally disabled (returns null).
- * 
+ *
  * @param network Network name (e.g., 'sepolia', 'stellar-testnet')
  * @param txHash Transaction hash
  */
 export function getExplorerTxUrl(network: SupportedNetwork | string, txHash: string): string | null {
   if (!txHash) return null;
-  
+
   switch (network) {
     case "sepolia":
       return `https://sepolia.etherscan.io/tx/${txHash}`;
@@ -26,13 +26,13 @@ export function getExplorerTxUrl(network: SupportedNetwork | string, txHash: str
 /**
  * Returns the block explorer URL for a given EVM address or Stellar account.
  * Mainnet UI paths are intentionally disabled (returns null).
- * 
+ *
  * @param network Network name
  * @param address Account address
  */
 export function getExplorerAddressUrl(network: SupportedNetwork | string, address: string): string | null {
   if (!address) return null;
-  
+
   switch (network) {
     case "sepolia":
       return `https://sepolia.etherscan.io/address/${address}`;
@@ -49,13 +49,13 @@ export function getExplorerAddressUrl(network: SupportedNetwork | string, addres
 /**
  * Returns the block explorer URL for a smart contract.
  * Mainnet UI paths are intentionally disabled (returns null).
- * 
+ *
  * @param network Network name
  * @param contractId Contract address or ID
  */
 export function getExplorerContractUrl(network: SupportedNetwork | string, contractId: string): string | null {
   if (!contractId) return null;
-  
+
   switch (network) {
     case "sepolia":
       return `https://sepolia.etherscan.io/address/${contractId}`;
