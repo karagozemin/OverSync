@@ -36,7 +36,7 @@ The coordinator's main job is to publish order book metadata and relay the secre
   1. **Refund path** — if the resolver fails to reveal the secret, the user can wait for the timelock to expire and call `refund` directly on the source-chain contract. No coordinator required.
   2. **Manual claim path** — if the user sees the `OrderClaimed` event on the source chain, they can submit the preimage on the destination chain themselves.
 
-Anyone can run their own coordinator from the open-source code in [`coordinator/`](coordinator/). The order book is fully rebuildable from on-chain events, so ecosystem participants have a strong incentive to keep a replacement live.
+Anyone can run their own coordinator from the open-source code in [`coordinator/`](../coordinator/). The order book is fully rebuildable from on-chain events, so ecosystem participants have a strong incentive to keep a replacement live.
 
 See [`docs/TRUST_MODEL.md`](TRUST_MODEL.md#coordinator-compromise) for the full threat matrix.
 
@@ -113,7 +113,7 @@ OverSync does not use an attester or validator set at all. Settlement is permiss
 | Hash/consensus break | ❌ Cannot steal funds | ❌ Also cannot steal funds |
 | Compromise Ethereum or Stellar consensus | ❌ Both fail | ❌ Both fail |
 
-For the full competitive analysis, see [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) and the trust comparison matrix in [`README.md`](../README.md).
+For the full competitive analysis, see [`docs/DIFFERENTIATION.md`](DIFFERENTIATION.md) and the trust comparison matrix in [`README.md`](../README.md).
 
 ---
 
@@ -121,7 +121,7 @@ For the full competitive analysis, see [`docs/DIFFERENTIATION.md`](docs/DIFFEREN
 
 **OverSync v2 mainnet launch is gated by a checklist, not a calendar.**
 
-The team has been explicit that mainnet will not be re-enabled until the following conditions are satisfied. This is documented in [`docs/TRUST_MODEL.md`](TRUST_MODEL.md#open-questions--roadmap), [`docs/SECURITY.md`](SECURITY.md#audit-preparation-checklist), and [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md).
+The team has been explicit that mainnet will not be re-enabled until the following conditions are satisfied. This is documented in [`docs/TRUST_MODEL.md`](TRUST_MODEL.md#open-questions--roadmap), [`docs/SECURITY.md`](SECURITY.md#audit-preparation-checklist), and [`docs/REVIEW_RESPONSE.md`](REVIEW_RESPONSE.md).
 
 ### Audit readiness (Tranche 1 & 2)
 
@@ -154,6 +154,6 @@ The team has been explicit that mainnet will not be re-enabled until the followi
 - Detailed trust model: [`docs/TRUST_MODEL.md`](TRUST_MODEL.md)
 - Security posture and audit plan: [`docs/SECURITY.md`](SECURITY.md)
 - Resolver economics: [`docs/RESOLVERS.md`](RESOLVERS.md)
-- Competitive analysis: [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md)
+- Competitive analysis: [`docs/DIFFERENTIATION.md`](DIFFERENTIATION.md)
 - Contract tests (EVM): [`contracts/test/v2/HTLCEscrow.test.ts`](../contracts/test/v2/HTLCEscrow.test.ts), [`contracts/test/foundry/HTLCEscrow.t.sol`](../contracts/test/foundry/HTLCEscrow.t.sol), [`contracts/test/v2/ResolverRegistry.test.ts`](../contracts/test/v2/ResolverRegistry.test.ts)
 - Contract tests (Soroban): [`soroban/contracts/htlc/src/test.rs`](../soroban/contracts/htlc/src/test.rs), [`soroban/contracts/resolver-registry/src/test.rs`](../soroban/contracts/resolver-registry/src/test.rs)
