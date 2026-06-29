@@ -272,6 +272,7 @@ threat model.
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
 | [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | Post-demo evidence pack template for reviewer and investor follow-up |
 | [`docs/PARTNER_MAP.md`](docs/PARTNER_MAP.md) | Partner and referrer map: target stakeholders, concrete asks, outreach template |
+| [`docs/MAINNET_READINESS_SCORECARD.md`](docs/MAINNET_READINESS_SCORECARD.md) | Gate-by-gate checklist (audit, uptime, refunds, resolvers, observability, bounty, governance) that controls when mainnet is enabled |
 
 ---
 
