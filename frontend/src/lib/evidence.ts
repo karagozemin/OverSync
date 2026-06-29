@@ -96,7 +96,7 @@ export function buildEvidenceData(): EvidenceData {
     testnetContractCount: V2_CONTRACTS.length,
     testCoverage: TEST_COVERAGE_FIXTURE,
     generatedAt: new Date().toISOString(),
-    repoUrl: 'https://github.com/karagozemin/OverSync-1nchFusion',
+    repoUrl: 'https://github.com/karagozemin/OverSync',
   };
 }
 
