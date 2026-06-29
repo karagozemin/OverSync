@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import type { Logger } from "pino";
 import { healthRoutes } from "./routes/health.js";
+import type { DbProbe } from "./routes/health.js";
 import { metricsRoutes } from "./routes/metrics.js";
 import { httpRequestDuration } from "../metrics.js";
 import { ordersRoutes } from "./routes/orders.js";
@@ -11,10 +12,14 @@ import { quotesRoutes } from "./routes/quotes.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
 import type { QuoteService } from "../services/quote-service.js";
+import type { CoordinatorConfig } from "../config.js";
 
 export interface AppDeps {
   log: Logger;
   corsOrigin: string;
+  config: CoordinatorConfig;
+  db: DbProbe;
+  wsEnabled?: boolean;
   orders: OrderService;
   secrets: SecretService;
   quotes: QuoteService;
@@ -41,7 +46,7 @@ export function createApp(deps: AppDeps): Express {
     next();
   });
 
-  app.use(healthRoutes());
+  app.use(healthRoutes({ config: deps.config, db: deps.db, wsEnabled: deps.wsEnabled }));
   app.use(metricsRoutes());
   app.use("/api", ordersRoutes(deps.orders));
   app.use("/api", secretsRoutes(deps.secrets));

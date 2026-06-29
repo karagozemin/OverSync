@@ -1,100 +1,89 @@
 import { Router } from "express";
+import type { CoordinatorConfig } from "../../config.js";
 
-function getBuildEnv(): "testnet" | "mainnet" {
-  const v = (process.env.NETWORK_MODE ?? "testnet").toLowerCase();
-  return v === "mainnet" ? "mainnet" : "testnet";
+/**
+ * Minimal interface for any db-like object that lets us test reachability
+ * without importing the full database module.
+ */
+export interface DbProbe {
+  /** Returns true when the database can be reached. */
+  isReady(): boolean;
 }
 
-function redactRpcUrl(maybeUrl: string | undefined): string | null {
-  const raw = (maybeUrl ?? "").trim();
-  if (!raw) return null;
-
-  // Handle special static mock flags from our route config
-  if (raw === "[CONFIGURED_VIA_INFURA_API_KEY]") return raw;
-
-  try {
-    const parsed = new URL(raw);
-    return `${parsed.protocol}//${parsed.host}`;
-  } catch {
-    return "[REDACTED]";
-  }
+export interface HealthRouteDeps {
+  config: CoordinatorConfig;
+  db: DbProbe;
+  wsEnabled?: boolean;
 }
 
-function inferDatabaseMode(
-  databaseUrl: string | undefined,
-): "sqlite" | "postgres" | "unknown" {
-  const url = (databaseUrl ?? "").trim();
-  if (!url) return "unknown";
-  if (url.startsWith("postgres://") || url.startsWith("postgresql://"))
-    return "postgres";
-  if (url.startsWith("file:")) return "sqlite";
-  return "unknown";
+/**
+ * Derive a human-readable Stellar network label from the passphrase so we
+ * never expose the full passphrase string in the response.
+ */
+function stellarNetworkLabel(passphrase: string): string {
+  if (passphrase.includes("Test SDF")) return "testnet";
+  if (passphrase.includes("Public Global")) return "mainnet";
+  return "custom";
 }
 
-export function healthRoutes(): Router {
+/**
+ * Derive a chain name from the numeric Ethereum chain id.
+ */
+function ethChainName(chainId: number): string {
+  const known: Record<number, string> = {
+    1: "mainnet",
+    11_155_111: "sepolia",
+    5: "goerli",
+    17_000: "holesky",
+  };
+  return known[chainId] ?? `chain-${chainId}`;
+}
+
+export function healthRoutes(deps?: HealthRouteDeps): Router {
   const router = Router();
   const startedAt = Date.now();
 
+  // ── GET /health — existing lightweight ping ─────────────────────────────
   router.get("/health", (_req, res) => {
-    const version = process.env.npm_package_version ?? "0.1.0";
-    const buildEnv = getBuildEnv();
-
-    const commit =
-      process.env.GIT_COMMIT ??
-      process.env.COMMIT_SHA ??
-      process.env.SOURCE_VERSION ??
-      null;
-
-    const databaseMode = inferDatabaseMode(process.env.DATABASE_URL);
-
-    const ethereumRpcUrl =
-      (process.env.ETHEREUM_RPC_URL ??
-      process.env.SEPOLIA_RPC_URL ??
-      process.env.MAINNET_RPC_URL ??
-      process.env.INFURA_API_KEY)
-        ? "[CONFIGURED_VIA_INFURA_API_KEY]"
-        : undefined;
-
-    const sorobanRpcUrl = process.env.SOROBAN_RPC_URL ?? undefined;
-
     res.json({
       status: "ok",
       service: "oversync-coordinator",
-
-      version,
-
+      version: process.env.npm_package_version ?? "0.1.0",
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
       timestamp: new Date().toISOString(),
-
-      build: {
-        env: buildEnv,
-        commit: commit || null,
-      },
-
-      dependencies: {
-        database: {
-          mode: databaseMode,
-        },
-        ethereum: {
-          rpcUrlConfigured: Boolean(
-            process.env.ETHEREUM_RPC_URL ||
-            process.env.SEPOLIA_RPC_URL ||
-            process.env.MAINNET_RPC_URL ||
-            process.env.INFURA_API_KEY,
-          ),
-          rpcUrl: redactRpcUrl(
-            process.env.ETHEREUM_RPC_URL ||
-              process.env.SEPOLIA_RPC_URL ||
-              process.env.MAINNET_RPC_URL ||
-              ethereumRpcUrl,
-          ),
-        },
-        soroban: {
-          rpcUrlConfigured: Boolean(sorobanRpcUrl),
-          rpcUrl: redactRpcUrl(sorobanRpcUrl),
-        },
-      },
     });
+  });
+
+  // ── GET /readiness — richer public readiness signal ─────────────────────
+  router.get("/readiness", (_req, res) => {
+    const cfg = deps?.config;
+    const dbReady = deps?.db.isReady() ?? true;
+
+    const payload: Record<string, unknown> = {
+      service: "oversync-coordinator",
+      version: process.env.npm_package_version ?? "0.1.0",
+      networkMode: cfg?.network ?? process.env.NETWORK_MODE ?? "testnet",
+      ethereum: cfg
+        ? {
+            chainId: cfg.ethereum.chainId,
+            chainName: ethChainName(cfg.ethereum.chainId),
+          }
+        : null,
+      stellar: cfg
+        ? {
+            network: stellarNetworkLabel(cfg.soroban.networkPassphrase),
+          }
+        : null,
+      database: { reachable: dbReady },
+      websocket: { enabled: deps?.wsEnabled ?? false },
+      timestamp: new Date().toISOString(),
+    };
+
+    // Return 503 when the database is not reachable so load-balancers and
+    // healthcheck probes can act on it, but still return JSON so callers
+    // can read the payload.
+    const status = dbReady ? 200 : 503;
+    res.status(status).json(payload);
   });
 
   return router;
