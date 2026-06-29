@@ -76,3 +76,24 @@ export function verifyPreimage(
   if (s.keccak256 === expected) return "keccak256";
   return null;
 }
+
+/**
+ * Validates that a string is a well-formed 32-byte hex string with a 0x prefix.
+ * Throws a clear error if the format is invalid.
+ */
+export function assertValidSecretFormat(value: unknown, fieldName: string = "secret"): `0x${string}` {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  if (!value.startsWith("0x")) {
+    throw new Error(`${fieldName} must start with "0x"`);
+  }
+  const hexPart = value.slice(2);
+  if (hexPart.length !== 64) {
+    throw new Error(`${fieldName} must be exactly 32 bytes (64 hex characters)`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
+    throw new Error(`${fieldName} contains invalid hex characters`);
+  }
+  return value as `0x${string}`;
+}

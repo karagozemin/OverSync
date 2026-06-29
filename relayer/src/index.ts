@@ -188,6 +188,7 @@ import RecoveryService, { RecoveryConfig, RecoveryType, RecoveryStatus } from '.
 
 // Phase 8: Monitoring System imports
 import { getMonitor } from './monitoring.js';
+import { RelaySubmissionTracker, RelayInFlightError } from './relay-submission-tracker.js';
 
 // Contract addresses
 const ETH_TO_XLM_RATE = 10000; // 1 ETH = 10,000 XLM (LEGACY - now using real-time prices)
@@ -478,6 +479,33 @@ function validateConfig() {
     console.warn('⚠️  Using placeholder Stellar secret - generate real keys for production');
   }
 }
+
+/**
+ * Idempotent submission tracker for cross-chain relays.
+ *
+ * Gives every relay action a stable fingerprint, bounds retries to a
+ * configurable budget, and remembers terminal success/failure so a timed-out
+ * or ambiguous RPC call can never re-broadcast the same action indefinitely.
+ * Retry budget defaults reuse the existing RELAYER_RETRY_* env vars.
+ */
+const TERMINAL_ERROR_PATTERNS = [
+  'INSUFFICIENT', // not enough funds — retrying will never help
+  'op_underfunded',
+  'not configured',
+  'invalid',
+];
+
+export const relaySubmissionTracker = new RelaySubmissionTracker({
+  maxAttempts: RELAYER_CONFIG.retryAttempts,
+  retryDelayMs: RELAYER_CONFIG.retryDelay,
+  timeoutMs: RELAYER_CONFIG.rpcTimeoutMs,
+  backoff: true,
+  isRetryable: (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    return !TERMINAL_ERROR_PATTERNS.some(p => message.toLowerCase().includes(p.toLowerCase()));
+  },
+  logger: console,
+});
 
 // Initialize relayer service
 async function initializeRelayer() {
@@ -1734,11 +1762,40 @@ async function initializeRelayer() {
         console.log('📝 Transaction signed');
         console.log('💫 Sending XLM to:', userStellarAddress);
         
-        // Submit to network
-        const result = await server.submitTransaction(transaction);
+        // Submit to network — idempotent with a bounded retry budget so a
+        // timed-out RPC call cannot re-broadcast this payment indefinitely and
+        // a duplicate /process request is reported as already handled.
+        let result: any;
+        try {
+          const submission = await relaySubmissionTracker.submit(
+            {
+              kind: 'eth->xlm',
+              orderId,
+              chain: 'stellar',
+              destination: userStellarAddress,
+              amount: xlmAmount,
+              extra: { network: dynamicNetwork },
+            },
+            () => server.submitTransaction(transaction)
+          );
+          result = submission.result;
+          if (submission.duplicate) {
+            console.log('↪️  Order already relayed; returning existing Stellar tx:', result.hash);
+          }
+        } catch (submitError: any) {
+          if (submitError instanceof RelayInFlightError) {
+            return res.status(409).json({
+              error: 'Relay already in progress for this order',
+              orderId,
+            });
+          }
+          // RelayTerminalError (budget exhausted / non-retryable) and any other
+          // failure fall through to the handler's outer catch for a 500.
+          throw submitError;
+        }
         console.log('✅ Stellar transaction successful!');
         console.log('🔍 Transaction hash:', result.hash);
-        console.log('🌐 View on StellarExpert: https://stellar.expert/explorer/' + 
+        console.log('🌐 View on StellarExpert: https://stellar.expert/explorer/' +
           (DEFAULT_NETWORK_MODE === 'mainnet' ? 'public' : 'testnet') + '/tx/' + result.hash);
         
         // Update order status
@@ -3255,7 +3312,9 @@ app.get('/metrics', (req, res) => {
   try {
     const monitor = getMonitor();
     const metrics = monitor.getMetrics();
-    res.json(metrics);
+    // Surface relay retry budget / idempotency state so retry counts and
+    // terminal failures are visible alongside the rest of the metrics.
+    res.json({ ...metrics, relaySubmissions: relaySubmissionTracker.getStats() });
   } catch (error) {
     console.error('❌ Metrics fetch failed:', error);
     res.status(500).json({
