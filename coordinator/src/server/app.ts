@@ -51,7 +51,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api", secretsRoutes(deps.secrets));
   app.use("/api", quotesRoutes(deps.quotes));
 
-  // 413 handler — catches oversized request bodies before the generic error handler.
+  // 413 / 400 handler — catches oversized request bodies and malformed JSON before the generic error handler.
   app.use(
     (
       err: Error & { type?: string; status?: number },
@@ -63,6 +63,13 @@ export function createApp(deps: AppDeps): Express {
         res.status(413).json({
           error: "payload_too_large",
           message: `Request body exceeds the ${maxRequestBodyBytes}-byte limit`
+        });
+        return;
+      }
+      if (err.type === "entity.parse.failed" || err.status === 400) {
+        res.status(400).json({
+          error: "validation_error",
+          message: "Malformed JSON request body"
         });
         return;
       }
