@@ -1,7 +1,7 @@
 import { createPublicClient, http, parseAbi, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia, mainnet } from "viem/chains";
-import { rpc, Contract, Keypair, TransactionBuilder, Networks } from "@stellar/stellar-sdk";
+import { rpc, Contract, Keypair, TransactionBuilder, Networks, nativeToScVal } from "@stellar/stellar-sdk";
 import { loadConfig } from "../config.js";
 import { getLogger } from "../logger.js";
 
@@ -71,7 +71,7 @@ export async function checkPreflight(): Promise<CheckResult[]> {
         fee: "100",
         networkPassphrase: cfg.soroban.networkPassphrase
       })
-        .addOperation(contract.call("is_active", kp.publicKey()))
+        .addOperation(contract.call("is_active", nativeToScVal(kp.publicKey(), { type: "address" })))
         .setTimeout(30)
         .build();
 

@@ -52,7 +52,8 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
       addOperation: vi.fn().mockReturnThis(),
       setTimeout: vi.fn().mockReturnThis(),
       build: vi.fn().mockReturnValue({})
-    }))
+    })),
+    nativeToScVal: vi.fn().mockReturnValue({})
   };
 });
 
