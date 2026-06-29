@@ -3,6 +3,7 @@ import BridgeForm from './components/BridgeForm'
 import DarkVeil from './components/DarkVeil'
 
 import TransactionHistory from './components/TransactionHistory'
+import DiligenceSnapshot from './components/DiligenceSnapshot'
 
 import { ToastContainer, useToast } from './components/Toast'
 import { useFreighter } from './hooks/useFreighter'
@@ -486,6 +487,8 @@ function App() {
               </div>
             </div>
           </div>
+
+          {currentNetwork === 'testnet' && <DiligenceSnapshot />}
         </section>
 
         <section className="w-full lg:w-[640px] lg:max-w-none lg:justify-self-start">
