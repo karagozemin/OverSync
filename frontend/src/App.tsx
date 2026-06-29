@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link, Route, Routes } from 'react-router-dom'
 import BridgeForm from './components/BridgeForm'
 import DarkVeil from './components/DarkVeil'
 
@@ -11,6 +12,7 @@ import { pingBackendWake } from './lib/wakeBackend'
 import { isMainnetEnabled } from './config/networks'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
+import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
 import {
   Activity,
   ArrowRightLeft,
@@ -20,6 +22,7 @@ import {
   LockKeyhole,
   RadioTower,
   ShieldCheck,
+  ShieldEllipsis,
   Wallet,
   Zap,
 } from 'lucide-react'
@@ -217,6 +220,11 @@ function App() {
   const connectionLabel = isWalletsConnected ? 'Connected' : hasAnyConnection ? 'Partial' : 'Connect Wallet';
 
   return (
+    <Routes>
+      <Route path="/launch-readiness" element={<LaunchReadinessSurface />} />
+      <Route
+        path="*"
+        element={
     <div className="app-shell min-h-screen text-white flex flex-col">
       {showIntro && (
         <div
@@ -256,9 +264,9 @@ function App() {
       <nav className="sticky top-0 z-50 w-full border-b border-cyan-200/15 bg-[#050817]/78 px-4 py-3 shadow-[0_16px_60px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img 
-            src="/images/oversync-logo.png" 
-            alt="OverSync" 
+          <img
+            src="/images/oversync-logo.png"
+            alt="OverSync"
             className="h-11 w-11 rounded-xl border border-cyan-200/20 shadow-[0_0_30px_rgba(0,226,255,0.2)]"
           />
           <div>
@@ -266,13 +274,21 @@ function App() {
             <span className="hidden text-xs uppercase tracking-[0.32em] text-indigo-200/75 sm:block">Fusion Rail</span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2 md:gap-3">
           <nav className="hidden items-center gap-2 md:flex">
             <a href="https://www.alchemy.com/faucets/ethereum-sepolia" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white">
               Faucet
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+            <Link
+              to="/launch-readiness"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white"
+              data-testid="nav-launch-readiness-link"
+            >
+              <ShieldEllipsis className="h-3.5 w-3.5" />
+              Launch readiness
+            </Link>
           </nav>
 
           {/* Network selector — testnet-only until v2 mainnet launch */}
@@ -558,12 +574,15 @@ function App() {
       </div>
 
       {/* Toast Container */}
-      <ToastContainer 
+      <ToastContainer
         toasts={toast.toasts}
         onClose={toast.removeToast}
       />
 
     </div>
+        }
+      />
+    </Routes>
   );
 }
 
