@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const db = await openDatabase(cfg.databaseUrl);
   const repo = new OrdersRepository(db);
   const quotes = new QuoteService(log);
-  const orders = new OrderService(repo, log, quotes);
+  const orders = new OrderService(repo, log, quotes, cfg);
   const secrets = new SecretService(orders, log);
 
   const app = createApp({
