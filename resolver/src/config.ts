@@ -27,6 +27,7 @@ export interface ResolverConfig {
   pollIntervalMs: number;
   coordinatorUrl: string;
   logLevel: "trace" | "debug" | "info" | "warn" | "error";
+  dryRun: boolean;
   ethereum: EthereumConfig;
   soroban: SorobanConfig;
 }
@@ -50,6 +51,10 @@ function optionalAddress(name: string): `0x${string}` | null {
   return v as `0x${string}`;
 }
 
+function isTrueEnv(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true" || value === "1";
+}
+
 export function loadConfig(): ResolverConfig {
   const network = (process.env.NETWORK_MODE ?? "testnet") as Network;
   if (network !== "testnet" && network !== "mainnet") {
@@ -63,6 +68,7 @@ export function loadConfig(): ResolverConfig {
     pollIntervalMs: Number(process.env.RESOLVER_POLL_INTERVAL_MS ?? 15_000),
     coordinatorUrl: process.env.COORDINATOR_URL ?? "http://localhost:3001",
     logLevel: (process.env.LOG_LEVEL as ResolverConfig["logLevel"]) ?? "info",
+    dryRun: isTrueEnv(process.env.RESOLVER_DRY_RUN),
     ethereum: {
       rpcUrl: resolveEthereumRpcUrl(isMainnet ? "mainnet" : "testnet"),
       chainId: isMainnet ? 1 : 11_155_111,
