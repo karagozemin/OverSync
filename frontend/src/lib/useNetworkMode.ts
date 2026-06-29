@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import freighterApi from '@stellar/freighter-api';
 import { isMainnetEnabled, isTestnet, resolveNetworkMode } from '../config/networks';
 import { resolveViteMainnetRpcUrl, resolveViteSepoliaRpcUrl } from '../config/rpc-urls';
+import { checkNetworkMode, type NetworkModeGuard } from '@oversync/sdk';
 
 export type NetworkMode = 'testnet' | 'mainnet';
 
@@ -60,6 +61,7 @@ function eqHexChainId(a: string | null, b: string): boolean {
 
 export interface NetworkModeState {
   mode: NetworkMode;
+  guard: NetworkModeGuard;
   expectedEthChainIdHex: string;
   expectedStellarPassphrase: string;
 
@@ -307,8 +309,11 @@ export function useNetworkMode(opts: {
     ? freighterNetworkPassphrase === expectedPassphrase
     : true;
 
+  const guard = checkNetworkMode(mode, isMainnetEnabled());
+
   return {
     mode,
+    guard,
     expectedEthChainIdHex: expectedChain,
     expectedStellarPassphrase: expectedPassphrase,
     metamaskChainId,
