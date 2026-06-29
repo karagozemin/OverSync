@@ -252,7 +252,7 @@ threat model.
 |---|---|
 | [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md) | **SCF reviewer data room** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, and pull request expectations |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, pull request expectations, and the [contributor proof checklist](.github/pull_request_template.md) |
 | [`ROADMAP.md`](ROADMAP.md) | Milestone-by-milestone delivery plan with verifiable artefacts; testnet v2 live, mainnet UI gated until audit |
 | [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md) | Non-custodial proofs and per-actor threat analysis |
 | [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) | Comparison with CCTP v2, Axelar ITS, Allbridge; where OverSync is the right vs wrong tool |
