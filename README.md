@@ -259,6 +259,7 @@ threat model.
 | [`docs/TRACTION.md`](docs/TRACTION.md) | Go-to-market, KPIs we publish, partnership pipeline |
 | [`docs/METRICS_SCHEMA.md`](docs/METRICS_SCHEMA.md) | Public metrics schema: definitions, units, sources, cadence, and privacy boundaries |
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
+| [`docs/RISK_REGISTER.md`](docs/RISK_REGISTER.md) | **Investor-grade risk register** — 16 concrete risks with likelihood, impact, mitigations, evidence links, and next actions |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |

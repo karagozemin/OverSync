@@ -275,7 +275,9 @@ The grant is SCF-funded and targets Stellar-specific value. All Stellar-exclusiv
 
 ## 10. Known risks and mitigations
 
-Sourced from [`ROADMAP.md § Open dependencies and risks`](../ROADMAP.md#open-dependencies-and-risks) and [`docs/TRUST_MODEL.md`](TRUST_MODEL.md).
+A comprehensive investor-grade risk register (16 risks across 7 categories, each with likelihood, impact, mitigation, evidence, and next action) is at [`docs/RISK_REGISTER.md`](RISK_REGISTER.md).
+
+The table below is a condensed summary. Sourced from [`ROADMAP.md § Open dependencies and risks`](../ROADMAP.md#open-dependencies-and-risks) and [`docs/TRUST_MODEL.md`](TRUST_MODEL.md).
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
