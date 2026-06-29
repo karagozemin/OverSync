@@ -36,7 +36,7 @@ describe("SDK Error Normalization", () => {
     });
 
     await expect(client.claimOrder(1n, "0x")).rejects.toThrowError(OverSyncError);
-    
+
     try {
       await client.claimOrder(1n, "0x");
     } catch (e) {

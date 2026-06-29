@@ -26,16 +26,16 @@ export function normalizeError(err: unknown): OverSyncError {
   if (err instanceof OverSyncError) return err;
 
   const msg = err instanceof Error ? err.message : String(err);
-  
+
   // Basic heuristics for common errors
   if (msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("user denied")) {
     return new OverSyncError("Wallet rejected the transaction", OverSyncErrorCode.WALLET_REJECTED, err);
   }
-  
+
   if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("contract call failed")) {
     return new OverSyncError("Contract execution reverted", OverSyncErrorCode.CONTRACT_REVERT, err);
   }
-  
+
   if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("rpc") || msg.toLowerCase().includes("simulation failed") || msg.toLowerCase().includes("submit failed")) {
     return new OverSyncError("RPC or network failure", OverSyncErrorCode.RPC_FAILURE, err);
   }
