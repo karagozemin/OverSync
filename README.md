@@ -6,6 +6,7 @@
 
 **A non-custodial Ethereum ↔ Stellar bridge built on symmetric HTLCs — no validator set, no attester, no admin escape hatch.**
 
+
 OverSync moves native assets between Ethereum and Stellar atomically.
 Funds are locked in hash-time-lock contracts on both chains; settlement
 is a `sha256` preimage reveal, not a multisig attestation. If anything
