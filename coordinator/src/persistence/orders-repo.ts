@@ -10,6 +10,19 @@ type AsyncCapableStatement = Statement & {
   allAsync?: (...params: any[]) => Promise<unknown[]>;
 };
 
+export interface OrderSnapshot {
+  orderId: string;
+  currentState: OrderStatus;
+  transitions: string[];
+  publicTxHashes: string[];
+  timestamps: {
+    createdAt: number;
+    updatedAt: number;
+  };
+  direction: Direction;
+  outcomeSummary: string;
+}
+
 export type OrderStatus =
   | "announced"
   | "src_locked"
@@ -140,6 +153,7 @@ export class OrdersRepository {
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
+  private readonly completedOrderRows: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -200,6 +214,11 @@ export class OrdersRepository {
         status = 'secret_revealed',
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
+    `);
+    this.completedOrderRows = db.prepare(`
+      SELECT * FROM orders
+      WHERE status IN ('completed', 'refunded', 'failed', 'expired')
+      ORDER BY updated_at DESC
     `);
   }
 
@@ -296,5 +315,51 @@ export class OrdersRepository {
     txHash: string;
   }): Promise<void> {
     await this.run(this.updateSecret, input);
+  }
+
+  async getCompletedOrderSnapshots(): Promise<OrderSnapshot[]> {
+    const rows = await this.all<OrderDbRow>(this.completedOrderRows);
+    return rows.map(rowToOrder).map(buildSnapshot);
+  }
+}
+
+export function buildSnapshot(order: OrderRow): OrderSnapshot {
+  const transitions = deriveTransitions(order.status);
+  const publicTxHashes = [
+    order.srcLockTx,
+    order.dstLockTx,
+    order.secretRevealedTx
+  ].filter((tx): tx is string => tx !== null);
+  const outcomeSummary = order.status === "completed" ? "Order completed successfully" :
+                         order.status === "refunded" ? "Order refunded" :
+                         order.status === "failed" ? "Order failed" :
+                         "Order expired";
+
+  return {
+    orderId: order.publicId,
+    currentState: order.status,
+    transitions,
+    publicTxHashes,
+    timestamps: {
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    },
+    direction: order.direction,
+    outcomeSummary
+  };
+}
+
+function deriveTransitions(status: OrderStatus): string[] {
+  switch (status) {
+    case "completed":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "completed"];
+    case "refunded":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "refunded"];
+    case "failed":
+      return ["announced", "failed"];
+    case "expired":
+      return ["announced", "expired"];
+    default:
+      return [status];
   }
 }
