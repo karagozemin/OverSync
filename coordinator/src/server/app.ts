@@ -3,7 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import type { Logger } from "pino";
 import { healthRoutes } from "./routes/health.js";
-import { metricsRoutes } from "./routes/metrics.js";
+import { metricsRoutes, orderMetricsRoutes } from "./routes/metrics.js";
 import { httpRequestDuration } from "../metrics.js";
 import { ordersRoutes } from "./routes/orders.js";
 import { secretsRoutes } from "./routes/secrets.js";
@@ -46,6 +46,7 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api", ordersRoutes(deps.orders));
   app.use("/api", secretsRoutes(deps.secrets));
   app.use("/api", quotesRoutes(deps.quotes));
+  app.use("/api", orderMetricsRoutes(deps.orders));
 
   // Final error handler — never leak a stack trace to clients.
   app.use(
