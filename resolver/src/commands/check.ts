@@ -64,7 +64,7 @@ export async function checkPreflight(): Promise<CheckResult[]> {
       const kp = Keypair.fromSecret(cfg.soroban.resolverSecret);
       const server = new rpc.Server(cfg.soroban.rpcUrl, { allowHttp: cfg.soroban.rpcUrl.startsWith("http://") });
       const contract = new Contract(cfg.soroban.resolverRegistry);
-      
+
       // Build a simple read transaction
       const source = await server.getAccount(kp.publicKey());
       const tx = new TransactionBuilder(source, {
@@ -79,13 +79,13 @@ export async function checkPreflight(): Promise<CheckResult[]> {
       if (rpc.Api.isSimulationError(sim)) {
         throw new Error(sim.error);
       }
-      
+
       let activeStatus: boolean | "unknown" = "unknown";
       if (sim.result?.retval) {
         // Simple boolean decoding from XDR (scvBool)
         activeStatus = sim.result.retval.switch().name === "scvBool" ? sim.result.retval.b() : "unknown";
       }
-      
+
       results.push({ chain: "soroban", configured: true, active: activeStatus });
     } catch (err: any) {
       results.push({
@@ -105,7 +105,7 @@ export async function checkCommand(): Promise<void> {
   const log = getLogger(cfg.logLevel);
   log.info("Running resolver preflight checks...");
   const results = await checkPreflight();
-  
+
   for (const r of results) {
     if (!r.configured) {
       log.warn({ chain: r.chain, reason: r.reason }, "Resolver registry not fully configured");
