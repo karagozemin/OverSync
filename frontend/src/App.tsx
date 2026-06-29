@@ -11,6 +11,7 @@ import { pingBackendWake } from './lib/wakeBackend'
 import { isMainnetEnabled } from './config/networks'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
+import DeploymentSelfCheck from './components/DeploymentSelfCheck'
 import {
   Activity,
   ArrowRightLeft,
@@ -557,8 +558,13 @@ function App() {
         </a>
       </div>
 
+      {/* Deployment Self-Check - visible in development or when debug mode enabled */}
+      {import.meta.env.DEV || (import.meta as any).env?.VITE_ENABLE_DEBUG_MODE === 'true' ? (
+        <DeploymentSelfCheck />
+      ) : null}
+
       {/* Toast Container */}
-      <ToastContainer 
+      <ToastContainer
         toasts={toast.toasts}
         onClose={toast.removeToast}
       />
