@@ -73,20 +73,6 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
-  router.get("/orders/:id", async (req, res, next) => {
-    const id = req.params.id;
-    try {
-      const order = await orders.get(id);
-      if (!order) {
-        sendError(res, "ORDER_NOT_FOUND", 404);
-        return;
-      }
-      res.json(serialiseOrder(order));
-    } catch (err) {
-      next(err);
-    }
-  });
-
   router.get("/orders/history", async (req, res, next) => {
     const address = (req.query.address as string | undefined) ?? "";
     if (!address) {
@@ -101,6 +87,20 @@ export function ordersRoutes(orders: OrderService): Router {
         transactions: list.map((o) => serialiseOrder(o)).filter(Boolean),
         pagination: { limit, offset, count: list.length }
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/orders/:id", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const order = await orders.get(id);
+      if (!order) {
+        sendError(res, "ORDER_NOT_FOUND", 404);
+        return;
+      }
+      res.json(serialiseOrder(order));
     } catch (err) {
       next(err);
     }

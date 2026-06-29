@@ -113,7 +113,7 @@ export class OrderService {
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`, "ORDER_NOT_FOUND");
-    if (!canTransition(order.status, "src_locked") && order.status !== "src_locked") {
+    if (!canTransition(order.status, "src_locked")) {
       throw new OrderValidationError(`cannot record src lock from status ${order.status}`, "VALIDATION_FAILED");
     }
     await this.repo.recordSrcLock(input);
