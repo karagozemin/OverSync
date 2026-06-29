@@ -126,8 +126,9 @@ export async function main(argv: string[]) {
   for (const arg of argv) {
     if (arg.startsWith("--")) {
       const parts = arg.slice(2).split("=");
-      if (parts.length >= 2) {
-        rawArgs[parts[0]] = parts.slice(1).join("=");
+      const key = parts[0];
+      if (key && parts.length >= 2) {
+        rawArgs[key] = parts.slice(1).join("=");
       }
     }
   }
