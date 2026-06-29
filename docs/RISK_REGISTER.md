@@ -1,7 +1,7 @@
 # OverSync — Risk Register
 
-> **Audience:** Investors, SCF reviewers, grant committees, and the core team.  
-> **Purpose:** Single source of truth for every material risk the project faces, with concrete mitigations, current evidence, and next actions.  
+> **Audience:** Investors, SCF reviewers, grant committees, and the core team.
+> **Purpose:** Single source of truth for every material risk the project faces, with concrete mitigations, current evidence, and next actions.
 > **Status (June 2026):** v2 live on Sepolia + Stellar testnet; mainnet gated on independent audit (target Q1 2027).
 
 ---
