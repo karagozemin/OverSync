@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-28T16:38:03.663Z",
+  "generatedBy": {
+    "command": "pnpm scf:testnet-metrics",
+    "environment": {
+      "SCF_COORDINATOR_URL": null,
+      "SCF_METRICS_TIMEOUT_MS": "5000"
+    }
+  },
+  "network": "testnet",
+  "sources": {
+    "deployments": "deployments.testnet.json",
+    "tractionDoc": "docs/TRACTION.md"
+  },
+  "deployments": {
+    "ethereum": {
+      "chainId": 11155111,
+      "name": "Sepolia",
+      "contracts": {
+        "HTLCEscrow": {
+          "address": "0xb352339BEb146f2699d28D736700B953988bB178",
+          "explorerUrl": "https://sepolia.etherscan.io/address/0xb352339BEb146f2699d28D736700B953988bB178"
+        },
+        "ResolverRegistry": {
+          "address": "0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99",
+          "explorerUrl": "https://sepolia.etherscan.io/address/0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99"
+        }
+      },
+      "deployedAt": "2026-05-14"
+    },
+    "stellar": {
+      "network": "testnet",
+      "contracts": {
+        "HTLC": {
+          "id": "CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK",
+          "explorerUrl": "https://stellar.expert/explorer/testnet/contract/CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK",
+          "deployTransaction": "https://stellar.expert/explorer/testnet/tx/f7583c2cca3ca542a4754677e98f1ce9c4e1fa93ebe534ed094110b0e58201d7"
+        },
+        "ResolverRegistry": {
+          "id": "CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF",
+          "explorerUrl": "https://stellar.expert/explorer/testnet/contract/CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF",
+          "deployTransaction": "https://stellar.expert/explorer/testnet/tx/1532a403acc488b651692b6d26fd393535014176b6905909e8d133cf475875d7"
+        }
+      },
+      "deployedAt": "2026-05-14"
+    }
+  },
+  "measurements": {
+    "coordinator": {
+      "health": {
+        "status": null,
+        "checkedUrl": null,
+        "reason": "SCF_COORDINATOR_URL is not set, so no public coordinator health endpoint was checked."
+      },
+      "orderCounts": {
+        "total": null,
+        "byStatus": null,
+        "checkedUrl": null,
+        "reason": "No public aggregate order-count endpoint is committed. The history endpoint is address-scoped."
+      }
+    },
+    "registeredResolvers": {
+      "ethereum": {
+        "count": null,
+        "registry": "0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99",
+        "reason": "Not fetched by this lightweight script; record null rather than depending on an unavailable ABI/RPC helper."
+      },
+      "stellar": {
+        "count": null,
+        "registry": "CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF",
+        "reason": "Not fetched by this lightweight script; record null rather than depending on an unavailable Soroban RPC helper."
+      }
+    },
+    "latestSuccessfulDemoTransactions": {
+      "ethereumToStellar": null,
+      "stellarToEthereum": null,
+      "reason": "No already-known successful demo transaction links are committed in this repository."
+    }
+  },
+  "guardrails": {
+    "tvlUsd": null,
+    "swapVolumeUsd": null,
+    "uptimePercent": null,
+    "note": "This snapshot intentionally does not fabricate TVL, uptime, volume, or swap count."
+  }
+}
