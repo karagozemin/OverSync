@@ -271,6 +271,7 @@ threat model.
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
 | [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | Post-demo evidence pack template for reviewer and investor follow-up |
+| [`docs/PARTNER_MAP.md`](docs/PARTNER_MAP.md) | Partner and referrer map: target stakeholders, concrete asks, outreach template |
 
 ---
 
