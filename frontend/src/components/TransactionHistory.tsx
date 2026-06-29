@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Clock, CheckCircle, XCircle, ArrowRight, ExternalLink, RefreshCw, Undo2 } from 'lucide-react';
 import { isTestnet } from '../config/networks';
 import RefundDialog from '../features/refund/RefundDialog';
+import CopyableIdentifier from './CopyableIdentifier';
 import type { Address } from 'viem';
 
 interface Transaction {
@@ -433,11 +434,14 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
               </div>
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
-                <div className="text-xs text-slate-400">
-                  Transaction:
-                  <span className="ml-1 font-mono text-slate-300">
-                    {tx.txHash.substring(0, 10)}...{tx.txHash.substring(tx.txHash.length - 8)}
-                  </span>
+                <div className="flex min-w-0 items-center gap-1 text-xs text-slate-400">
+                  <span>Transaction:</span>
+                  <CopyableIdentifier
+                    value={tx.txHash}
+                    truncate
+                    copyLabel="transaction hash"
+                    textClassName="text-slate-300"
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   {tx.refundTxHash && (
