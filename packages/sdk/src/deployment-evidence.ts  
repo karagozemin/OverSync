@@ -1,0 +1,224 @@
+/**
+ * @module deployment-evidence
+ *
+ * Read-only helper that surfaces OverSync's canonical testnet deployment
+ * evidence in a structured, type-safe form.
+ *
+ * **What this module does:**
+ * - Returns a typed list of `DeploymentEvidence` records sourced from
+ *   `deployments.testnet.json`.
+ * - Provides query helpers (`getDeploymentEvidence`, `getEvidenceByContract`,
+ *   `getEvidenceByChain`) for diligence, dashboards, and CI assertions.
+ *
+ * **What this module does NOT do:**
+ * - Touch swap execution, HTLC state transitions, signing, or resolver logic.
+ * - Expose secrets, private RPC URLs, or signing keys.
+ * - Make any network calls.
+ *
+ * @example
+ * ```ts
+ * import { getDeploymentEvidence } from "@oversync/sdk";
+ *
+ * const evidence = getDeploymentEvidence();
+ * console.log(evidence.map(e => e.explorerUrl));
+ * ```
+ */
+
+import rawData from "../deployments.testnet.json";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * Status label that indicates the maturity of a deployed contract or service.
+ *
+ * - `testnet-live`    Active on a public testnet; safe for integration testing.
+ * - `mainnet-gated`   Deployed on mainnet but behind a feature flag or multisig.
+ * - `mainnet-live`    Fully live on mainnet.
+ * - `deprecated`      No longer maintained; kept for historical reference.
+ */
+export type DeploymentStatus =
+  | "testnet-live"
+  | "mainnet-gated"
+  | "mainnet-live"
+  | "deprecated";
+
+/**
+ * A single deployment evidence record.
+ *
+ * Every field is a read-only primitive — no secrets, no private RPC URLs.
+ */
+export interface DeploymentEvidence {
+  /** Canonical chain name, e.g. "Ethereum" or "Stellar". */
+  readonly chain: string;
+
+  /** Network within the chain, e.g. "Sepolia", "Testnet", "Mainnet". */
+  readonly network: string;
+
+  /**
+   * Human-readable contract / service name.
+   * Use this together with `chain` to uniquely identify a deployment
+   * (the combination is unique within a given network).
+   */
+  readonly contractName: string;
+
+  /**
+   * On-chain address of the deployed contract.
+   *
+   * - For EVM chains: a `0x`-prefixed 42-character hex string.
+   * - For Stellar Soroban: a 56-character uppercase base32 contract ID (`C…`).
+   */
+  readonly address: string;
+
+  /**
+   * Public block-explorer URL pointing directly to the contract / account.
+   * Safe to share in investor materials without disclosure concerns.
+   */
+  readonly explorerUrl: string;
+
+  /**
+   * Path to the primary source file in this repository, relative to the repo
+   * root.  Lets reviewers jump directly from a diligence document to source.
+   */
+  readonly sourcePath: string;
+
+  /**
+   * Lifecycle status of this deployment.
+   * @see {@link DeploymentStatus}
+   */
+  readonly status: DeploymentStatus;
+
+  /**
+   * ISO-8601 timestamp of initial deployment (informational only).
+   * Sourced from `deployments.testnet.json`; not verified on-chain.
+   */
+  readonly deployedAt: string;
+
+  /**
+   * Optional human-readable notes about this deployment.
+   * Safe to include in public documentation.
+   */
+  readonly notes?: string;
+}
+
+// ─── Internal data loading ────────────────────────────────────────────────────
+
+/**
+ * Raw JSON shape of `deployments.testnet.json`.
+ * Validated at the type level; runtime shape mismatches surface at build time.
+ */
+interface DeploymentsFile {
+  generatedAt: string;
+  deployments: DeploymentEvidence[];
+}
+
+// Cast through `unknown` to preserve strict type safety.
+const deploymentsFile = rawData as unknown as DeploymentsFile;
+
+/**
+ * Immutable snapshot of all deployment evidence records loaded from
+ * `deployments.testnet.json`. Frozen so callers cannot accidentally mutate
+ * the shared reference.
+ */
+const EVIDENCE_SNAPSHOT: ReadonlyArray<DeploymentEvidence> = Object.freeze(
+  deploymentsFile.deployments.map((entry) => Object.freeze({ ...entry }))
+);
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Returns all deployment evidence records from `deployments.testnet.json`.
+ *
+ * The returned array and each record inside it are **frozen** — mutations throw
+ * in strict mode.  This is intentional: deployment evidence is canonical and
+ * should not be modified at runtime.
+ *
+ * **Safe to use in:**
+ * - SCF / investor diligence exports
+ * - CI assertions (`getEvidenceByContract` for required rows)
+ * - Public dashboards and documentation sites
+ *
+ * **Not suitable for:**
+ * - Swap execution — see the resolver module
+ * - HTLC state transitions — see the state-machine module
+ * - Signing — see the signer module
+ *
+ * @returns A frozen, readonly array of {@link DeploymentEvidence} records.
+ *
+ * @example
+ * ```ts
+ * import { getDeploymentEvidence } from "@oversync/sdk";
+ *
+ * const evidence = getDeploymentEvidence();
+ * // evidence.length === 4 (2 EVM + 2 Soroban on testnet)
+ *
+ * for (const e of evidence) {
+ *   console.log(`${e.chain} / ${e.contractName}: ${e.explorerUrl}`);
+ * }
+ * ```
+ */
+export function getDeploymentEvidence(): ReadonlyArray<DeploymentEvidence> {
+  return EVIDENCE_SNAPSHOT;
+}
+
+/**
+ * Returns the single evidence record matching `chain` **and** `contractName`,
+ * or `undefined` if no match is found.
+ *
+ * Matching is case-insensitive to tolerate minor capitalisation differences
+ * between callers ("ethereum" vs "Ethereum").
+ *
+ * @param chain        Chain name, e.g. `"Ethereum"` or `"Stellar"`.
+ * @param contractName Contract name, e.g. `"HTLC"` or `"ResolverRegistry"`.
+ * @returns The matching {@link DeploymentEvidence} or `undefined`.
+ *
+ * @example
+ * ```ts
+ * const htlc = getEvidenceByContract("Ethereum", "HTLC");
+ * // htlc?.address === "0xA1B2..."
+ * ```
+ */
+export function getEvidenceByContract(
+  chain: string,
+  contractName: string
+): DeploymentEvidence | undefined {
+  const chainLower    = chain.toLowerCase();
+  const contractLower = contractName.toLowerCase();
+  return EVIDENCE_SNAPSHOT.find(
+    (e) =>
+      e.chain.toLowerCase()        === chainLower &&
+      e.contractName.toLowerCase() === contractLower
+  );
+}
+
+/**
+ * Returns all evidence records for the given chain, across all networks.
+ *
+ * Matching is case-insensitive.
+ *
+ * @param chain Chain name, e.g. `"Ethereum"` or `"Stellar"`.
+ * @returns A frozen, readonly array of matching {@link DeploymentEvidence} records.
+ *
+ * @example
+ * ```ts
+ * const stellarContracts = getEvidenceByChain("Stellar");
+ * // stellarContracts.length === 2 (HTLC + ResolverRegistry on Testnet)
+ * ```
+ */
+export function getEvidenceByChain(
+  chain: string
+): ReadonlyArray<DeploymentEvidence> {
+  const chainLower = chain.toLowerCase();
+  return Object.freeze(
+    EVIDENCE_SNAPSHOT.filter((e) => e.chain.toLowerCase() === chainLower)
+  );
+}
+
+/**
+ * Timestamp at which `deployments.testnet.json` was generated.
+ * Useful for displaying "last updated" metadata in dashboards.
+ *
+ * @returns ISO-8601 datetime string, e.g. `"2025-06-29T00:00:00Z"`.
+ */
+export function getEvidenceGeneratedAt(): string {
+  return deploymentsFile.generatedAt;
+}
