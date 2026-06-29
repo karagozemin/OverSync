@@ -1,0 +1,187 @@
+{
+  "_comment": "Example metrics snapshot for OverSync. All values are illustrative testnet figures. See docs/METRICS_SCHEMA.md for full field definitions.",
+  "schema_version": "1.0.0",
+  "snapshot_at": "2026-06-28T00:00:00Z",
+  "network": "testnet",
+  "window_days": 7,
+
+  "metrics": {
+
+    "successful_swaps": {
+      "_description": "Total completed swaps (both legs claimed) in the measurement window.",
+      "value": 142,
+      "unit": "count",
+      "window": "last_7_days",
+      "source": "coordinator orders WHERE status='completed', cross-checked against on-chain Claimed events"
+    },
+
+    "successful_swap_volume_usd": {
+      "_description": "Approximate USD equivalent of completed swap amounts. Testnet tokens have no real economic value; this field validates the derivation pipeline only.",
+      "value": 0,
+      "unit": "USD",
+      "window": "last_7_days",
+      "note": "testnet_only_no_economic_value",
+      "source": "HTLCEscrow.OrderCreated.amount × CoinGecko price at block timestamp"
+    },
+
+    "refund_count": {
+      "_description": "Number of orders that ended in a refund (either side) in the measurement window.",
+      "value": 11,
+      "unit": "count",
+      "window": "last_7_days",
+      "source": "coordinator orders WHERE status='refunded', cross-checked against on-chain Refunded events"
+    },
+
+    "refund_latency_p50_seconds": {
+      "_description": "Median time from order creation to refund completion.",
+      "value": 43380,
+      "unit": "seconds",
+      "window": "last_7_days",
+      "note": "~12 hours — expected for standard timelock expiry path",
+      "source": "block.timestamp(Refunded) - block.timestamp(OrderCreated)"
+    },
+
+    "refund_latency_p95_seconds": {
+      "_description": "95th-percentile time from order creation to refund completion. Values above timelock + 1800 s signal a coordination problem.",
+      "value": 87480,
+      "unit": "seconds",
+      "window": "last_7_days",
+      "alert_threshold_seconds": 87600,
+      "source": "block.timestamp(Refunded) - block.timestamp(OrderCreated)"
+    },
+
+    "coordinator_uptime_pct_30d": {
+      "_description": "Percentage of minutes in the last 30 days the coordinator /healthz endpoint returned HTTP 200.",
+      "value": 99.7,
+      "unit": "percent",
+      "window": "last_30_days",
+      "downtime_minutes": 129,
+      "slo_target_mainnet_pct": 99.5,
+      "source": "external uptime monitor polling /healthz every 60 s; secondary: Prometheus up{job='oversync-coordinator'}"
+    },
+
+    "active_resolver_count": {
+      "_description": "Number of resolvers currently staked and active in the ResolverRegistry.",
+      "value": 3,
+      "unit": "count",
+      "snapshot_at": "2026-06-28T00:00:00Z",
+      "alert_threshold_mainnet": 3,
+      "source": "ResolverRegistry.activeCount() on Sepolia 0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99 and oversync-resolver-registry on Stellar testnet"
+    },
+
+    "order_lifecycle_duration_avg_seconds": {
+      "_description": "Mean time from order creation to completion (claimed on both legs) for completed orders.",
+      "value": 527,
+      "unit": "seconds",
+      "window": "last_7_days",
+      "source": "coordinator: AVG(completed_at - created_at) WHERE status='completed'"
+    },
+
+    "order_lifecycle_duration_p50_seconds": {
+      "_description": "Median order lifecycle duration.",
+      "value": 312,
+      "unit": "seconds",
+      "window": "last_7_days",
+      "source": "coordinator: P50(completed_at - created_at) WHERE status='completed'"
+    },
+
+    "order_lifecycle_duration_p95_seconds": {
+      "_description": "95th-percentile order lifecycle duration.",
+      "value": 1847,
+      "unit": "seconds",
+      "window": "last_7_days",
+      "source": "coordinator: P95(completed_at - created_at) WHERE status='completed'"
+    },
+
+    "failed_orders_by_category": {
+      "_description": "Breakdown of failed/refunded orders by failure reason in the measurement window.",
+      "window": "last_7_days",
+      "total_failed": 11,
+      "unit": "count per category",
+      "source": "coordinator orders WHERE status IN ('failed','refunded'), grouped by failure_reason tag",
+      "categories": {
+        "resolver_no_lock": {
+          "_description": "Resolver did not lock destination-side funds within the lock-wait window.",
+          "count": 3
+        },
+        "user_no_claim": {
+          "_description": "User did not reveal the preimage before the destination-side timelock expired.",
+          "count": 4
+        },
+        "rpc_timeout": {
+          "_description": "RPC call to Ethereum or Stellar node failed or timed out.",
+          "count": 2
+        },
+        "resolver_underfunded": {
+          "_description": "Resolver's on-chain balance was insufficient to cover the destination amount.",
+          "count": 0
+        },
+        "hashlock_mismatch": {
+          "_description": "Destination-side lock hashlock did not match source-side hashlock.",
+          "count": 0
+        },
+        "user_cancelled": {
+          "_description": "User explicitly cancelled via the frontend refund dialog.",
+          "count": 1
+        },
+        "watchdog_refund": {
+          "_description": "Background watchdog triggered automatic refund (XLM→ETH swap pending > 5 min).",
+          "count": 1
+        }
+      }
+    },
+
+    "contract_events_by_chain": {
+      "_description": "On-chain event counts for the measurement window, by chain and event type.",
+      "window": "last_7_days",
+      "unit": "count per event type",
+      "ethereum": {
+        "chain_id": 11155111,
+        "chain_name": "Sepolia testnet",
+        "contract_address": "0xb352339BEb146f2699d28D736700B953988bB178",
+        "source": "eth_getLogs on HTLCEscrow from block 7820000 to 7834500",
+        "events": {
+          "OrderCreated": {
+            "_description": "New HTLC lock created by a user.",
+            "count": 153
+          },
+          "OrderClaimed": {
+            "_description": "Resolver revealed preimage and claimed ETH.",
+            "count": 142
+          },
+          "OrderRefunded": {
+            "_description": "Funds returned to user after timelock expiry.",
+            "count": 11
+          }
+        }
+      },
+      "stellar": {
+        "network_passphrase": "Test SDF Network ; September 2015",
+        "contract_id": "CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK",
+        "source": "Soroban RPC getEvents on oversync-htlc, ledger range 2410000–2425000",
+        "events": {
+          "lock_order": {
+            "_description": "HTLC lock created by a resolver on the Stellar side.",
+            "count": 142
+          },
+          "claim_order": {
+            "_description": "User claimed XLM by revealing the preimage.",
+            "count": 138
+          },
+          "refund_order": {
+            "_description": "XLM returned to resolver after Stellar-side timelock.",
+            "count": 4
+          }
+        }
+      }
+    }
+
+  },
+
+  "privacy_attestation": {
+    "contains_pii": false,
+    "contains_preimages": false,
+    "contains_private_addresses": false,
+    "note": "All values are aggregated counts, durations, or percentages. No per-order identifiers, wallet addresses beyond on-chain public data, or preimage values are present in this snapshot."
+  }
+}

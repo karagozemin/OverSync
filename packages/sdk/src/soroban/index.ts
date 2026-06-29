@@ -11,7 +11,7 @@ import {
   type Transaction
 } from "@stellar/stellar-sdk";
 import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
-import { OverSyncError, OverSyncErrorCode, normalizeError } from "../errors/index.js";
+import { assertValidSecretFormat } from "../secrets/index.js";
 
 export interface SorobanHTLCClientOptions {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -86,22 +86,19 @@ export class SorobanHTLCClient {
     input: SorobanCreateOrderInput,
     signer: SorobanSigner
   ): Promise<string> {
-    try {
-      const op = this.contract.call(
-        "create_order",
-        new SorobanAddress(input.sender).toScVal(),
-        new SorobanAddress(input.beneficiary).toScVal(),
-        new SorobanAddress(input.refundAddress).toScVal(),
-        new SorobanAddress(input.asset).toScVal(),
-        nativeToScVal(input.amount, { type: "i128" }),
-        nativeToScVal(input.safetyDeposit, { type: "i128" }),
-        nativeToScVal(this.hexToBytesN32(input.hashlockHex), { type: "bytes" }),
-        nativeToScVal(input.timelockSeconds, { type: "u64" })
-      );
-      return await this.simulateSignSubmit(input.sender, op, signer);
-    } catch (err) {
-      throw normalizeError(err);
-    }
+    assertValidSecretFormat(input.hashlockHex, "hashlockHex");
+    const op = this.contract.call(
+      "create_order",
+      new SorobanAddress(input.sender).toScVal(),
+      new SorobanAddress(input.beneficiary).toScVal(),
+      new SorobanAddress(input.refundAddress).toScVal(),
+      new SorobanAddress(input.asset).toScVal(),
+      nativeToScVal(input.amount, { type: "i128" }),
+      nativeToScVal(input.safetyDeposit, { type: "i128" }),
+      nativeToScVal(this.hexToBytesN32(input.hashlockHex), { type: "bytes" }),
+      nativeToScVal(input.timelockSeconds, { type: "u64" })
+    );
+    return this.simulateSignSubmit(input.sender, op, signer);
   }
 
   async claimOrder(
@@ -110,18 +107,15 @@ export class SorobanHTLCClient {
     preimageHex: `0x${string}`,
     signer: SorobanSigner
   ): Promise<string> {
-    try {
-      const clean = preimageHex.startsWith("0x") ? preimageHex.slice(2) : preimageHex;
-      const op = this.contract.call(
-        "claim_order",
-        nativeToScVal(orderId, { type: "u64" }),
-        nativeToScVal(Buffer.from(clean, "hex"), { type: "bytes" }),
-        new SorobanAddress(callerAccountId).toScVal()
-      );
-      return await this.simulateSignSubmit(callerAccountId, op, signer);
-    } catch (err) {
-      throw normalizeError(err);
-    }
+    assertValidSecretFormat(preimageHex, "preimageHex");
+    const clean = preimageHex.startsWith("0x") ? preimageHex.slice(2) : preimageHex;
+    const op = this.contract.call(
+      "claim_order",
+      nativeToScVal(orderId, { type: "u64" }),
+      nativeToScVal(Buffer.from(clean, "hex"), { type: "bytes" }),
+      new SorobanAddress(callerAccountId).toScVal()
+    );
+    return this.simulateSignSubmit(callerAccountId, op, signer);
   }
 
   async refundOrder(

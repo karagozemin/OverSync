@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Horizon, 
   Asset, 
@@ -7,9 +7,10 @@ import {
   Memo
 } from '@stellar/stellar-sdk';
 import { isTestnet, getCurrentNetwork } from '../config/networks';
+import type { NetworkModeState } from '../lib/useNetworkMode';
 import { parseHtlcReceipt } from '../lib/parseHtlcReceipt';
 import { sanitizeAmountInput } from '../lib/sanitizeAmountInput';
-import { ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
 
 // Web3 imports for contract interaction
 declare global {
@@ -25,6 +26,8 @@ interface BridgeFormProps {
   ethAddress: string;
   stellarAddress: string;
   signStellarTransaction: (xdr: string, networkPassphrase?: string) => Promise<string>;
+  /** Network/wallet mismatch detector from App. If omitted, guardrails are skipped. */
+  networkState?: NetworkModeState;
 }
 
   // Fixed token information
@@ -159,7 +162,7 @@ const API_BASE_URL = import.meta.env.PROD
   : import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL;
 const ENABLE_MOCK_DATA = import.meta.env.VITE_ENABLE_MOCK_DATA === 'true';
 
-export default function BridgeForm({ ethAddress, stellarAddress, signStellarTransaction }: BridgeFormProps) {
+export default function BridgeForm({ ethAddress, stellarAddress, signStellarTransaction, networkState }: BridgeFormProps) {
   const [direction, setDirection] = useState<'eth_to_xlm' | 'xlm_to_eth'>('eth_to_xlm');
   const [networkInfo, setNetworkInfo] = useState(() => {
     const currentNetwork = getCurrentNetwork();
@@ -406,6 +409,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
     
     if (!window.ethereum) {
       alert('MetaMask bulunamadı! Lütfen MetaMask yükleyin.');
+      return;
+    }
+
+    // Guard: network mismatch — should be caught by the disabled button too,
+    // but check again at submission time for defence in depth.
+    if (networkState?.hasAnyMismatch) {
+      const reason =
+        networkState.metamaskConnected && !networkState.metamaskMatches
+          ? `MetaMask is on the wrong network (expected ${networkState.mode === 'testnet' ? 'Sepolia' : 'Mainnet'}).`
+          : networkState.freighterConnected && !networkState.freighterMatches
+            ? `Freighter is on the wrong Stellar network (expected ${networkState.mode === 'testnet' ? 'Testnet' : 'Mainnet'}).`
+            : 'Wallet network does not match the selected chain pair.';
+      alert(`Network mismatch: ${reason} Please switch wallets and try again.`);
+      setIsSubmitting(false);
+      setStatusMessage('');
       return;
     }
     
@@ -1129,6 +1147,42 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   // Check if wallets are connected
   const walletsConnected = ethAddress && stellarAddress;
 
+  // ---- Network mismatch guardrails ----
+  const mismatchInfo = useMemo(() => {
+    const ns = networkState;
+    if (!ns) return null;
+
+    const evmMismatch = ns.metamaskConnected && !ns.metamaskMatches;
+    const stellarMismatch = ns.freighterConnected && !ns.freighterMatches;
+    const evmDisconnected = !ns.metamaskConnected;
+    const stellarDisconnected = !ns.freighterConnected;
+
+    let label: string | null = null;
+    let severity: 'warning' | 'error' = 'warning';
+
+    if (ns.hasAnyMismatch) {
+      if (evmMismatch && stellarMismatch) {
+        label = `Both wallets are on the wrong network. Switch MetaMask to ${ns.mode === 'testnet' ? 'Sepolia' : 'Mainnet'} and Freighter to ${ns.mode === 'testnet' ? 'Stellar Testnet' : 'Stellar Mainnet'}.`;
+        severity = 'error';
+      } else if (evmMismatch) {
+        const actual = ns.metamaskChainId?.toLowerCase() === '0x1' ? 'Mainnet' : 'a different network';
+        label = `MetaMask is on ${actual} but the app is in ${ns.mode === 'testnet' ? 'Testnet' : 'Mainnet'} mode. Switch MetaMask to ${ns.mode === 'testnet' ? 'Sepolia' : 'Mainnet'}.`;
+        severity = 'error';
+      } else if (stellarMismatch) {
+        label = `Freighter is on a different Stellar network. Switch Freighter to ${ns.mode === 'testnet' ? 'Stellar Testnet' : 'Stellar Mainnet'} in the extension.`;
+        severity = 'error';
+      }
+    }
+
+    const blocked = ns.hasAnyMismatch;
+
+    return { evmMismatch, stellarMismatch, evmDisconnected, stellarDisconnected, label, severity, blocked };
+  }, [networkState]);
+
+  const isBlocked = mismatchInfo?.blocked === true;
+  const mismatchLabel = mismatchInfo?.label ?? null;
+  // ---- end mismatch guardrails ----
+
   return (
     <div className="w-full rounded-[1.25rem] p-4 swap-card-bg swap-card-border md:p-5 lg:p-6">
       {orderCreated ? (
@@ -1354,22 +1408,46 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               <div className="font-medium text-cyan-100">{statusMessage}</div>
             </div>
           )}
+
+          {/* Network Mismatch Warning */}
+          {mismatchLabel && (
+            <div className="flex items-start gap-2.5 rounded-2xl border border-amber-400/35 bg-amber-500/12 p-3 text-left">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <p className="text-sm text-amber-100/90">{mismatchLabel}</p>
+            </div>
+          )}
+
+          {/* Disconnected Wallet Warning */}
+          {!mismatchLabel && (!ethAddress || !stellarAddress) && (
+            <div className="flex items-start gap-2.5 rounded-2xl border border-amber-400/35 bg-amber-500/12 p-3 text-left">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <p className="text-sm text-amber-100/90">
+                {!ethAddress && !stellarAddress
+                  ? 'Connect both MetaMask and Freighter to bridge.'
+                  : !ethAddress
+                    ? 'Connect MetaMask to bridge.'
+                    : 'Connect Freighter to bridge.'}
+              </p>
+            </div>
+          )}
           
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || !amount || !walletsConnected}
+            disabled={isSubmitting || !amount || !walletsConnected || isBlocked}
             className={`button-hover-scale w-full rounded-full py-3.5 font-semibold transition-all ${
-              walletsConnected
+              walletsConnected && !isBlocked
                 ? 'brand-cta'
                 : 'cursor-not-allowed border border-white/5 bg-slate-700/45 text-slate-400'
             }`}
           >
             {!walletsConnected
               ? 'Connect Wallet'
-              : isSubmitting
-                ? statusMessage || 'Processing...'
-                : 'Bridge'
+              : isBlocked
+                ? 'Network Mismatch'
+                : isSubmitting
+                  ? statusMessage || 'Processing...'
+                  : 'Bridge'
             }
           </button>
         </form>
