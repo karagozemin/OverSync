@@ -3,6 +3,7 @@ export * from "./secrets/index.js";
 export * from "./state-machine/index.js";
 export * from "./assets/index.js";
 export * from "./explorers/index.js";
+export * from "./utils/index.js";
 export {
   EthereumHTLCClient,
   HTLC_ESCROW_ABI,
