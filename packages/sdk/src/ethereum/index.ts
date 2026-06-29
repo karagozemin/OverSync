@@ -6,9 +6,8 @@ import {
   parseEventLogs
 } from "viem";
 import { HTLC_ESCROW_ABI } from "./abi.js";
-import { OverSyncError, OverSyncErrorCode, normalizeError } from "../errors/index.js";
-
 export { HTLC_ESCROW_ABI } from "./abi.js";
+import { assertValidSecretFormat } from "../secrets/index.js";
 
 export interface EthereumHTLCClientOptions {
   /** Address of the deployed HTLCEscrow contract. */
@@ -73,16 +72,16 @@ export class EthereumHTLCClient {
   }
 
   async createOrder(input: CreateOrderInput): Promise<{ txHash: Hex; orderId: bigint }> {
-    try {
-      const wallet = this.requireWallet();
-      const account = wallet.account;
-      if (!account) {
-        throw new OverSyncError("walletClient.account is required to send transactions", OverSyncErrorCode.VALIDATION_FAILED);
-      }
-      const value =
-        input.token === "0x0000000000000000000000000000000000000000"
-          ? input.amount + input.safetyDeposit
-          : input.safetyDeposit;
+    assertValidSecretFormat(input.hashlock, "hashlock");
+    const wallet = this.requireWallet();
+    const account = wallet.account;
+    if (!account) {
+      throw new Error("walletClient.account is required to send transactions");
+    }
+    const value =
+      input.token === "0x0000000000000000000000000000000000000000"
+        ? input.amount + input.safetyDeposit
+        : input.safetyDeposit;
 
       const { request, result } = await this.publicClient.simulateContract({
         address: this.address,
@@ -109,20 +108,17 @@ export class EthereumHTLCClient {
   }
 
   async claimOrder(orderId: bigint, preimage: Hex): Promise<Hex> {
-    try {
-      const wallet = this.requireWallet();
-      if (!wallet.account) throw new OverSyncError("walletClient.account is required", OverSyncErrorCode.VALIDATION_FAILED);
-      const { request } = await this.publicClient.simulateContract({
-        address: this.address,
-        abi: HTLC_ESCROW_ABI,
-        functionName: "claimOrder",
-        args: [orderId, preimage],
-        account: wallet.account.address
-      });
-      return await wallet.writeContract(request);
-    } catch (err) {
-      throw normalizeError(err);
-    }
+    assertValidSecretFormat(preimage, "preimage");
+    const wallet = this.requireWallet();
+    if (!wallet.account) throw new Error("walletClient.account is required");
+    const { request } = await this.publicClient.simulateContract({
+      address: this.address,
+      abi: HTLC_ESCROW_ABI,
+      functionName: "claimOrder",
+      args: [orderId, preimage],
+      account: wallet.account.address
+    });
+    return wallet.writeContract(request);
   }
 
   async refundOrder(orderId: bigint): Promise<Hex> {

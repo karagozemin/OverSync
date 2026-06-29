@@ -516,6 +516,7 @@ function App() {
               signStellarTransaction={(xdr, networkPassphrase) =>
                 signStellarTransaction(xdr, networkPassphrase, stellarAddress || undefined)
               }
+              networkState={networkState}
             />
           )}
 

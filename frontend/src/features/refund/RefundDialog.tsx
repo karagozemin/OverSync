@@ -5,6 +5,7 @@ import { mainnet, sepolia } from "viem/chains";
 import { makeEthereumHTLCClient } from "../../lib/sdk-context";
 import { isTestnet } from "../../config/networks";
 import { useNetworkMode } from "../../lib/useNetworkMode";
+import CopyableIdentifier from "../../components/CopyableIdentifier";
 
 /**
  * Two on-chain refund flavors are supported:
@@ -187,9 +188,17 @@ export function RefundDialog(props: RefundDialogProps) {
       </div>
 
       <dl className="space-y-2 mb-4 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-gray-400">Order id</dt>
-          <dd className="text-white font-mono">{props.orderId}</dd>
+        <div className="flex justify-between gap-3">
+          <dt className="text-gray-400 shrink-0">Order id</dt>
+          <dd className="min-w-0 text-white">
+            <CopyableIdentifier
+              value={props.orderId}
+              truncate
+              truncateHead={8}
+              truncateTail={6}
+              copyLabel="order id"
+            />
+          </dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-gray-400">Locked amount</dt>
@@ -233,14 +242,21 @@ export function RefundDialog(props: RefundDialogProps) {
       {phase === "done" && txHash && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 mb-4">
           <p className="text-sm text-emerald-300 font-medium mb-1">Refund submitted.</p>
-          <a
-            href={`${explorer}/tx/${txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-400 hover:underline break-all"
-          >
-            {txHash}
-          </a>
+          <div className="flex min-w-0 items-start gap-2">
+            <a
+              href={`${explorer}/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1 text-xs text-blue-400 hover:underline break-all font-mono"
+            >
+              {txHash}
+            </a>
+            <CopyableIdentifier
+              value={txHash}
+              hideDisplay
+              copyLabel="refund transaction hash"
+            />
+          </div>
         </div>
       )}
 
