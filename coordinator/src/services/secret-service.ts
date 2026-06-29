@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Logger } from "pino";
 import { keccak256, toHex } from "viem";
+import { assertValidSecretFormat } from "@oversync/sdk";
 import type { OrderService } from "./order-service.js";
 
 function bufferFromHex(s: string): Buffer {
@@ -36,6 +37,7 @@ export class SecretService {
    * before storing it, so a malicious caller cannot poison the cache.
    */
   async reveal(publicId: string, preimage: string, txHash: string): Promise<{ ok: true }> {
+    assertValidSecretFormat(preimage, "preimage");
     const order = await this.orders.get(publicId);
     if (!order) {
       throw new Error(`unknown order ${publicId}`);
