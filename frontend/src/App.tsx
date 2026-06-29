@@ -9,6 +9,7 @@ import { useFreighter } from './hooks/useFreighter'
 import { useNetworkMode } from './lib/useNetworkMode'
 import { pingBackendWake } from './lib/wakeBackend'
 import { isMainnetEnabled } from './config/networks'
+import EvidenceExportAction from './components/EvidenceExportAction'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
 import {
@@ -486,6 +487,8 @@ function App() {
               </div>
             </div>
           </div>
+
+          <EvidenceExportAction />
         </section>
 
         <section className="w-full lg:w-[640px] lg:max-w-none lg:justify-self-start">
