@@ -6,6 +6,7 @@ import CopyableIdentifier from './CopyableIdentifier';
 import OrderStaleBanner from './OrderStaleBanner';
 import { classifyOrderFreshness } from '../lib/orderFreshness';
 import type { Address } from 'viem';
+import HtlcTimeline from './HtlcTimeline';
 
 interface Transaction {
   id: string;
@@ -74,12 +75,103 @@ function isRealTransaction(tx: Transaction): boolean {
   return isRealHash(tx.txHash) && isRealHash(tx.ethTxHash) && isRealHash(tx.stellarTxHash);
 }
 
+const isTestnetTx = (tx: Transaction): boolean => {
+  return tx.networkMode === 'testnet' || (tx.networkMode === undefined && isTestnet());
+};
+
+function mapCoordinatorOrderToTransaction(order: any): Transaction {
+  if (order.fromToken || order.fromNetwork) {
+    return order as Transaction;
+  }
+
+  const isEthToXlm = order.direction === 'eth_to_xlm' || order.direction === 'eth-to-xlm';
+  const isTestnetMode = isTestnet();
+
+  let status: Transaction['status'] = 'pending';
+  if (order.status === 'completed') {
+    status = 'completed';
+  } else if (order.status === 'failed' || order.status === 'expired') {
+    status = 'failed';
+  } else if (order.status === 'refunded') {
+    status = 'cancelled';
+  }
+
+  const srcAmount = order.src?.amount
+    ? (isEthToXlm ? parseFloat(order.src.amount) / 1e18 : parseFloat(order.src.amount) / 1e7).toString()
+    : '0';
+  const dstAmount = order.dst?.amount
+    ? (isEthToXlm ? parseFloat(order.dst.amount) / 1e7 : parseFloat(order.dst.amount) / 1e18).toString()
+    : '0';
+
+  return {
+    id: order.id,
+    txHash: order.src?.lockTx || order.id,
+    fromNetwork: isEthToXlm
+      ? (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet')
+      : (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet'),
+    toNetwork: isEthToXlm
+      ? (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet')
+      : (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet'),
+    fromToken: isEthToXlm ? 'ETH' : 'XLM',
+    toToken: isEthToXlm ? 'XLM' : 'ETH',
+    amount: srcAmount,
+    estimatedAmount: dstAmount,
+    status,
+    timestamp: order.createdAt ? order.createdAt * 1000 : Date.now(),
+    ethTxHash: isEthToXlm ? order.src?.lockTx : order.dst?.lockTx,
+    stellarTxHash: isEthToXlm ? order.dst?.lockTx : order.src?.lockTx,
+    ethAddress: isEthToXlm ? order.src?.address : order.dst?.address,
+    stellarAddress: isEthToXlm ? order.dst?.address : order.src?.address,
+    direction: isEthToXlm ? 'eth-to-xlm' : 'xlm-to-eth',
+    onChainOrderId: order.src?.orderId,
+    htlcContractAddress: order.src?.chain === 'ethereum' ? order.resolver : undefined,
+    htlcContractMode: order.src?.safetyDeposit ? 'v2-escrow' : 'v1-mainnet-htlc',
+    timelockUnixSeconds: order.src?.timelock,
+    amountWei: order.src?.amount,
+    refundTxHash: order.status === 'refunded' ? order.secret?.revealedTx : undefined,
+    refundNetwork: isEthToXlm ? 'ethereum' : 'stellar',
+    refundedAt: order.status === 'refunded' ? order.updatedAt * 1000 : undefined,
+    networkMode: isTestnetMode ? 'testnet' : 'mainnet'
+  };
+}
+
 export default function TransactionHistory({ ethAddress, stellarAddress }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all');
   const [refundTarget, setRefundTarget] = useState<Transaction | null>(null);
   const [manualRefundingIds, setManualRefundingIds] = useState<Set<string>>(() => new Set());
+  const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
+
+  const isTxExpanded = (tx: Transaction): boolean => {
+    if (expandedTxIds.has(tx.id + '_hidden')) {
+      return false;
+    }
+    if (expandedTxIds.has(tx.id)) {
+      return true;
+    }
+    return isTestnetTx(tx) && tx.status === 'pending';
+  };
+
+  const toggleExpandTx = (id: string, isDefaultExpanded: boolean) => {
+    setExpandedTxIds((prev) => {
+      const next = new Set(prev);
+      if (isDefaultExpanded) {
+        if (next.has(id + '_hidden')) {
+          next.delete(id + '_hidden');
+        } else {
+          next.add(id + '_hidden');
+        }
+      } else {
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  };
 
   const loadFromStorage = useCallback((): Transaction[] => {
     try {
@@ -109,7 +201,7 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
       if (!res.ok) throw new Error(`Coordinator returned ${res.status}`);
       const body = await res.json();
       const remote: Transaction[] = Array.isArray(body?.transactions)
-        ? body.transactions.filter(isRealTransaction)
+        ? body.transactions.map(mapCoordinatorOrderToTransaction).filter(isRealTransaction)
         : [];
       const local = loadFromStorage();
       const byId = new Map<string, Transaction>();
@@ -446,6 +538,19 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
                   />
                 </div>
                 <div className="flex items-center gap-2">
+                  {isTestnetTx(tx) && (
+                    <button
+                      onClick={() => toggleExpandTx(tx.id, tx.status === 'pending')}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        isTxExpanded(tx)
+                          ? 'border-cyan-300 bg-cyan-500/20 text-cyan-200'
+                          : 'border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                      }`}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{isTxExpanded(tx) ? 'Hide Timeline' : 'Show Timeline'}</span>
+                    </button>
+                  )}
                   {tx.refundTxHash && (
                     <a
                       href={getRefundExplorerUrl(tx)}
@@ -496,6 +601,10 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
                   timelockUnixSeconds: tx.timelockUnixSeconds,
                 })}
               />
+
+              {isTestnetTx(tx) && isTxExpanded(tx) && (
+                <HtlcTimeline tx={tx} />
+              )}
             </div>
           ))
         )}

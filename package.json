@@ -21,7 +21,7 @@
     "build": "pnpm -r build",
     "build:prod": "NODE_ENV=production pnpm -r build",
     "test": "pnpm -r test",
-    "test:e2e": "pnpm --filter @oversync/e2e test",
+    "test:e2e": "pnpm --filter @oversync/contracts compile && pnpm --filter @oversync/e2e test",
     "load-test": "pnpm --filter @oversync/e2e load-test",
     "load-test:live": "LOAD_TEST_LIVE=true pnpm --filter @oversync/e2e load-test",
     "scf:testnet-metrics": "node scripts/scf-testnet-metrics.mjs",

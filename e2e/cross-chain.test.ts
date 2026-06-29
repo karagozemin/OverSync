@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, beforeAll, afterAll, afterEach } from "vitest";
 import { generateSecret, hashSecret, verifyPreimage } from "@oversync/sdk/secrets";
 import { EvmHtlcSim, SorobanHtlcSim, type HtlcSim } from "./sim.js";
+import { startEvmFixture, type RealEvmHtlcFixture } from "./evm-fixture.js";
 
 const TIMELOCK_SECONDS = 600;
 const PAST_TIMELOCK = TIMELOCK_SECONDS + 1;
@@ -29,12 +30,10 @@ describe("cross-chain HTLC differential harness", () => {
     });
   });
 
-  // Shared per-chain scenarios. Driving both simulators through the same
-  // assertions is the actual differential check — if either chain
-  // diverges, the corresponding case fails for that chain only.
+  // ── Simulator differential (unchanged from Wave 5) ──────────────────────
   describe.each<{ label: string; factory: () => HtlcSim }>([
-    { label: "EVM HTLCEscrow", factory: () => new EvmHtlcSim() },
-    { label: "Soroban oversync-htlc", factory: () => new SorobanHtlcSim() }
+    { label: "EVM HTLCEscrow (sim)", factory: () => new EvmHtlcSim() },
+    { label: "Soroban oversync-htlc (sim)", factory: () => new SorobanHtlcSim() }
   ])("$label", ({ factory }) => {
     let chain: HtlcSim;
     let secret: ReturnType<typeof generateSecret>;
@@ -82,7 +81,8 @@ describe("cross-chain HTLC differential harness", () => {
     });
   });
 
-  describe("cross-chain round-trip", () => {
+  // ── Simulator cross-chain round-trip (unchanged from Wave 5) ────────────
+  describe("cross-chain round-trip (simulators)", () => {
     it("one sha256 hashlock unlocks BOTH chains with the same preimage", () => {
       const secret = generateSecret();
       const evm = new EvmHtlcSim();
@@ -106,10 +106,6 @@ describe("cross-chain HTLC differential harness", () => {
     });
 
     it("a keccak256-only hashlock works on EVM but is rejected by Soroban", () => {
-      // This asymmetry is intentional: HTLCEscrow.sol accepts either
-      // digest so it can interop with classic EVM tooling; the Soroban
-      // contract is sha256-only. Cross-chain swaps therefore MUST use
-      // the sha256 digest end-to-end.
       const secret = generateSecret();
       const evm = new EvmHtlcSim();
       const soroban = new SorobanHtlcSim();
@@ -126,5 +122,60 @@ describe("cross-chain HTLC differential harness", () => {
       expect(() => evm.claimOrder(evmId, secret.preimage)).not.toThrow();
       expect(() => soroban.claimOrder(sorobanId, secret.preimage)).toThrow(/InvalidPreimage/);
     });
+  });
+
+  // ── Real EVM execution via Anvil + deployed HTLCEscrow ──────────────────
+describe("real EVM HTLCEscrow (Anvil)", () => {
+    let fixture: RealEvmHtlcFixture | undefined;
+
+    beforeAll(async () => {
+      fixture = await startEvmFixture();
+    }, 60_000);
+
+   afterAll(async () => {
+  if (fixture) {
+    await fixture.stop();
+  }
+});
+    it("deploys and accepts a valid sha256 preimage from @oversync/sdk — order becomes Claimed", async () => {
+      const secret = generateSecret();
+
+      const orderId = await fixture.createOrder(secret.sha256, TIMELOCK_SECONDS);
+      expect(await fixture.getOrderStatus(orderId)).toBe("Funded");
+
+      await fixture.claimOrder(orderId, secret.preimage);
+      expect(await fixture.getOrderStatus(orderId)).toBe("Claimed");
+
+      expect(verifyPreimage(secret.preimage, secret.sha256)).toBe("sha256");
+    }, 30_000);
+
+    it("rejects a wrong preimage on the REAL EVM contract — InvalidPreimage", async () => {
+      const secret = generateSecret();
+      const wrong = generateSecret();
+
+      const orderId = await fixture.createOrder(secret.sha256, TIMELOCK_SECONDS);
+
+      const errorName = await fixture.claimOrderExpectRevert(orderId, wrong.preimage);
+      expect(errorName).toMatch(/InvalidPreimage/);
+
+      expect(await fixture.getOrderStatus(orderId)).toBe("Funded");
+    }, 30_000);
+
+    it("real EVM hashlock and Soroban simulator agree on the same sha256 secret", async () => {
+      const secret = generateSecret();
+      const soroban = new SorobanHtlcSim();
+
+      const evmId = await fixture.createOrder(secret.sha256, TIMELOCK_SECONDS);
+      const sorobanId = soroban.createOrder({
+        hashlock: secret.sha256,
+        timelockSeconds: TIMELOCK_SECONDS
+      });
+
+      await fixture.claimOrder(evmId, secret.preimage);
+      soroban.claimOrder(sorobanId, secret.preimage);
+
+      expect(await fixture.getOrderStatus(evmId)).toBe("Claimed");
+      expect(soroban.getOrder(sorobanId).status).toBe("Claimed");
+    }, 30_000);
   });
 });
