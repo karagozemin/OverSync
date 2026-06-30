@@ -14,6 +14,7 @@ import EvidenceExportAction from './components/EvidenceExportAction'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
 import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
+import InvestorMode from './pages/InvestorMode'
 import {
   Activity,
   ArrowRightLeft,
