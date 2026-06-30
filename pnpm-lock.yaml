@@ -140,19 +140,25 @@ importers:
       '@oversync/sdk':
         specifier: workspace:*
         version: link:../packages/sdk
-      viem:
-        specifier: ^2.21.0
-        version: 2.31.7(typescript@5.8.3)(zod@3.25.76)
+      ethers:
+        specifier: ^6.9.0
+        version: 6.15.0
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.7
+      '@viem/anvil':
+        specifier: ^0.0.10
+        version: 0.0.10
       tsx:
         specifier: ^4.19.0
         version: 4.20.3
       typescript:
         specifier: ^5.3.0
         version: 5.8.3
+      viem:
+        specifier: ^2.31.7
+        version: 2.31.7(typescript@5.8.3)(zod@3.25.76)
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.7)
@@ -7607,7 +7613,9 @@ snapshots:
 
   '@noble/ciphers@1.2.0': {}
 
-  '@noble/ciphers@1.3.0': {}
+  /@noble/ciphers@1.3.0:
+    resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
+    engines: {node: ^14.21.3 || >=16}
 
   '@noble/curves@1.2.0':
     dependencies:
@@ -8561,7 +8569,24 @@ snapshots:
     dependencies:
       '@vanilla-extract/css': 1.14.0
 
-  '@vitejs/plugin-react@4.6.0(vite@5.4.19)':
+  /@viem/anvil@0.0.10:
+    resolution: {integrity: sha512-9PzYXBRikfSUhhm8Bd0avv07agwcbMJ5FaSu2D2vbE0cxkvXGtolL3fW5nz2yefMqOqVQL4XzfM5nwY81x3ytw==}
+    dependencies:
+      execa: 7.2.0
+      get-port: 6.1.2
+      http-proxy: 1.18.1
+      ws: 8.18.2
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - utf-8-validate
+    dev: true
+
+  /@vitejs/plugin-react@4.6.0(vite@5.4.19):
+    resolution: {integrity: sha512-5Kgff+m8e2PB+9j51eGHEpn5kUzRKH2Ry0qGoe8ItJg7pqnkPrYPkDQZGgGmTa0EGarHrkjLvOdU3b1fzI8otQ==}
+    engines: {node: ^14.18.0 || >=16.0.0}
+    peerDependencies:
+      vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0-beta.0
     dependencies:
       '@babel/core': 7.28.0
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.0)
@@ -10386,9 +10411,11 @@ snapshots:
       bn.js: 4.11.6
       number-to-bn: 1.7.0
 
-  eventemitter3@4.0.7: {}
+  /eventemitter3@4.0.7:
+    resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
-  eventemitter3@5.0.1: {}
+  /eventemitter3@5.0.1:
+    resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
 
   events@3.3.0: {}
 
@@ -10411,7 +10438,24 @@ snapshots:
       signal-exit: 3.0.7
       strip-final-newline: 2.0.0
 
-  execa@8.0.1:
+  /execa@7.2.0:
+    resolution: {integrity: sha512-UduyVP7TLB5IcAQl+OzLyLcS/l32W/GLg+AhHJ+ow40FOk2U3SAllPwR44v4vmdFwIWqpdwxxpQbF1n5ta9seA==}
+    engines: {node: ^14.18.0 || ^16.14.0 || >=18.0.0}
+    dependencies:
+      cross-spawn: 7.0.6
+      get-stream: 6.0.1
+      human-signals: 4.3.1
+      is-stream: 3.0.0
+      merge-stream: 2.0.0
+      npm-run-path: 5.3.0
+      onetime: 6.0.0
+      signal-exit: 3.0.7
+      strip-final-newline: 3.0.0
+    dev: true
+
+  /execa@8.0.1:
+    resolution: {integrity: sha512-VyhnebXciFV2DESc+p6B+y0LjSm0krU4OgJN44qFAhBY0TJ+1V61tYD2+wHusZ6F9n5K+vl8k0sTy7PEfV4qpg==}
+    engines: {node: '>=16.17'}
     dependencies:
       cross-spawn: 7.0.6
       get-stream: 8.0.1
@@ -10714,7 +10758,14 @@ snapshots:
 
   get-port@3.2.0: {}
 
-  get-proto@1.0.1:
+  /get-port@6.1.2:
+    resolution: {integrity: sha512-BrGGraKm2uPqurfGVj/z97/zv8dPleC6x9JBNRTrDNtCkkRF4rPwrQXFgL7+I+q8QSdU4ntLQX2D7KIxSy8nGw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+    dev: true
+
+  /get-proto@1.0.1:
+    resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
+    engines: {node: '>= 0.4'}
     dependencies:
       dunder-proto: 1.0.1
       es-object-atoms: 1.1.1
@@ -11002,7 +11053,19 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-response-object@3.0.2:
+  /http-proxy@1.18.1:
+    resolution: {integrity: sha512-7mz/721AbnJwIVbnaSv1Cz3Am0ZLT/UBwkC92VlxhXv/k/BBQfM2fXElQNC27BVGr0uwUpplYPQM9LnaBMR5NQ==}
+    engines: {node: '>=8.0.0'}
+    dependencies:
+      eventemitter3: 4.0.7
+      follow-redirects: 1.15.9(debug@4.4.1)
+      requires-port: 1.0.0
+    transitivePeerDependencies:
+      - debug
+    dev: true
+
+  /http-response-object@3.0.2:
+    resolution: {integrity: sha512-bqX0XTF6fnXSQcEJ2Iuyr75yVakyjIDCqroJQ/aHfSdlM743Cwqoi2nDYMzLGWUcuTWGWy8AAvOKXTfiv6q9RA==}
     dependencies:
       '@types/node': 10.17.60
 
@@ -11020,7 +11083,15 @@ snapshots:
 
   human-signals@2.1.0: {}
 
-  human-signals@5.0.0: {}
+  /human-signals@4.3.1:
+    resolution: {integrity: sha512-nZXjEF2nbo7lIw3mgYjItAfgQXog3OjJogSbKa2CQIIvSGWcKgeJnQlNXip6NglNzYH45nSRiEVimMvYL8DDqQ==}
+    engines: {node: '>=14.18.0'}
+    dev: true
+
+  /human-signals@5.0.0:
+    resolution: {integrity: sha512-AXcZb6vzzrFAUE61HnN4mpLqd/cSIwNQjtNWR0euPm6y0iqx3G4gOXaIDdtdDwZmhwe82LA6+zinmW4UBWVePQ==}
+    engines: {node: '>=16.17.0'}
+    dev: true
 
   iconv-lite@0.4.24:
     dependencies:
@@ -12547,7 +12618,13 @@ snapshots:
 
   require-main-filename@2.0.0: {}
 
-  resolve-alpn@1.2.1: {}
+  /requires-port@1.0.0:
+    resolution: {integrity: sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==}
+    dev: true
+
+  /resolve-alpn@1.2.1:
+    resolution: {integrity: sha512-0a1F4l73/ZFZOakJnQ3FvkJ2+gSTQWz/r2KE5OdDY0TxPm5h4GkqkWWfM47T7HsbnOtcJVEF4epCVy6u7Q3K+g==}
+    dev: true
 
   resolve-cwd@3.0.0:
     dependencies:
@@ -13839,7 +13916,17 @@ snapshots:
 
   ws@8.18.0: {}
 
-  ws@8.18.2: {}
+  /ws@8.18.2:
+    resolution: {integrity: sha512-DMricUmwGZUVr++AEAe2uiVM7UoO9MAVZMDu05UQOaUII0lp+zOzLLU4Xqh/JvTqklB1T4uELaaPBKyjE1r4fQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
   xing-inflector@1.0.0-beta:
     dependencies:
@@ -13921,7 +14008,8 @@ snapshots:
 
   yocto-queue@1.2.1: {}
 
-  zod@3.25.76: {}
+  /zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
   zustand@4.5.7(@types/react@18.3.23)(react@18.3.1):
     dependencies:

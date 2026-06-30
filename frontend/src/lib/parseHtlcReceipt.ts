@@ -64,13 +64,117 @@ function toLogInput(log: RawLog) {
   };
 }
 
-/**
- * Scan an Ethereum tx receipt's logs for an HTLC `OrderCreated` event and
- * return the metadata needed for a permissionless refund.
- *
- * Returns `null` if no recognised HTLC event is present (e.g. the user
- * sent a plain transfer, or the relayer used an unrelated contract).
- */
+// ─── Read-only receipt data for completed/refunded swaps ──────────────────────
+
+export interface ReceiptExplorerLink {
+  label: string;
+  url: string;
+  hash: string;
+}
+
+export interface HtlcReceiptData {
+  orderId: string;
+  sourceChain: string;
+  destinationChain: string;
+  lockTx: ReceiptExplorerLink;
+  claimTx: ReceiptExplorerLink | null;
+  refundTx: ReceiptExplorerLink | null;
+  finalState: 'completed' | 'refunded' | 'failed';
+  timelockSummary: string;
+  nonCustodialExplanation: string;
+  direction: 'eth-to-xlm' | 'xlm-to-eth';
+  amount: string;
+  fromToken: string;
+  toToken: string;
+  estimatedAmount: string;
+}
+
+const ETHERSCAN_BASE = 'https://sepolia.etherscan.io';
+const STELLAR_EXPLORER_BASE = 'https://stellar.expert/explorer/testnet';
+
+function receiptLink(hash: string, chain: 'ethereum' | 'stellar'): { url: string; label: string } {
+  if (chain === 'ethereum') {
+    return { url: `${ETHERSCAN_BASE}/tx/${hash}`, label: 'Etherscan' };
+  }
+  return { url: `${STELLAR_EXPLORER_BASE}/tx/${hash}`, label: 'Stellar Expert' };
+}
+
+export function buildHtlcReceipt(params: {
+  orderId: string;
+  direction: 'eth-to-xlm' | 'xlm-to-eth';
+  amount: string;
+  fromToken: string;
+  toToken: string;
+  estimatedAmount: string;
+  status: 'pending' | 'completed' | 'cancelled' | 'failed';
+  ethTxHash?: string;
+  stellarTxHash?: string;
+  refundTxHash?: string;
+  refundNetwork?: 'ethereum' | 'stellar';
+  timelockUnixSeconds?: number;
+}): HtlcReceiptData {
+  const isEthToXlm = params.direction === 'eth-to-xlm';
+  const sourceChain = isEthToXlm ? 'Ethereum Sepolia' : 'Stellar Testnet';
+  const destChain = isEthToXlm ? 'Stellar Testnet' : 'Ethereum Sepolia';
+
+  const lockHash = isEthToXlm
+    ? (params.ethTxHash ?? params.stellarTxHash ?? '')
+    : (params.stellarTxHash ?? params.ethTxHash ?? '');
+
+  const lockChain: 'ethereum' | 'stellar' = isEthToXlm ? 'ethereum' : 'stellar';
+
+  const claimHash = isEthToXlm
+    ? (params.stellarTxHash ?? '')
+    : (params.ethTxHash ?? '');
+
+  const finalState: HtlcReceiptData['finalState'] =
+    params.status === 'completed' ? 'completed'
+    : params.status === 'pending' ? 'failed'
+    : params.refundTxHash ? 'refunded'
+    : 'failed';
+
+  const refundLink: ReceiptExplorerLink | null =
+    params.refundTxHash
+      ? (() => {
+          const rn = params.refundNetwork ?? (params.refundTxHash.startsWith('0x') ? 'ethereum' : 'stellar');
+          const link = receiptLink(params.refundTxHash, rn);
+          return { label: link.label, url: link.url, hash: params.refundTxHash };
+        })()
+      : null;
+
+  const timelockSummary = isEthToXlm
+    ? `ETH locked under 24h timelock on Ethereum — XLM locked under 12h timelock on Stellar`
+    : `XLM locked under 12h timelock on Stellar — ETH locked under 24h timelock on Ethereum`;
+
+  const nonCustodialExplanation =
+    `Funds were locked in on-chain HTLC contracts (SHA-256 hashlock + timelock) on both Ethereum and Stellar. ` +
+    `No intermediary, relayer, or coordinator ever controlled your assets. ` +
+    `Settlement required a SHA-256 preimage reveal; if the swap failed, each leg refunded to your address ` +
+    `permissionlessly. There was no state in which your funds were stranded under operator control.`;
+
+  return {
+    orderId: params.orderId,
+    sourceChain,
+    destinationChain: destChain,
+    lockTx: {
+      hash: lockHash,
+      ...receiptLink(lockHash, lockChain),
+    },
+    claimTx: claimHash
+      ? { hash: claimHash, ...receiptLink(claimHash, isEthToXlm ? 'stellar' : 'ethereum') }
+      : null,
+    refundTx: refundLink,
+    finalState,
+    timelockSummary,
+    nonCustodialExplanation,
+    direction: params.direction,
+    amount: params.amount,
+    fromToken: params.fromToken,
+    toToken: params.toToken,
+    estimatedAmount: params.estimatedAmount,
+  };
+}
+
 export function parseHtlcReceipt(logs: RawLog[] | undefined | null): ParsedHtlcOrder | null {
   if (!logs || logs.length === 0) return null;
 
