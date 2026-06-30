@@ -130,10 +130,5 @@ demand from integrators after mainnet.
 
 ## Open dependencies and risks
 
-| Dependency / risk | Mitigation |
-|---|---|
-| CCTP v2 Stellar mainnet timing slips | Independent of our roadmap; affects Q2–Q3 2027 USDC composability only. |
-| Axelar ITS Stellar API surface changes | Adapter is isolated; only v2.1 ecosystem work is affected. |
-| Audit findings push Q1 2027 mainnet | We ship to mainnet when audits are clean. We do not pre-announce a hard date. |
-| Solo-team bus factor | Open resolver protocol means the bridge keeps working even if the core team is unavailable; CI + docs lower the onboarding bar. |
-| Resolver network coldstart | A bootstrap grant pool is part of the Tranche 2 funding ask (see `docs/REVIEW_RESPONSE.md`). |
+For a comprehensive tracking of external blockers, audit schedules, resolver coldstart incentives, RPC dependencies, and tooling status, see the detailed [Roadmap Dependency Tracker](docs/ROADMAP_DEPENDENCIES.md).
+

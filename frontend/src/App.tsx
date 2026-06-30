@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link, Route, Routes } from 'react-router-dom'
 import BridgeForm from './components/BridgeForm'
 import DarkVeil from './components/DarkVeil'
 
@@ -9,8 +10,13 @@ import { useFreighter } from './hooks/useFreighter'
 import { useNetworkMode } from './lib/useNetworkMode'
 import { pingBackendWake } from './lib/wakeBackend'
 import { isMainnetEnabled } from './config/networks'
+import EvidenceExportAction from './components/EvidenceExportAction'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
+import DeploymentSelfCheck from './components/DeploymentSelfCheck'
+import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
+import BackendStatusBanner from './components/BackendStatusBanner'
+import { useBackendStatus } from './lib/useBackendStatus'
 import {
   Activity,
   ArrowRightLeft,
@@ -20,6 +26,7 @@ import {
   LockKeyhole,
   RadioTower,
   ShieldCheck,
+  ShieldEllipsis,
   Wallet,
   Zap,
 } from 'lucide-react'
@@ -136,6 +143,8 @@ function App() {
   // Single source of truth for testnet/mainnet across URL + MetaMask + Freighter.
   // Replaces the previous local `currentNetwork` state and 2s page-reload hack
   // that allowed URL and wallet to drift apart.
+  const backendStatus = useBackendStatus();
+
   const networkState = useNetworkMode({
     ethAddress: ethAddress || undefined,
     stellarAddress: stellarAddress || undefined,
@@ -217,6 +226,11 @@ function App() {
   const connectionLabel = isWalletsConnected ? 'Connected' : hasAnyConnection ? 'Partial' : 'Connect Wallet';
 
   return (
+    <Routes>
+      <Route path="/launch-readiness" element={<LaunchReadinessSurface />} />
+      <Route
+        path="*"
+        element={
     <div className="app-shell min-h-screen text-white flex flex-col">
       {showIntro && (
         <div
@@ -256,9 +270,9 @@ function App() {
       <nav className="sticky top-0 z-50 w-full border-b border-cyan-200/15 bg-[#050817]/78 px-4 py-3 shadow-[0_16px_60px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <img 
-            src="/images/oversync-logo.png" 
-            alt="OverSync" 
+          <img
+            src="/images/oversync-logo.png"
+            alt="OverSync"
             className="h-11 w-11 rounded-xl border border-cyan-200/20 shadow-[0_0_30px_rgba(0,226,255,0.2)]"
           />
           <div>
@@ -266,13 +280,21 @@ function App() {
             <span className="hidden text-xs uppercase tracking-[0.32em] text-indigo-200/75 sm:block">Fusion Rail</span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2 md:gap-3">
           <nav className="hidden items-center gap-2 md:flex">
             <a href="https://www.alchemy.com/faucets/ethereum-sepolia" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white">
               Faucet
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
+            <Link
+              to="/launch-readiness"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white"
+              data-testid="nav-launch-readiness-link"
+            >
+              <ShieldEllipsis className="h-3.5 w-3.5" />
+              Launch readiness
+            </Link>
           </nav>
 
           {/* Network selector — testnet-only until v2 mainnet launch */}
@@ -434,6 +456,7 @@ function App() {
 
       <NetworkMismatchBanner networkState={networkState} />
       <MainnetVersionBanner networkState={networkState} />
+      <BackendStatusBanner statusState={backendStatus} />
 
       {/* Main Content */}
       <main className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 pb-24 pt-10 md:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,560px)] lg:items-start lg:pt-16">
@@ -486,6 +509,8 @@ function App() {
               </div>
             </div>
           </div>
+
+          <EvidenceExportAction />
         </section>
 
         <section className="w-full lg:w-[640px] lg:max-w-none lg:justify-self-start">
@@ -516,6 +541,7 @@ function App() {
               signStellarTransaction={(xdr, networkPassphrase) =>
                 signStellarTransaction(xdr, networkPassphrase, stellarAddress || undefined)
               }
+              networkState={networkState}
             />
           )}
 
@@ -556,13 +582,21 @@ function App() {
         </a>
       </div>
 
+      {/* Deployment Self-Check - visible in development or when debug mode enabled */}
+      {import.meta.env.DEV || (import.meta as any).env?.VITE_ENABLE_DEBUG_MODE === 'true' ? (
+        <DeploymentSelfCheck />
+      ) : null}
+
       {/* Toast Container */}
-      <ToastContainer 
+      <ToastContainer
         toasts={toast.toasts}
         onClose={toast.removeToast}
       />
 
     </div>
+        }
+      />
+    </Routes>
   );
 }
 

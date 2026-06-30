@@ -19,6 +19,11 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_TESTNET_FAUCETS: string;
   readonly VITE_ENABLE_DEBUG_MODE: string;
   readonly VITE_ENABLE_MOCK_DATA: string;
+  readonly VITE_MAINNET_ENABLED: string;
+  readonly VITE_MAINNET_RPC_URL: string;
+  readonly VITE_SEPOLIA_RPC_URL: string;
+  readonly VITE_INFURA_API_KEY: string;
+  readonly VITE_ONEINCH_API_KEY: string;
 }
 
 interface ImportMeta {
