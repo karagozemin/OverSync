@@ -7,7 +7,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "load-test": "tsx load-test/harness.ts"
+    "load-test": "tsx load-test/harness.ts",
+    "check:parity": "tsx hashlock-parity.ts"
   },
   "dependencies": {
     "@oversync/sdk": "workspace:*",
