@@ -10,6 +10,19 @@ type AsyncCapableStatement = Statement & {
   allAsync?: (...params: any[]) => Promise<unknown[]>;
 };
 
+export interface OrderSnapshot {
+  orderId: string;
+  currentState: OrderStatus;
+  transitions: string[];
+  publicTxHashes: string[];
+  timestamps: {
+    createdAt: number;
+    updatedAt: number;
+  };
+  direction: Direction;
+  outcomeSummary: string;
+}
+
 export type OrderStatus =
   | "announced"
   | "src_locked"
