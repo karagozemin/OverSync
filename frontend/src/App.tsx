@@ -15,6 +15,7 @@ import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
 import DeploymentSelfCheck from './components/DeploymentSelfCheck'
 import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
+import InvestorMode from './pages/InvestorMode'
 import BackendStatusBanner from './components/BackendStatusBanner'
 import { useBackendStatus } from './lib/useBackendStatus'
 import {
