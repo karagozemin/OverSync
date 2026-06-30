@@ -1,5 +1,6 @@
 import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
+import { getLogger } from "./logger.js"; // Import the updated logger framework
 
 dotenvConfig({ path: resolve(process.cwd(), ".env") });
 
@@ -58,7 +59,7 @@ export function loadConfig(): ResolverConfig {
 
   const isMainnet = network === "mainnet";
 
-  return {
+  const config: ResolverConfig = {
     network,
     pollIntervalMs: Number(process.env.RESOLVER_POLL_INTERVAL_MS ?? 15_000),
     coordinatorUrl: process.env.COORDINATOR_URL ?? "http://localhost:3001",
@@ -91,4 +92,18 @@ export function loadConfig(): ResolverConfig {
       resolverSecret: process.env.RESOLVER_STELLAR_SECRET ?? null
     }
   };
+
+  // Instantiate logger configuration context
+  const logger = getLogger(config.logLevel);
+
+  // Print startup configuration indicators safely 
+  logger.info("Initializing OverSync Resolver engine instance configurations...");
+  logger.info(`Network operating target: ${config.network}`);
+  logger.info(`Coordinator upstream mapping endpoint: ${config.coordinatorUrl}`);
+  logger.info(`Polling cycle state intervals: ${config.pollIntervalMs}ms`);
+
+  // Emits complete settings object topology (The deep hook in logger.ts strips secret keys instantly)
+  logger.info({ msg: "OverSync active module runtime mappings configuration payload", runtimeConfig: config });
+
+  return config;
 }
