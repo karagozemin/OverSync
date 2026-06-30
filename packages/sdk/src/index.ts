@@ -1,6 +1,8 @@
 export * from "./types/index.js";
 export * from "./secrets/index.js";
 export * from "./state-machine/index.js";
+export type { SimulatedPhase, LegSimulation, RefundSimulation } from "./state-machine/refund-simulator.js";
+export { simulateRefund } from "./state-machine/refund-simulator.js";
 export * from "./assets/index.js";
 export * from "./explorers/index.js";
 export {

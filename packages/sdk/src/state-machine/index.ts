@@ -34,3 +34,10 @@ export function isTerminal(status: OrderStatus): boolean {
 export function nextStatesOf(status: OrderStatus): OrderStatus[] {
   return [...TRANSITIONS[status]];
 }
+
+export { simulateRefund } from "./refund-simulator.js";
+export type {
+  SimulatedPhase,
+  LegSimulation,
+  RefundSimulation,
+} from "./refund-simulator.js";
