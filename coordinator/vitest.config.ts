@@ -7,7 +7,8 @@ export default defineConfig({
     pool: "forks",
     server: {
       deps: {
-        external: [/^node:/]
+        external: [/^node:/],
+        inline: ['@oversync/sdk']
       }
     }
   }

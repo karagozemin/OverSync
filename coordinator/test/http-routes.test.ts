@@ -145,7 +145,7 @@ describe("POST /api/orders/announce", () => {
       .send(JSON.stringify({ direction: "eth_to_xlm" /* missing required fields */ }));
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("validation_error");
+    expect(res.body.error).toBe("VALIDATION_FAILED");
   });
 });
 
@@ -203,7 +203,7 @@ describe("POST /api/secrets/reveal", () => {
       .send(JSON.stringify({ publicId: "x" /* missing preimage, txHash */ }));
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("validation_error");
+    expect(res.body.error).toBe("VALIDATION_FAILED");
   });
 });
 

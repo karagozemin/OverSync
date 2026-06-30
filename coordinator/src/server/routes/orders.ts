@@ -44,7 +44,7 @@ function serialiseOrder(order: OrderRow | null) {
   };
 }
 
-function sendError(res: any, code: FailureCode, status: number = 400) {
+export function sendError(res: any, code: FailureCode, status: number = 400) {
   const detail = FAILURE_CODE_CATALOG[code];
   res.status(status).json({
     error: code,
