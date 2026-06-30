@@ -1,4 +1,5 @@
 name: ci
+# PR comparison marker – no functional impact
 
 on:
   push:
@@ -115,7 +116,7 @@ jobs:
       - name: Generate CI evidence summary (Soroban)
         env:
           JOB_STATUS: ${{ job.status }}
-        run: node scripts/generate-ci-evidence.mjs
+        run: node ${{ github.workspace }}/scripts/generate-ci-evidence.mjs
 
       - name: Upload CI evidence summary (Soroban)
         uses: actions/upload-artifact@v4
