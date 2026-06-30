@@ -224,6 +224,7 @@ function App() {
   return (
     <Routes>
       <Route path="/launch-readiness" element={<LaunchReadinessSurface />} />
+      <Route path="/investor" element={<InvestorMode />} />
       <Route
         path="*"
         element={
