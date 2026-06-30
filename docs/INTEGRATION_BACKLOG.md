@@ -23,27 +23,27 @@ Post-mainnet integration expands outward: multi-chain adapters (Axelar, CCTP), a
 | Field | Detail |
 |---|---|
 | **User benefit** | Freighter is the dominant Stellar browser wallet. Users need it to sign Soroban transactions (create_order, claim_order). Already integrated as `FreighterSorobanSigner` in the SDK. |
-| **Required SDK surface** | [`FreighterSorobanSigner`](../packages/sdk/src/signer/index.ts) — existing. |
+| **Required SDK surface** | `FreighterSorobanSigner` — existing. |
 | **Effort** | Small |
 | **Dependencies** | Freighter API stability across Soroban testnet → mainnet. Audit of SDK signer abstraction. |
-| **Completion evidence** | Swap completed end-to-end on testnet using Freighter for both Stellar-side auth and MetaMask for EVM-side. Documented in [`docs/SIGNER.md`](SIGNER.md). |
+| **Completion evidence** | Swap completed end-to-end on testnet using Freighter for both Stellar-side auth and MetaMask for EVM-side. Documented in `docs/SIGNER.md`. |
 
 ### 2. MetaMask / Rabby (EVM wallet — production hardening)
 
 | Field | Detail |
 |---|---|
 | **User benefit** | Required for EVM-side createOrder, claimOrder, refundOrder. Already integrated via `WalletClientEthereumSigner` in the SDK. |
-| **Required SDK surface** | [`WalletClientEthereumSigner`](../packages/sdk/src/signer/index.ts) — existing. Also compatible with Rabby, WalletConnect-injected providers. |
+| **Required SDK surface** | `WalletClientEthereumSigner` — existing. Also compatible with Rabby, WalletConnect-injected providers. |
 | **Effort** | Small |
 | **Dependencies** | None. |
-| **Completion evidence** | Testnet swap using MetaMask for EVM-side signing. Documented in [`docs/SIGNER.md`](SIGNER.md). |
+| **Completion evidence** | Testnet swap using MetaMask for EVM-side signing. Documented in `docs/SIGNER.md`. |
 
 ### 3. WalletConnect (EVM wallet — broad EVM wallet support)
 
 | Field | Detail |
 |---|---|
 | **User benefit** | Enables Rainbow, Trust Wallet, Zerion, and dozens of other EVM wallets that use WalletConnect. |
-| **Required SDK surface** | [`EthereumSignerI`](../packages/sdk/src/signer/index.ts) accepts any viem-compatible `WalletClient`. WalletConnect v2 adapter via `@web3modal/wagmi` or `@reown-io/walletkit`. |
+| **Required SDK surface** | `EthereumSignerI` accepts any viem-compatible `WalletClient`. WalletConnect v2 adapter via `@web3modal/wagmi` or `@reown-io/walletkit`. |
 | **Effort** | Medium |
 | **Dependencies** | SDK signer abstraction reviewed and merged. Frontend WalletConnect integration component. |
 | **Completion evidence** | Swap completed end-to-end using a WalletConnect-connected wallet for EVM-side signing. |
@@ -180,7 +180,7 @@ Post-mainnet integration expands outward: multi-chain adapters (Axelar, CCTP), a
 | **Required SDK surface** | Extend `SorobanSignerI` with a `LedgerSorobanSigner` that communicates with the Stellar Ledger app via `@stellar/strkey` or Stellar Ledger API. |
 | **Effort** | Large |
 | **Dependencies** | Stellar Ledger app supports Soroban transaction signing. Ledger Stellar app update cycle. |
-| **Completion evidence** | Swap signed with Ledger device on Stellar side, documented in [`docs/SIGNER.md`](SIGNER.md). |
+| **Completion evidence** | Swap signed with Ledger device on Stellar side, documented in `docs/SIGNER.md`. |
 
 ### 17. Payment application integration (Stellar-based wallet with swap)
 
@@ -228,10 +228,10 @@ Post-mainnet integration expands outward: multi-chain adapters (Axelar, CCTP), a
 
 | Integration | Status | Evidence |
 |---|---|---|
-| Freighter (Soroban signing) | Done | [`FreighterSorobanSigner`](../packages/sdk/src/signer/index.ts), tested. |
-| MetaMask (EVM signing) | Done | [`WalletClientEthereumSigner`](../packages/sdk/src/signer/index.ts), tested. |
-| Keypair (Soroban backend signing) | Done | [`KeypairSorobanSigner`](../packages/sdk/src/signer/index.ts), tested. |
-| Private key (EVM backend signing) | Done | [`PrivateKeyEthereumSigner`](../packages/sdk/src/signer/index.ts), tested. |
+| Freighter (Soroban signing) | Done | `FreighterSorobanSigner`, tested. |
+| MetaMask (EVM signing) | Done | `WalletClientEthereumSigner`, tested. |
+| Keypair (Soroban backend signing) | Done | `KeypairSorobanSigner`, tested. |
+| Private key (EVM backend signing) | Done | `PrivateKeyEthereumSigner`, tested. |
 | Resolver runner (Docker) | Done | [`resolver/`](../resolver/), [`resolver/Dockerfile`](../resolver/Dockerfile). |
 | Coordinator Prometheus metrics | Done | [`coordinator/ops/README.md`](../coordinator/ops/README.md). |
 | Testnet contract deployments | Done | [`deployments.testnet.json`](../deployments.testnet.json). |
@@ -245,12 +245,12 @@ Post-mainnet integration expands outward: multi-chain adapters (Axelar, CCTP), a
 - [`docs/DIFFERENTIATION.md`](DIFFERENTIATION.md) — Competitive landscape vs CCTP, Axelar ITS, Allbridge.
 - [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) — Deployment guide for testnet/mainnet.
 - [`docs/RESOLVERS.md`](RESOLVERS.md) — Community resolver operator guide.
-- [`docs/SIGNER.md`](SIGNER.md) — SDK signer abstraction and custom signer guide.
+- `docs/SIGNER.md` — SDK signer abstraction and custom signer guide.
 - [`ARCHITECTURE.md`](../ARCHITECTURE.md) — Full system architecture, refund layers, security boundaries.
 - [`packages/sdk/`](../packages/sdk/) — `@oversync/sdk` source, types, and clients.
 - [`coordinator/README.md`](../coordinator/README.md) — Coordinator service documentation.
 - [`coordinator/ops/README.md`](../coordinator/ops/README.md) — Observability stack (Prometheus + Grafana).
-- [`docs/AUDIT_PROCUREMENT.md`](AUDIT_PROCUREMENT.md) — Audit scope and security invariants.
+- `docs/AUDIT_PROCUREMENT.md` — Audit scope and security invariants.
 - [`docs/SECURITY.md`](SECURITY.md) — Threat model, audit status, bug bounty plan.
 - [`deployments.testnet.json`](../deployments.testnet.json) — Current testnet contract addresses.
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md) — Developer setup and contribution process.
