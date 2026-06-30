@@ -69,17 +69,6 @@ jobs:
         run: node scripts/check-evidence-links.mjs
         continue-on-error: true
 
-      - name: Generate CI evidence summary
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: node scripts/generate-ci-evidence.mjs
-
-      - name: Upload CI evidence summary
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-evidence-summary
-          path: evidence-summary.md
-
   soroban:
     name: Soroban contracts
     runs-on: ubuntu-latest
@@ -114,14 +103,3 @@ jobs:
 
       - name: Run unit tests
         run: cargo test --release
-
-      - name: Generate CI evidence summary (Soroban)
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: node ${{ github.workspace }}/scripts/generate-ci-evidence.mjs
-
-      - name: Upload CI evidence summary (Soroban)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-evidence-summary
-          path: evidence-summary.md

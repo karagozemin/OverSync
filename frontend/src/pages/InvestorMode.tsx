@@ -5,12 +5,12 @@ import { ExternalLink } from 'lucide-react';
 export default function InvestorMode() {
   // Static data – could be moved to a config file if needed
   const contractAddresses = {
-    ethereum: '0x1234...abcd',
-    stellar: 'GABCDEF...XYZ',
+    ethereum: '0xb352339BEb146f2699d28D736700B953988bB178',
+    stellar: 'CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK',
   };
   const explorerLinks = {
     ethereum: `https://sepolia.etherscan.io/address/${contractAddresses.ethereum}`,
-    stellar: `https://stellar.expert/explorer/public/account/${contractAddresses.stellar}`,
+    stellar: `https://stellar.expert/explorer/testnet/contract/${contractAddresses.stellar}`,
   };
 
   return (
@@ -80,7 +80,7 @@ export default function InvestorMode() {
       <section className="mb-6 rounded-lg border border-purple-300/30 bg-purple-900/30 p-6">
         <h2 className="mb-2 text-2xl font-semibold">Launch Status</h2>
         <p>
-          Current stage: <strong>Testnet demo</strong>. Mainnet launch is gated by a full security audit and is expected after the audit completes (Q1 2027).
+          Current stage: <strong>Testnet demo</strong>. Mainnet launch is gated by independent security audits of both HTLC contracts and the completion of the mainnet readiness checklist.
         </p>
       </section>
     </div>

@@ -325,7 +325,7 @@ function App() {
               <button
                 type="button"
                 disabled
-                title="v2 mainnet launches after independent audit (Q1 2027)"
+                title="v2 mainnet launches after independent audit"
                 className="network-pill network-coming cursor-not-allowed px-3 py-1.5 text-sm font-semibold md:px-4"
               >
                 Mainnet Coming
