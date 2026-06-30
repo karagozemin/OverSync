@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { OrderRow } from "../../persistence/orders-repo.js";
+import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 
 function serialiseOrder(order: OrderRow | null) {
@@ -142,6 +142,15 @@ export function ordersRoutes(orders: OrderService): Router {
         res.status(400).json({ error: "order_validation_error", message: err.message });
         return;
       }
+      next(err);
+    }
+  });
+
+  router.get("/orders/snapshot", async (_req, res, next) => {
+    try {
+      const snapshots = await orders.getSnapshots();
+      res.json({ snapshots });
+    } catch (err) {
       next(err);
     }
   });

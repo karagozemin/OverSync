@@ -57,6 +57,41 @@ RESOLVER_ETH_PRIVATE_KEY=0x<your_eth_key>
 RESOLVER_STELLAR_SECRET=S<your_stellar_secret>
 ```
 
+## 1.5. Readiness check (dry-run, no funds moved)
+
+Before you stake or run the resolver, sanity-check your local setup with the
+readiness command. It is a **read-only** dry-run that:
+
+- validates `NETWORK_MODE`;
+- pings the EVM RPC (`eth_chainId`) and the Stellar/Soroban RPC (`getLatestLedger`);
+- verifies the EVM + Soroban `ResolverRegistry` addresses are configured;
+- derives and prints your resolver EVM address and Stellar public key — **never**
+  printing the private key or Stellar secret itself;
+- prints an explicit "dry-run / no funds moved" assertion.
+
+It exits **non-zero** when any required item is missing or malformed, so it can
+be wired into onboarding scripts and CI.
+
+```bash
+pnpm --filter @oversync/resolver readiness
+# equivalent build step:
+# pnpm --filter @oversync/resolver build
+# node resolver/dist/index.js readiness
+```
+
+Sample output:
+
+```
+=== OverSync Resolver Readiness ===
+Network      : testnet
+EVM address  : 0xabc... (chainId=11155111)
+Stellar addr : Gxyz...
+Mode         : DRY-RUN — no transactions submitted, no funds moved
+...
+Result: READY — this environment looks correct for a resolver operator.
+Next step: `pnpm --filter @oversync/resolver register` to stake and activate.
+```
+
 ## 2. Register
 
 You need to post the minimum stake (configurable per-deployment) into

@@ -1,4 +1,5 @@
 import { loadConfig } from "./config.js";
+import { parseCorsOrigins } from "./server/cors.js";
 import { getLogger } from "./logger.js";
 import { openDatabase } from "./persistence/db.js";
 import { OrdersRepository } from "./persistence/orders-repo.js";
@@ -16,13 +17,14 @@ async function main(): Promise<void> {
 
   const db = await openDatabase(cfg.databaseUrl);
   const repo = new OrdersRepository(db);
-  const orders = new OrderService(repo, log);
-  const secrets = new SecretService(orders, log);
   const quotes = new QuoteService(log);
+  const orders = new OrderService(repo, log, quotes);
+  const secrets = new SecretService(orders, log);
 
   const app = createApp({
     log,
-    corsOrigin: cfg.corsOrigin,
+    corsOrigins: parseCorsOrigins(cfg.corsOrigins),
+    maxRequestBodyBytes: cfg.maxRequestBodyBytes,
     orders,
     secrets,
     quotes

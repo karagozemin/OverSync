@@ -177,3 +177,35 @@ mitigation. The recovery path is:
 3. Migrate users to a new HTLCEscrow + ResolverRegistry deployment.
 
 This is the same recovery model as 1inch Fusion+ and other HTLC bridges.
+
+## Updating addresses after redeployment
+
+After a new testnet or mainnet deploy, update these files in one commit so
+the CI address-consistency check stays green:
+
+1. **`deployments.testnet.json`** (or `deployments.mainnet.json`): the deploy
+   script writes the new addresses here automatically. Verify before committing.
+
+2. **`README.md`**: update the "Smart contracts" table — both the display
+   abbreviation (`0xABCD…1234`) and the full address in the Etherscan/Stellar
+   Expert hyperlink.
+
+3. **`ROADMAP.md`**: update the "Current production status" table row for the
+   affected environment.
+
+4. **`.env` / Vercel / DigitalOcean**: set the backend env vars that the
+   coordinator and resolver read:
+   ```
+   ETH_HTLC_ESCROW_TESTNET=0x<new>
+   ETH_RESOLVER_REGISTRY_TESTNET=0x<new>
+   SOROBAN_HTLC_TESTNET=C<new>
+   SOROBAN_RESOLVER_REGISTRY_TESTNET=C<new>
+   ```
+   And the frontend Vercel env vars:
+   ```
+   VITE_ETH_HTLC_ESCROW_TESTNET=0x<new>
+   ```
+
+5. **Verify**: run `pnpm verify:addresses` locally before pushing. The same
+   check runs in CI (`address-verify` workflow) on every PR that touches these
+   files and will block the merge if any value drifts.
