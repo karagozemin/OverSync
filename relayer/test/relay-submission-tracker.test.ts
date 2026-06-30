@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { jest } from '@jest/globals';
 import {
   RelaySubmissionTracker,
   RelayTerminalError,
@@ -41,7 +41,7 @@ describe("computeFingerprint", () => {
 describe("successful relay (happy path is preserved)", () => {
   it("runs the executor once and returns its result", async () => {
     const tracker = new RelaySubmissionTracker({ sleep: noSleep });
-    const executor = vi.fn().mockResolvedValue({ hash: "abc" });
+    const executor = jest.fn().mockResolvedValue({ hash: "abc" });
 
     const outcome = await tracker.submit(action(), executor);
 
@@ -65,7 +65,7 @@ describe("timeout retry", () => {
 
     // First attempt never resolves -> hits the per-attempt timeout.
     // Second attempt resolves immediately.
-    const executor = vi
+    const executor = jest
       .fn()
       .mockImplementationOnce(() => new Promise(() => {}))
       .mockResolvedValueOnce({ hash: "ok" });
@@ -88,7 +88,7 @@ describe("timeout retry", () => {
       sleep: noSleep,
     });
     // Always hangs -> always times out.
-    const executor = vi.fn().mockImplementation(() => new Promise(() => {}));
+    const executor = jest.fn().mockImplementation(() => new Promise(() => {}));
 
     await expect(tracker.submit(action(), executor)).rejects.toBeInstanceOf(
       RelayTerminalError
@@ -105,7 +105,7 @@ describe("timeout retry", () => {
 describe("duplicate prevention", () => {
   it("does not re-run the executor for an already-handled action", async () => {
     const tracker = new RelaySubmissionTracker({ sleep: noSleep });
-    const executor = vi.fn().mockResolvedValue({ hash: "first" });
+    const executor = jest.fn().mockResolvedValue({ hash: "first" });
 
     const first = await tracker.submit(action(), executor);
     const second = await tracker.submit(action(), executor);
@@ -121,7 +121,7 @@ describe("duplicate prevention", () => {
   it("rejects a concurrent in-flight submission for the same key", async () => {
     const tracker = new RelaySubmissionTracker({ sleep: noSleep });
     let release!: (v: { hash: string }) => void;
-    const executor = vi
+    const executor = jest
       .fn()
       .mockImplementation(() => new Promise((r) => (release = r)));
 
@@ -146,7 +146,7 @@ describe("terminal failure", () => {
       sleep: noSleep,
       isRetryable: (err) => !(err instanceof Error && err.message.includes("INSUFFICIENT")),
     });
-    const executor = vi
+    const executor = jest
       .fn()
       .mockRejectedValue(new Error("INSUFFICIENT FUNDS"));
 
@@ -160,7 +160,7 @@ describe("terminal failure", () => {
 
   it("re-throws terminal failure for a duplicate without re-submitting", async () => {
     const tracker = new RelaySubmissionTracker({ maxAttempts: 2, sleep: noSleep });
-    const executor = vi.fn().mockRejectedValue(new Error("rpc exploded"));
+    const executor = jest.fn().mockRejectedValue(new Error("rpc exploded"));
 
     await expect(tracker.submit(action(), executor)).rejects.toBeInstanceOf(
       RelayTerminalError
@@ -179,13 +179,13 @@ describe("retry budget and last error visibility", () => {
   it("exposes retry count, last error and terminal state via stats/records", async () => {
     const tracker = new RelaySubmissionTracker({ maxAttempts: 3, sleep: noSleep });
 
-    const flaky = vi
+    const flaky = jest
       .fn()
       .mockRejectedValueOnce(new Error("temporary blip"))
       .mockResolvedValueOnce({ hash: "recovered" });
     await tracker.submit(action({ orderId: "ok" }), flaky);
 
-    const doomed = vi.fn().mockRejectedValue(new Error("permanent failure"));
+    const doomed = jest.fn().mockRejectedValue(new Error("permanent failure"));
     await tracker
       .submit(action({ orderId: "bad" }), doomed)
       .catch(() => undefined);
