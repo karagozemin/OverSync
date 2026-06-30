@@ -75,7 +75,7 @@ jobs:
       - name: Upload CI evidence summary
         uses: actions/upload-artifact@v4
         with:
-          name: ci-evidence-summary
+          name: ci-evidence-summary-typescript
           path: evidence-summary.md
 
   soroban:
