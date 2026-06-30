@@ -71,6 +71,29 @@ For Solidity contract changes, the contracts workflow also runs Slither on
 - Keep contributor docs focused on development. Resolver operations belong in
   [`docs/RESOLVERS.md`](docs/RESOLVERS.md).
 
+### Contributor proof checklist
+
+Every PR must complete the proof checklist in
+[`.github/pull_request_template.md`](.github/pull_request_template.md). The
+template is SCF / investor evidence oriented and specifically asks:
+
+- which surface (`frontend`, `sdk`, `coordinator`, `resolver`, `relayer`,
+  `contracts`, `soroban`, `docs`, `infra`) you touched;
+- which tests you ran locally, matching the matrix above;
+- whether you attached screenshots or `curl` / JSON output for any UI or
+  evidence change;
+- **whether bridge settlement or refund semantics changed** — if yes, the PR
+  must also update [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) at the
+  relevant section;
+- whether secrets / logging risk changed (private keys, preimages, `console.*`
+  output, Vite production builds);
+- whether public proof links (Etherscan, Stellar Expert, CI run, dashboard)
+  apply.
+
+The checklist is the artefact reviewers will cite when assessing the change.
+Filling it in once is cheaper than answering the same questions in review
+comments.
+
 ## Security
 
 Report security-sensitive issues privately using [`docs/SECURITY.md`](docs/SECURITY.md).

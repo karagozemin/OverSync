@@ -21,9 +21,10 @@
     "build": "pnpm -r build",
     "build:prod": "NODE_ENV=production pnpm -r build",
     "test": "pnpm -r test",
-    "test:e2e": "pnpm --filter @oversync/e2e test",
+    "test:e2e": "pnpm --filter @oversync/contracts compile && pnpm --filter @oversync/e2e test",
     "load-test": "pnpm --filter @oversync/e2e load-test",
     "load-test:live": "LOAD_TEST_LIVE=true pnpm --filter @oversync/e2e load-test",
+    "scf:testnet-metrics": "node scripts/scf-testnet-metrics.mjs",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "contracts:compile": "pnpm --filter contracts compile",
@@ -36,14 +37,17 @@
     "frontend:build": "pnpm --filter frontend build",
     "frontend:build:prod": "NODE_ENV=production pnpm --filter frontend build",
     "frontend:preview": "pnpm --filter frontend preview",
+    "check:evidence-links": "node scripts/check-evidence-links.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
-    "deploy:setup": "cp .env.production .env && pnpm build:prod"
+    "deploy:setup": "cp .env.production .env && pnpm build:prod",
+    "verify:addresses": "node scripts/verify-addresses.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "eslint": "^8.56.0",
     "prettier": "^3.1.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^2.1.0"
   },
   "engines": {
     "node": ">=18.0.0",

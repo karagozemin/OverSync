@@ -11,9 +11,27 @@ function sha256Hex(buf: Buffer): string {
   return "0x" + createHash("sha256").update(buf).digest("hex");
 }
 
+function assertValidSecretFormat(value: unknown, fieldName: string = "secret"): `0x${string}` {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  if (!value.startsWith("0x")) {
+    throw new Error(`${fieldName} must start with "0x"`);
+  }
+  const hexPart = value.slice(2);
+  if (hexPart.length !== 64) {
+    throw new Error(`${fieldName} must be exactly 32 bytes (64 hex characters)`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
+    throw new Error(`${fieldName} contains invalid hex characters`);
+  }
+  return value as `0x${string}`;
+}
+
 function keccak256Hex(buf: Buffer): string {
   return keccak256(toHex(buf)) as `0x${string}`;
 }
+
 
 /**
  * Coordinates secret reveal between the two chains.
@@ -36,6 +54,7 @@ export class SecretService {
    * before storing it, so a malicious caller cannot poison the cache.
    */
   async reveal(publicId: string, preimage: string, txHash: string): Promise<{ ok: true }> {
+    assertValidSecretFormat(preimage, "preimage");
     const order = await this.orders.get(publicId);
     if (!order) {
       throw new Error(`unknown order ${publicId}`);
