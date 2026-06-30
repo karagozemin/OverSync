@@ -29,172 +29,121 @@ describe("GET /readiness", () => {
   });
 
   it("returns 200 with service name and version", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.service).toBe("oversync-coordinator");
     expect(typeof res.body.version).toBe("string");
   });
 
   it("defaults networkMode to testnet", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.networkMode).toBe("testnet");
   });
 
   it("uses NETWORK_MODE env override for mainnet", async () => {
     process.env.NETWORK_MODE = "mainnet";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.networkMode).toBe("mainnet");
   });
 
   it("defaults Ethereum chain to Sepolia in testnet mode", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.ethereum.chainId).toBe(11_155_111);
     expect(res.body.ethereum.chainName).toBe("sepolia");
   });
 
   it("defaults Ethereum chain to mainnet when NETWORK_MODE=mainnet", async () => {
     process.env.NETWORK_MODE = "mainnet";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.ethereum.chainId).toBe(1);
     expect(res.body.ethereum.chainName).toBe("mainnet");
   });
 
   it("honours explicit ETHEREUM_CHAIN_ID override", async () => {
     process.env.ETHEREUM_CHAIN_ID = "17000";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.ethereum.chainId).toBe(17_000);
     expect(res.body.ethereum.chainName).toBe("holesky");
   });
 
   it("reports Stellar network label as testnet from passphrase", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.stellar.network).toBe("testnet");
   });
 
   it("reports Stellar network label as mainnet from passphrase", async () => {
     process.env.STELLAR_NETWORK_PASSPHRASE =
       "Public Global Stellar Network ; September 2015";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.stellar.network).toBe("mainnet");
   });
 
   it("reports stellar.rpcConfigured true when SOROBAN_RPC_URL is set", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.stellar.rpcConfigured).toBe(true);
   });
 
   it("reports stellar.rpcConfigured false when SOROBAN_RPC_URL is absent", async () => {
     delete process.env.SOROBAN_RPC_URL;
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.stellar.rpcConfigured).toBe(false);
   });
 
   it("reports database.reachable true for a recognised sqlite URL", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.database.reachable).toBe(true);
   });
 
   it("reports database.reachable false when DATABASE_URL is unset", async () => {
     delete process.env.DATABASE_URL;
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.database.reachable).toBe(false);
   });
 
   it("reports websocket.enabled false by default", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.websocket.enabled).toBe(false);
   });
 
   it("reports websocket.enabled true when WS_ENABLED=true", async () => {
     process.env.WS_ENABLED = "true";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.websocket.enabled).toBe(true);
   });
 
   it("includes an ISO timestamp", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  // ── Secret-leak guardrails ─────────────────────────────────────────────
-
   it("never includes the Soroban RPC URL itself", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     const json = JSON.stringify(res.body);
     expect(json).not.toContain("soroban-testnet.stellar.org");
   });
 
   it("never includes the full Stellar network passphrase", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     const json = JSON.stringify(res.body);
     expect(json).not.toContain("Test SDF Network ; September 2015");
   });
 
   it("never includes DATABASE_URL", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     const json = JSON.stringify(res.body);
     expect(json).not.toContain("oversync.db");
     expect(json).not.toContain("DATABASE_URL");
   });
 
-  it("never includes an Ethereum RPC URL or API key", async () => {
-    process.env.ETHEREUM_RPC_URL =
-      "https://USER:SECRET@rpc.example.com/private-rpc";
-
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+  it("never includes an Ethereum RPC URL credentials", async () => {
+    process.env.ETHEREUM_RPC_URL = "https://USER:SECRET@rpc.example.com/private-rpc";
+    const res = await request(makeApp()).get("/readiness").expect(200);
     const json = JSON.stringify(res.body);
     expect(json).not.toContain("SECRET");
     expect(json).not.toContain("USER");
   });
 
   it("does not return order-shaped fields", async () => {
-    const app = makeApp();
-    const res = await request(app).get("/readiness").expect(200);
-
+    const res = await request(makeApp()).get("/readiness").expect(200);
     expect(res.body.orders).toBeUndefined();
     expect(res.body.secret).toBeUndefined();
     expect(res.body.hashlock).toBeUndefined();
