@@ -53,6 +53,7 @@ export interface Order {
   src: ChainLeg;
   dst: ChainLeg;
   preimage: `0x${string}` | null;
+  createdAt: number;
 }
 
 export interface ChainLeg {
