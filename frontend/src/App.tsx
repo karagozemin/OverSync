@@ -13,6 +13,7 @@ import { isMainnetEnabled } from './config/networks'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
 import DeploymentSelfCheck from './components/DeploymentSelfCheck'
+import LaunchReadinessSurface from './components/LaunchReadinessSurface'
 import {
   Activity,
   ArrowRightLeft,
