@@ -76,8 +76,8 @@ export class EthereumHTLCClient {
 
   async createOrder(input: CreateOrderInput): Promise<{ txHash: Hex; orderId: bigint }> {
     try {
-      assertValidSecretFormat(input.hashlock, "hashlock");
       const wallet = this.requireWallet();
+      assertValidSecretFormat(input.hashlock, "hashlock");
       const account = wallet.account;
       if (!account) {
         throw new OverSyncError("walletClient.account is required to send transactions", OverSyncErrorCode.VALIDATION_FAILED);
@@ -113,8 +113,8 @@ export class EthereumHTLCClient {
 
   async claimOrder(orderId: bigint, preimage: Hex): Promise<Hex> {
     try {
-      assertValidSecretFormat(preimage, "preimage");
       const wallet = this.requireWallet();
+      assertValidSecretFormat(preimage, "preimage");
       if (!wallet.account) {
         throw new OverSyncError("walletClient.account is required", OverSyncErrorCode.VALIDATION_FAILED);
       }
