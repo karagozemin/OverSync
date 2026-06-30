@@ -1,8 +1,11 @@
 export * from "./types/index.js";
 export * from "./secrets/index.js";
 export * from "./state-machine/index.js";
+<<<<<<< HEAD
 export * from "./assets/index.js";
 export * from "./explorers/index.js";
+=======
+>>>>>>> oversync
 export {
   EthereumHTLCClient,
   HTLC_ESCROW_ABI,
