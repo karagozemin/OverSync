@@ -1,14 +1,41 @@
 import { loadConfig } from "../config.js";
 import { getLogger } from "../logger.js";
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+import { EthereumListener } from "../listeners/ethereum.js";
+import { SorobanListener } from "../listeners/soroban.js";
+import { checkPreflight } from "./check.js";
+=======
+>>>>>>> Stashed changes
 import { EthereumListener, type EthereumOrderCreatedEvent } from "../listeners/ethereum.js";
 import { SorobanListener, type SorobanRawEvent } from "../listeners/soroban.js";
 import { planDestinationOrder, type DestinationOrderPlan } from "../planner/index.js";
 import { decodeSorobanEvent } from "../soroban-event-decoder.js";
+<<<<<<< Updated upstream
+=======
+>>>>>>> de0c163 (fix(resolver): resolve broken @oversync/sdk type imports)
+>>>>>>> Stashed changes
 
 export async function runCommand(): Promise<void> {
   const cfg = loadConfig();
   const log = getLogger(cfg.logLevel);
   log.info({ network: cfg.network, dryRun: cfg.dryRun }, "OverSync resolver starting");
+<<<<<<< Updated upstream
+=======
+
+  // Run preflight check in warning mode
+  const preflightResults = await checkPreflight();
+  for (const r of preflightResults) {
+    if (!r.configured) {
+      log.warn({ chain: r.chain, reason: r.reason }, "Registry not configured; running in observation/dry-run mode for this chain");
+    } else if (r.active === false) {
+      log.warn({ chain: r.chain }, "Resolver is inactive/unstaked. Fills will fail until registered.");
+    } else if (r.active === "unknown") {
+      log.warn({ chain: r.chain, reason: r.reason }, "Could not verify active status");
+    }
+  }
+>>>>>>> Stashed changes
 
   const eth = new EthereumListener(cfg.ethereum, log);
   const stellar = new SorobanListener(cfg.soroban, cfg.pollIntervalMs, log);
