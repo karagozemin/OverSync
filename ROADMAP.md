@@ -53,7 +53,7 @@ setting `VITE_MAINNET_ENABLED=true` in the frontend env (see
 | Foundry fuzz + invariant suite for `HTLCEscrow.sol` | 🛠 | `contracts/test/foundry/` directory + CI gate | GitHub Actions |
 | Slither must-not-fail CI gate (currently advisory) | 🛠 | Slither failure breaks the build | GitHub Actions |
 | Differential test harness across EVM ↔ Soroban (same hashlock and preimage round-trip) | 🗓 | `e2e/cross-chain.test.ts` | Local + CI |
-| Sepolia load test (1k concurrent orders, 2-week soak) | 🗓 | Public Sepolia dashboard + report | Dashboard URL |
+| Sepolia load test (1k concurrent orders, 2-week soak) | 🗓 | Public Sepolia dashboard + report (harness: [`e2e/load-test/`](e2e/load-test/harness.ts) · dry-run: `pnpm load-test` · live: `pnpm load-test:live`) | Dashboard URL |
 | Soroban resolver-registry binding enforcement in HTLC (currently soft) | 🗓 | Contract upgrade + 2 new tests | Soroban testnet |
 | Coordinator Postgres migration path | 🗓 | `coordinator/migrations/` + integration test | CI |
 | Coordinator observability stack (Prometheus + Grafana) | 🗓 | `coordinator/ops/` Docker compose | Repo |
@@ -130,10 +130,5 @@ demand from integrators after mainnet.
 
 ## Open dependencies and risks
 
-| Dependency / risk | Mitigation |
-|---|---|
-| CCTP v2 Stellar mainnet timing slips | Independent of our roadmap; affects Q2–Q3 2027 USDC composability only. |
-| Axelar ITS Stellar API surface changes | Adapter is isolated; only v2.1 ecosystem work is affected. |
-| Audit findings push Q1 2027 mainnet | We ship to mainnet when audits are clean. We do not pre-announce a hard date. |
-| Solo-team bus factor | Open resolver protocol means the bridge keeps working even if the core team is unavailable; CI + docs lower the onboarding bar. |
-| Resolver network coldstart | A bootstrap grant pool is part of the Tranche 2 funding ask (see `docs/REVIEW_RESPONSE.md`). |
+For a comprehensive tracking of external blockers, audit schedules, resolver coldstart incentives, RPC dependencies, and tooling status, see the detailed [Roadmap Dependency Tracker](docs/ROADMAP_DEPENDENCIES.md).
+

@@ -6,8 +6,8 @@ import {
   parseEventLogs
 } from "viem";
 import { HTLC_ESCROW_ABI } from "./abi.js";
-
 export { HTLC_ESCROW_ABI } from "./abi.js";
+import { assertValidSecretFormat } from "../secrets/index.js";
 
 export interface EthereumHTLCClientOptions {
   /** Address of the deployed HTLCEscrow contract. */
@@ -72,6 +72,7 @@ export class EthereumHTLCClient {
   }
 
   async createOrder(input: CreateOrderInput): Promise<{ txHash: Hex; orderId: bigint }> {
+    assertValidSecretFormat(input.hashlock, "hashlock");
     const wallet = this.requireWallet();
     const account = wallet.account;
     if (!account) {
@@ -104,6 +105,7 @@ export class EthereumHTLCClient {
   }
 
   async claimOrder(orderId: bigint, preimage: Hex): Promise<Hex> {
+    assertValidSecretFormat(preimage, "preimage");
     const wallet = this.requireWallet();
     if (!wallet.account) throw new Error("walletClient.account is required");
     const { request } = await this.publicClient.simulateContract({

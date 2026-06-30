@@ -1,9 +1,9 @@
 #![cfg(test)]
 
-use crate::{Error, HtlcContract, HtlcContractClient, Order, OrderStatus};
+use crate::{DataKey, Error, HtlcContract, HtlcContractClient, Order, OrderStatus, ORDER_TTL_TARGET, ORDER_TTL_THRESHOLD};
 use oversync_resolver_registry::{ResolverRegistry, ResolverRegistryClient};
 use soroban_sdk::{
-    testutils::{Address as _, Ledger, LedgerInfo},
+    testutils::{storage::Persistent as _, Address as _, Ledger, LedgerInfo},
     token::{StellarAssetClient, TokenClient},
     Address, Bytes, BytesN, Env,
 };
@@ -37,6 +37,23 @@ fn advance_ledger(env: &Env, seconds: u64) {
         timestamp: current.timestamp + seconds,
         protocol_version: current.protocol_version,
         sequence_number: current.sequence_number + 1,
+        network_id: current.network_id,
+        base_reserve: current.base_reserve,
+        min_temp_entry_ttl: current.min_temp_entry_ttl,
+        min_persistent_entry_ttl: current.min_persistent_entry_ttl,
+        max_entry_ttl: current.max_entry_ttl,
+    });
+}
+
+/// Advance both the wall-clock timestamp AND the ledger sequence number so
+/// TTL-bump tests can drop an entry's TTL below ORDER_TTL_THRESHOLD in a
+/// single step without thousands of individual ledger advances.
+fn advance_ledger_full(env: &Env, extra_seconds: u64, extra_ledgers: u32) {
+    let current = env.ledger().get();
+    env.ledger().set(LedgerInfo {
+        timestamp: current.timestamp + extra_seconds,
+        sequence_number: current.sequence_number + extra_ledgers,
+        protocol_version: current.protocol_version,
         network_id: current.network_id,
         base_reserve: current.base_reserve,
         min_temp_entry_ttl: current.min_temp_entry_ttl,
@@ -542,4 +559,111 @@ fn clear_resolver_registry_restores_permissionless_create_order() {
         &600u64,
     );
     assert_eq!(order_id, 1);
+}
+
+// ---------------------------------------------------------------------
+// Storage TTL tests
+// ---------------------------------------------------------------------
+
+/// Read the remaining TTL of Order(order_id) from within the HTLC contract's
+/// storage context. Requires testutils feature (dev-dependencies only).
+fn get_order_ttl(env: &Env, contract_id: &Address, order_id: u64) -> u32 {
+    env.as_contract(contract_id, || {
+        env.storage().persistent().get_ttl(&DataKey::Order(order_id))
+    })
+}
+
+#[test]
+fn order_ttl_bumped_on_create() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let sender = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&sender, &100_0000000i128);
+
+    let preimage = Bytes::from_array(&env, &[20u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    let order_id = htlc.create_order(
+        &sender, &beneficiary, &sender, &asset,
+        &10_0000000i128, &0i128, &hashlock, &600u64,
+    );
+
+    let ttl = get_order_ttl(&env, &htlc.address, order_id);
+    assert!(
+        ttl >= ORDER_TTL_TARGET,
+        "create_order must bump Order TTL to at least ORDER_TTL_TARGET, got {ttl}"
+    );
+}
+
+#[test]
+fn order_ttl_bumped_on_claim() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let sender = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    sac.mint(&sender, &100_0000000i128);
+
+    let preimage = Bytes::from_array(&env, &[21u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    let order_id = htlc.create_order(
+        &sender, &beneficiary, &sender, &asset,
+        &10_0000000i128, &0i128, &hashlock, &600u64,
+    );
+
+    // Advance enough ledgers to drop TTL below ORDER_TTL_THRESHOLD so the
+    // bump inside claim_order is required to keep the entry alive.
+    // Timestamp must stay below the 600-second timelock.
+    advance_ledger_full(&env, 300, ORDER_TTL_THRESHOLD + 1);
+
+    htlc.claim_order(&order_id, &preimage, &beneficiary);
+
+    let ttl = get_order_ttl(&env, &htlc.address, order_id);
+    assert!(
+        ttl >= ORDER_TTL_TARGET,
+        "claim_order must bump Order TTL to at least ORDER_TTL_TARGET, got {ttl}"
+    );
+}
+
+#[test]
+fn order_ttl_bumped_on_refund() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let asset_admin = Address::generate(&env);
+    let (asset, sac, _token) = deploy_token(&env, &asset_admin);
+    let (_admin, htlc) = setup(&env, 0);
+
+    let sender = Address::generate(&env);
+    let beneficiary = Address::generate(&env);
+    let cleaner = Address::generate(&env);
+    sac.mint(&sender, &100_0000000i128);
+
+    let preimage = Bytes::from_array(&env, &[22u8; 32]);
+    let hashlock = sha256_32(&env, &preimage);
+
+    let order_id = htlc.create_order(
+        &sender, &beneficiary, &sender, &asset,
+        &10_0000000i128, &0i128, &hashlock, &600u64,
+    );
+
+    // Advance past the timelock (601 s) AND past the TTL threshold
+    // (ORDER_TTL_THRESHOLD + 1 ledgers) so the bump in refund_order is
+    // required to keep the entry alive.
+    advance_ledger_full(&env, 601, ORDER_TTL_THRESHOLD + 1);
+    htlc.refund_order(&order_id, &cleaner);
+
+    let ttl = get_order_ttl(&env, &htlc.address, order_id);
+    assert!(
+        ttl >= ORDER_TTL_TARGET,
+        "refund_order must bump Order TTL to at least ORDER_TTL_TARGET, got {ttl}"
+    );
 }

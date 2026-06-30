@@ -8,49 +8,37 @@ dotenvConfig({ path: resolve(process.cwd(), ".env") });
 const networkSchema = z.enum(["testnet", "mainnet"]);
 export type Network = z.infer<typeof networkSchema>;
 
-/** Ethereum address: 0x + 40 hex chars */
-const addressSchema = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]{40}$/, "must be a 0x-prefixed 20-byte address");
-
-/**
- * Coordinator configuration schema.
- *
- * Validation rules:
- *  - All RPC / Horizon URLs must be valid HTTPS (or HTTP for local dev).
- *  - Testnet contract IDs are recommended but not hard-required so the
- *    coordinator can start in read-only mode before contracts are deployed.
- *  - Mainnet is explicitly gated: NETWORK_MODE=mainnet requires
- *    MAINNET_AUDIT_CONFIRMED=true to prevent accidental production deploys.
- */
-const configSchema = z
-  .object({
-    network: networkSchema.default("testnet"),
-    mainnetAuditConfirmed: z.boolean().default(false),
-    port: z.coerce.number().int().positive().default(3001),
-    databaseUrl: z.string().min(1).default("file:./oversync.db"),
-    logLevel: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
-    corsOrigin: z.string().default("*"),
-    pollIntervalMs: z.coerce.number().int().positive().default(15_000),
-    ethereum: z.object({
-      rpcUrl: z.string().url("ETH_RPC_URL must be a valid URL"),
-      chainId: z.number().int(),
-      htlcEscrow: addressSchema
-        .optional()
-        .or(z.literal(""))
-        .transform((v) => (v ? (v as `0x${string}`) : null)),
-      resolverRegistry: addressSchema
-        .optional()
-        .or(z.literal(""))
-        .transform((v) => (v ? (v as `0x${string}`) : null)),
-    }),
-    soroban: z.object({
-      rpcUrl: z.string().url("SOROBAN_RPC_URL must be a valid URL"),
-      horizonUrl: z.string().url("STELLAR_HORIZON_URL must be a valid URL"),
-      networkPassphrase: z.string().min(1),
-      htlcContract: z.string().optional().transform((v) => v ?? null),
-      resolverRegistry: z.string().optional().transform((v) => v ?? null),
-    }),
+const configSchema = z.object({
+  network: networkSchema.default("testnet"),
+  port: z.coerce.number().int().positive().default(3001),
+  databaseUrl: z.string().default("file:./oversync.db"),
+  logLevel: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
+  corsOrigin: z.string().default("*"),
+  pollIntervalMs: z.coerce.number().int().positive().default(15_000),
+  /** Maximum allowed JSON request body size in bytes. Default: 64 KiB. */
+  maxRequestBodyBytes: z.coerce.number().int().positive().default(65_536),
+  ethereum: z.object({
+    rpcUrl: z.string().url(),
+    chainId: z.number().int(),
+    htlcEscrow: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? (v as `0x${string}`) : null)),
+    resolverRegistry: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? (v as `0x${string}`) : null))
+  }),
+  soroban: z.object({
+    rpcUrl: z.string().url(),
+    horizonUrl: z.string().url(),
+    networkPassphrase: z.string(),
+    htlcContract: z.string().optional().transform((v) => v ?? null),
+    resolverRegistry: z.string().optional().transform((v) => v ?? null)
   })
   .superRefine((cfg, ctx) => {
     // Mainnet requires explicit audit confirmation.
@@ -79,6 +67,7 @@ export function loadConfig(): CoordinatorConfig {
     logLevel: process.env.LOG_LEVEL ?? "info",
     corsOrigin: process.env.CORS_ORIGIN ?? "*",
     pollIntervalMs: process.env.COORDINATOR_POLL_INTERVAL_MS ?? "15000",
+    maxRequestBodyBytes: process.env.COORDINATOR_MAX_BODY_BYTES ?? "65536",
     ethereum: {
       rpcUrl: resolveEthereumRpcUrl(isMainnet ? "mainnet" : "testnet"),
       chainId: isMainnet ? 1 : 11_155_111,

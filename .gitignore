@@ -87,6 +87,11 @@ yarn.lock
 .coverage/
 junit.xml
 
+# Load-test report artefacts (keep .gitkeep but not generated reports)
+e2e/load-test/reports/*.json
+e2e/load-test/reports/*.md
+# Fallback if LOAD_TEST_OUTPUT_DIR is set to an absolute path outside the tree
+
 # Miscellaneous
 .cache/
 .parcel-cache/

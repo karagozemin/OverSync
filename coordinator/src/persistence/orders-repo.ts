@@ -53,6 +53,15 @@ export interface OrderRow {
   updatedAt: number;
 }
 
+export interface OrderMetrics {
+  totalOrders: number;
+  byStatus: Record<string, number>;
+  completedOrders: number;
+  refundedOrders: number;
+  staleExpiredOrders: number;
+  lastUpdatedTimestamp: number | null;
+}
+
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
@@ -140,6 +149,9 @@ export class OrdersRepository {
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
+  private readonly metricsByStatus: Statement;
+  private readonly metricsTotal: Statement;
+  private readonly metricsLastUpdated: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -201,6 +213,15 @@ export class OrdersRepository {
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
     `);
+    this.metricsByStatus = db.prepare(
+      "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
+    );
+    this.metricsTotal = db.prepare(
+      "SELECT COUNT(*) as count FROM orders"
+    );
+    this.metricsLastUpdated = db.prepare(
+      "SELECT MAX(updated_at) as ts FROM orders"
+    );
   }
 
   private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
@@ -296,5 +317,25 @@ export class OrdersRepository {
     txHash: string;
   }): Promise<void> {
     await this.run(this.updateSecret, input);
+  }
+
+  async getMetrics(): Promise<OrderMetrics> {
+    const byStatus = await this.all<{ status: string; count: number }>(this.metricsByStatus);
+    const totalRow = await this.get<{ count: number }>(this.metricsTotal);
+    const lastUpdatedRow = await this.get<{ ts: number | null }>(this.metricsLastUpdated);
+
+    const statusMap: Record<string, number> = {};
+    for (const row of byStatus) {
+      statusMap[row.status] = Number(row.count);
+    }
+
+    return {
+      totalOrders: Number(totalRow?.count ?? 0),
+      byStatus: statusMap,
+      completedOrders: statusMap["completed"] ?? 0,
+      refundedOrders: statusMap["refunded"] ?? 0,
+      staleExpiredOrders: (statusMap["expired"] ?? 0) + (statusMap["failed"] ?? 0),
+      lastUpdatedTimestamp: lastUpdatedRow?.ts != null ? Number(lastUpdatedRow.ts) : null
+    };
   }
 }

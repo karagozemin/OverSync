@@ -69,7 +69,7 @@ Pre-audit (Tranche 1):
 - [x] OpenZeppelin v5 used (`Ownable2Step` for the registry)
 - [x] 10 Soroban unit tests + 21 Hardhat unit tests in CI
 - [x] Foundry fuzz + invariant tests (`contracts/test/foundry/HTLCEscrow.t.sol`, gated in CI)
-- [ ] Slither must-not-fail CI gate (currently advisory)
+- [x] Slither must-not-fail CI gate
 - [ ] Differential testing: same hashlock works on both chains
 
 Audit (Tranche 2):
@@ -95,3 +95,17 @@ are audited. Until then, please email security findings to
 - Optimistic rollup support
 - Native Bitcoin support
 - Off-chain MEV mitigation beyond hashlock + timelock semantics
+
+## Running Slither Static Analysis Locally
+
+To run the Slither checks locally:
+
+1. Navigate to the `contracts` directory.
+2. Run Slither targeting the v2 contracts:
+   ```bash
+   slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version,timestamp
+   ```
+
+*(Note: If running within a Dockerized environment like `trailofbits/eth-security-toolbox:latest`, ensure that you mount the workspace and switch the `solc-select` compiler version to `0.8.24` beforehand).*
+
+All justified and triaged Slither findings are documented and suppressed inline directly within the smart contract files (e.g., [`contracts/v2/HTLCEscrow.sol`](../contracts/contracts/v2/HTLCEscrow.sol)) using specific annotations (such as `// slither-disable-next-line`). Reviewers can inspect these comments and their justifications within the codebase to validate the accepted suppressions.

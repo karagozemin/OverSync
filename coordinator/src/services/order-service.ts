@@ -4,11 +4,13 @@ import {
   OrdersRepository,
   type OrderRow,
   type AnnounceOrderInput,
+  type OrderMetrics,
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
 import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
+import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -25,7 +27,14 @@ export const announceSchema = z.object({
   dstChain: z.enum(["ethereum", "stellar"]),
   dstAddress: z.string(),
   dstAsset: z.string().min(1),
-  dstAmount: z.string().regex(/^\d+$/, "dstAmount must be a decimal integer string")
+  dstAmount: z.string().regex(/^\d+$/, "dstAmount must be a decimal integer string"),
+  /**
+   * Optional: the `quoteId` returned by `GET /api/quotes/eth-xlm`.
+   * When present, the coordinator validates that the quote has not
+   * expired before accepting the announcement, ensuring fills cannot
+   * be based on stale pricing.
+   */
+  quoteId: z.string().optional()
 });
 
 export type AnnounceInput = z.infer<typeof announceSchema>;
@@ -57,7 +66,9 @@ function validateDirectionAgainstChains(input: AnnounceInput): void {
 export class OrderService {
   constructor(
     private readonly repo: OrdersRepository,
-    private readonly log: Logger
+    private readonly log: Logger,
+    /** Optional — when supplied, quoteId in announce requests is validated. */
+    private readonly quoteService?: QuoteService
   ) {}
 
   /**
@@ -65,11 +76,36 @@ export class OrderService {
    * funds — it simply records the intent so the order book is visible
    * to all resolvers and the user can later attach the on-chain
    * `srcOrderId` once they have locked.
+   *
+   * When `quoteId` is present in the input, it is validated against
+   * the QuoteService before the order is persisted.  Expired or
+   * unknown quoteIds are rejected as `OrderValidationError` so the
+   * error surfaces cleanly to the caller before any chain action is
+   * attempted.
    */
   async announce(input: AnnounceInput): Promise<OrderRow> {
     validateChainAddress(input.srcChain, input.srcAddress);
     validateChainAddress(input.dstChain, input.dstAddress);
     validateDirectionAgainstChains(input);
+
+    // --- Quote freshness gate -------------------------------------------
+    if (input.quoteId) {
+      if (!this.quoteService) {
+        // No QuoteService wired in (e.g. test mode without quotes) — skip.
+        this.log.debug({ quoteId: input.quoteId }, "quoteId supplied but no QuoteService wired; skipping freshness check");
+      } else {
+        try {
+          this.quoteService.assertFresh(input.quoteId);
+          this.log.debug({ quoteId: input.quoteId }, "quote freshness confirmed");
+        } catch (err) {
+          if (err instanceof QuoteExpiredError || err instanceof QuoteNotFoundError) {
+            throw new OrderValidationError(err.message);
+          }
+          throw err;
+        }
+      }
+    }
+    // -------------------------------------------------------------------
 
     const existing = await this.repo.findByHashlock(input.hashlock);
     if (existing) {
@@ -78,8 +114,13 @@ export class OrderService {
       );
     }
 
-    const order = await this.repo.announce(input as AnnounceOrderInput);
-    this.log.info({ publicId: order.publicId, direction: order.direction }, "order announced");
+    // Strip quoteId — it's not a persisted column, just a freshness gate.
+    const { quoteId: _q, ...repoInput } = input;
+    const order = await this.repo.announce(repoInput as AnnounceOrderInput);
+    this.log.info(
+      { publicId: order.publicId, direction: order.direction, quoteId: input.quoteId ?? null },
+      "order announced"
+    );
     ordersTotal.inc({ status: "announced" });
     return order;
   }
@@ -140,6 +181,10 @@ export class OrderService {
     await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
     this.log.info({ publicId }, "secret recorded");
     ordersTotal.inc({ status: "secret_revealed" });
+  }
+
+  async getOrderMetrics(): Promise<OrderMetrics> {
+    return this.repo.getMetrics();
   }
 
   async markStatus(publicId: string, status: OrderRow["status"]): Promise<void> {
