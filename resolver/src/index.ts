@@ -42,9 +42,10 @@ program
 program
   .command("check")
   .description("Run a preflight check to verify if the resolver is active in configured registries.")
-  .action(async () => {
+  .option("--json", "Emit JSON output suitable for dashboards and monitoring")
+  .action(async (options) => {
     const { checkCommand } = await import("./commands/check.js");
-    await checkCommand();
+    await checkCommand({ json: Boolean(options.json) });
   });
 
 
