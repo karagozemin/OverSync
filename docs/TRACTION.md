@@ -110,6 +110,40 @@ mesh, not as an isolated alternative.
 
 ## 3. Go-to-market
 
+### 3.0 Current public testnet metrics snapshot
+
+The current machine-readable SCF snapshot is committed at
+[`docs/scf-testnet-metrics.json`](scf-testnet-metrics.json). It is a
+point-in-time testnet evidence file, not a marketing dashboard. It
+records deployed contract addresses, explorer links, optional
+coordinator health if a public coordinator URL is provided, and explicit
+`null` values with reasons for metrics that cannot be fetched reliably.
+
+Regenerate it with:
+
+```bash
+pnpm scf:testnet-metrics
+```
+
+The script has no package dependencies, so the equivalent direct command
+also works:
+
+```bash
+node scripts/scf-testnet-metrics.mjs
+```
+
+To include a coordinator health check:
+
+```bash
+SCF_COORDINATOR_URL=https://<public-coordinator-host> pnpm scf:testnet-metrics
+```
+
+Current measurements in the snapshot are deliberately narrow. We do
+not report TVL, uptime, swap count, or volume unless the value is
+independently verifiable from the snapshot source. The KPI table below
+is the future public reporting target for mainnet and mature testnet
+operations, not a claim that those numbers already exist today.
+
 ### 3.1 Stage 1 — pre-mainnet visibility (now → mainnet launch)
 
 Goal: build a small but engaged audience that is paying attention when
