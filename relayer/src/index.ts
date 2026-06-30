@@ -1297,58 +1297,57 @@ async function initializeRelayer() {
         // ETH lock (src): Stellar lock + 10m gap + 2 hours
         const stellarTimelock = Math.floor(Date.now() / 1000) + (2 * 60 * 60);
         const ethTimelock = stellarTimelock + RELAYER_CONFIG.security.timelockSafetyGapSeconds + (2 * 60 * 60);
-        
+
         // Validate
         const validation = validateTimelockOrdering(ethTimelock, stellarTimelock, RELAYER_CONFIG.security.timelockSafetyGapSeconds);
         if (!validation.isValid) {
           throw new Error(`Invalid timelock ordering for XLM->ETH: ${validation.error}`);
         }
-        
+
         const orderData = {
           orderId,
           direction: 'xlm_to_eth',
-           stellarAmount: (xlmAmount * 1e7).toString(),
-           ethAmount: ethAmountWei.toString(),
-           stellarTimelock,
-           ethTimelock,
-           ethAddress,
-           stellarAddress,
-           exchangeRate: ethToXlmRate,
-           secret,
-           hashLock,
-           created: new Date().toISOString(),
-           status: 'awaiting_xlm_payment', // PENDING STATUS
-           contractType: 'XLM_TO_ETH_PENDING',
-           stellar: {
-             paymentAddress: relayerStellarAddress,
-             amount: xlmAmount.toString(),
-             memo: `XLM-ETH-${orderId.substring(0, 8)}`
-           },
-           ethereum: {
-             pendingAmount: ethAmountWei.toString(),
-             beneficiary: ethAddress
-           }
-         };
-         
-         
-         await storeActiveOrder(orderId, orderData);
-         
-         res.json({
-           success: true,
-           orderId,
-           message: '⏳ XLM→ETH: Order created - Please send XLM to complete swap',
-           orderData: {
-             stellarAmount: (xlmAmount * 1e7).toString(),
-             stellarAddress: relayerStellarAddress,
-              stellarTimelock,
-              ethTimelock,
-             memo: `XLM-ETH-${orderId.substring(0, 8)}`,
-             expectedEthAmount: ethAmountWei.toString(),
-             status: 'awaiting_xlm_payment',
-             instructions: `Send ${xlmAmount} XLM to ${relayerStellarAddress} with memo: XLM-ETH-${orderId.substring(0, 8)}`
-           }
-         });
-        
+          stellarAmount: (xlmAmount * 1e7).toString(),
+          ethAmount: ethAmountWei.toString(),
+          stellarTimelock,
+          ethTimelock,
+          ethAddress,
+          stellarAddress,
+          exchangeRate: ethToXlmRate,
+          secret,
+          hashLock,
+          created: new Date().toISOString(),
+          status: 'awaiting_xlm_payment', // PENDING STATUS
+          contractType: 'XLM_TO_ETH_PENDING',
+          stellar: {
+            paymentAddress: relayerStellarAddress,
+            amount: xlmAmount.toString(),
+            memo: `XLM-ETH-${orderId.substring(0, 8)}`
+          },
+          ethereum: {
+            pendingAmount: ethAmountWei.toString(),
+            beneficiary: ethAddress
+          }
+        };
+
+        await storeActiveOrder(orderId, orderData);
+
+        res.json({
+          success: true,
+          orderId,
+          message: '⏳ XLM→ETH: Order created - Please send XLM to complete swap',
+          orderData: {
+            stellarAmount: (xlmAmount * 1e7).toString(),
+            stellarAddress: relayerStellarAddress,
+            stellarTimelock,
+            ethTimelock,
+            memo: `XLM-ETH-${orderId.substring(0, 8)}`,
+            expectedEthAmount: ethAmountWei.toString(),
+            status: 'awaiting_xlm_payment',
+            instructions: `Send ${xlmAmount} XLM to ${relayerStellarAddress} with memo: XLM-ETH-${orderId.substring(0, 8)}`
+          }
+        });
+
       } else {
         throw new Error('Invalid direction specified');
       }
