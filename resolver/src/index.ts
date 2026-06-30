@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { runCommand } from "./commands/run.js";
 import { registerCommand, statusCommand, unregisterCommand } from "./commands/register.js";
+import { readinessCommand } from "./commands/readiness.js";
 
 const program = new Command();
 
@@ -45,6 +46,18 @@ program
   .action(async () => {
     const { checkCommand } = await import("./commands/check.js");
     await checkCommand();
+  });
+
+program
+  .command("readiness")
+  .description(
+    "Dry-run onboarding check: validates env, RPC reachability, resolver registry address, " +
+      "and detects the resolver's EVM/Stellar addresses without printing private keys. " +
+      "Exits non-zero when required config is missing. No transactions are submitted."
+  )
+  .action(async () => {
+    const code = await readinessCommand();
+    process.exit(code);
   });
 
 

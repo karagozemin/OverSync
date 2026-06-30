@@ -66,6 +66,15 @@ export interface OrderRow {
   updatedAt: number;
 }
 
+export interface OrderMetrics {
+  totalOrders: number;
+  byStatus: Record<string, number>;
+  completedOrders: number;
+  refundedOrders: number;
+  staleExpiredOrders: number;
+  lastUpdatedTimestamp: number | null;
+}
+
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
