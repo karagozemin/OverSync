@@ -5,6 +5,7 @@ import {
   type OrderRow,
   type AnnounceOrderInput,
   type OrderMetrics,
+  type OrderTransitionSummary,
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
@@ -127,6 +128,10 @@ export class OrderService {
 
   get(publicId: string): Promise<OrderRow | null> {
     return this.repo.findByPublicId(publicId);
+  }
+
+  getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
+    return this.repo.getTransitions(publicId);
   }
 
   history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {

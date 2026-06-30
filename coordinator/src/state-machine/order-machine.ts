@@ -49,3 +49,11 @@ export function requireTransition(from: OrderStatus, to: OrderStatus): void {
 export function isTerminal(status: OrderStatus): boolean {
   return TRANSITIONS[status].length === 0;
 }
+
+export function transitionCategory(from: OrderStatus | null, to: OrderStatus): string {
+  if (from === null && to === "announced") return "created";
+  if (to === "src_locked") return "src_locked";
+  if (to === "dst_locked") return "dst_locked";
+  if (to === "secret_revealed") return "secret_revealed";
+  return to;
+}
