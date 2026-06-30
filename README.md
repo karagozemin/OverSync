@@ -97,6 +97,7 @@ source code or block explorer.
 | EVM ResolverRegistry | 6 | Hardhat + Chai | yes |
 | SDK | 8 | Vitest | yes |
 | Coordinator | 4 | Vitest | yes |
+| Cross-chain e2e (real EVM + Soroban sim) | 19 | Vitest + Hardhat node | yes |
 
 ---
 
@@ -212,8 +213,15 @@ pnpm --filter @oversync/contracts exec hardhat test test/v2
 cd soroban && cargo test --release && cd ..
 
 # Run the cross-chain differential test harness (EVM ↔ Soroban hashlock
-# parity, using the shared @oversync/sdk secret helpers). No live RPC
-# required — the harness drives in-memory simulators of each chain.
+# parity). The harness drives both TypeScript simulators and a real
+# HTLCEscrow deployed on a temporary local Hardhat node.
+#
+# The test runner automatically:
+# - Compiles the Solidity contracts
+# - Starts a local Hardhat node
+# - Stops the node when the tests finish
+#
+# No manual Hardhat node is required.
 pnpm test:e2e
 
 # Run coordinator
@@ -253,7 +261,7 @@ threat model.
 |---|---|
 | [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md) | **SCF reviewer data room** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, and pull request expectations |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, pull request expectations, and the [contributor proof checklist](.github/pull_request_template.md) |
 | [`ROADMAP.md`](ROADMAP.md) | Milestone-by-milestone delivery plan with verifiable artefacts; testnet v2 live, mainnet UI gated until audit |
 | [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md) | Non-custodial proofs and per-actor threat analysis |
 | [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) | Comparison with CCTP v2, Axelar ITS, Allbridge; where OverSync is the right vs wrong tool |
@@ -264,6 +272,8 @@ threat model.
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
 | [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | Post-demo evidence pack template for reviewer and investor follow-up |
+| [`docs/PARTNER_MAP.md`](docs/PARTNER_MAP.md) | Partner and referrer map: target stakeholders, concrete asks, outreach template |
+| [`docs/MAINNET_READINESS_SCORECARD.md`](docs/MAINNET_READINESS_SCORECARD.md) | Gate-by-gate checklist (audit, uptime, refunds, resolvers, observability, bounty, governance) that controls when mainnet is enabled |
 
 ---
 

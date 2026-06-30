@@ -4,6 +4,7 @@ import {
   OrdersRepository,
   type OrderRow,
   type AnnounceOrderInput,
+  type OrderMetrics,
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
@@ -180,6 +181,10 @@ export class OrderService {
     await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
     this.log.info({ publicId }, "secret recorded");
     ordersTotal.inc({ status: "secret_revealed" });
+  }
+
+  async getOrderMetrics(): Promise<OrderMetrics> {
+    return this.repo.getMetrics();
   }
 
   async markStatus(publicId: string, status: OrderRow["status"]): Promise<void> {
