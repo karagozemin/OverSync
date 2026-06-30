@@ -26,17 +26,22 @@ export function normalizeError(err: unknown): OverSyncError {
   if (err instanceof OverSyncError) return err;
 
   const msg = err instanceof Error ? err.message : String(err);
+  const msgLower = msg.toLowerCase();
 
   // Basic heuristics for common errors
-  if (msg.toLowerCase().includes("user rejected") || msg.toLowerCase().includes("user denied")) {
+  if (msgLower.includes("validation failed") || msgLower.includes("requires a wallet client") || msgLower.includes("must be exactly 32 bytes")) {
+    return new OverSyncError("Validation failed", OverSyncErrorCode.VALIDATION_FAILED, err);
+  }
+
+  if (msgLower.includes("user rejected") || msgLower.includes("user denied")) {
     return new OverSyncError("Wallet rejected the transaction", OverSyncErrorCode.WALLET_REJECTED, err);
   }
 
-  if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("contract call failed")) {
+  if (msgLower.includes("revert") || msgLower.includes("contract call failed")) {
     return new OverSyncError("Contract execution reverted", OverSyncErrorCode.CONTRACT_REVERT, err);
   }
 
-  if (msg.toLowerCase().includes("network") || msg.toLowerCase().includes("timeout") || msg.toLowerCase().includes("rpc") || msg.toLowerCase().includes("simulation failed") || msg.toLowerCase().includes("submit failed")) {
+  if (msgLower.includes("network") || msgLower.includes("timeout") || msgLower.includes("rpc") || msgLower.includes("simulation failed") || msgLower.includes("submit failed")) {
     return new OverSyncError("RPC or network failure", OverSyncErrorCode.RPC_FAILURE, err);
   }
 

@@ -86,9 +86,9 @@ describe("checkRefundEligibility", () => {
         amount: "1000000000000000000",
       }
     });
-    
+
     expect(checkRefundEligibility(order, CURRENT_TIME)).toEqual({ isEligible: true, reason: "ELIGIBLE" });
-    
+
     // Change to not expired
     order.src.timelock = CURRENT_TIME + 500;
     expect(checkRefundEligibility(order, CURRENT_TIME)).toEqual({ isEligible: false, reason: "NOT_EXPIRED" });
