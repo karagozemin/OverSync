@@ -25,6 +25,7 @@
     "load-test": "pnpm --filter @oversync/e2e load-test",
     "load-test:live": "LOAD_TEST_LIVE=true pnpm --filter @oversync/e2e load-test",
     "scf:testnet-metrics": "node scripts/scf-testnet-metrics.mjs",
+    "validate:deployments": "node scripts/validate-deployments.mjs",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "contracts:compile": "pnpm --filter contracts compile",

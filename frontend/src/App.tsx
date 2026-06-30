@@ -13,8 +13,10 @@ import { isMainnetEnabled } from './config/networks'
 import EvidenceExportAction from './components/EvidenceExportAction'
 import NetworkMismatchBanner from './components/NetworkMismatchBanner'
 import MainnetVersionBanner from './components/MainnetVersionBanner'
+import DeploymentSelfCheck from './components/DeploymentSelfCheck'
 import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
-import InvestorMode from './pages/InvestorMode'
+import BackendStatusBanner from './components/BackendStatusBanner'
+import { useBackendStatus } from './lib/useBackendStatus'
 import {
   Activity,
   ArrowRightLeft,
@@ -141,6 +143,8 @@ function App() {
   // Single source of truth for testnet/mainnet across URL + MetaMask + Freighter.
   // Replaces the previous local `currentNetwork` state and 2s page-reload hack
   // that allowed URL and wallet to drift apart.
+  const backendStatus = useBackendStatus();
+
   const networkState = useNetworkMode({
     ethAddress: ethAddress || undefined,
     stellarAddress: stellarAddress || undefined,
@@ -453,6 +457,7 @@ function App() {
 
       <NetworkMismatchBanner networkState={networkState} />
       <MainnetVersionBanner networkState={networkState} />
+      <BackendStatusBanner statusState={backendStatus} />
 
       {/* Main Content */}
       <main className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 pb-24 pt-10 md:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,560px)] lg:items-start lg:pt-16">
@@ -577,6 +582,11 @@ function App() {
           <span className="text-base">X</span>
         </a>
       </div>
+
+      {/* Deployment Self-Check - visible in development or when debug mode enabled */}
+      {import.meta.env.DEV || (import.meta as any).env?.VITE_ENABLE_DEBUG_MODE === 'true' ? (
+        <DeploymentSelfCheck />
+      ) : null}
 
       {/* Toast Container */}
       <ToastContainer

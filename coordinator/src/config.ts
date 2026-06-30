@@ -13,7 +13,9 @@ const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3001),
   databaseUrl: z.string().default("file:./oversync.db"),
   logLevel: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
-  corsOrigin: z.string().default("*"),
+  corsOrigins: z
+    .string()
+    .default("http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"),
   pollIntervalMs: z.coerce.number().int().positive().default(15_000),
   /** Maximum allowed JSON request body size in bytes. Default: 64 KiB. */
   maxRequestBodyBytes: z.coerce.number().int().positive().default(65_536),
@@ -53,7 +55,10 @@ export function loadConfig(): CoordinatorConfig {
     port: process.env.COORDINATOR_PORT ?? process.env.RELAYER_PORT ?? "3001",
     databaseUrl: process.env.DATABASE_URL ?? "file:./oversync.db",
     logLevel: process.env.LOG_LEVEL ?? "info",
-    corsOrigin: process.env.CORS_ORIGIN ?? "*",
+    corsOrigins:
+      process.env.COORDINATOR_CORS_ORIGINS ??
+      process.env.CORS_ORIGIN ??
+      "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
     pollIntervalMs: process.env.COORDINATOR_POLL_INTERVAL_MS ?? "15000",
     maxRequestBodyBytes: process.env.COORDINATOR_MAX_BODY_BYTES ?? "65536",
     ethereum: {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   OrdersRepository,
   type OrderRow,
+  type OrderSnapshot,
   type AnnounceOrderInput,
   type OrderMetrics,
   type Direction,
@@ -196,5 +197,9 @@ export class OrderService {
     await this.repo.setStatus(publicId, status);
     this.log.info({ publicId, status }, "status updated");
     ordersTotal.inc({ status });
+  }
+
+  async getSnapshots(): Promise<OrderSnapshot[]> {
+    return this.repo.getCompletedOrderSnapshots();
   }
 }
