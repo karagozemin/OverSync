@@ -67,6 +67,20 @@ CREATE TABLE IF NOT EXISTS order_events (
 
 CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events (order_id, created_at);
 
+-- Read-only, non-sensitive audit of status transitions. `from_status` is
+-- nullable to allow recording the initial "announced" transition.
+CREATE TABLE IF NOT EXISTS order_transitions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id      INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    from_status   TEXT,
+    to_status     TEXT    NOT NULL CHECK (to_status IN ('announced', 'src_locked', 'dst_locked', 'secret_revealed', 'completed', 'refunded', 'failed', 'expired')),
+    tx_hash       TEXT,
+    category      TEXT,
+    created_at    INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER))
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_transitions_order ON order_transitions (order_id, created_at);
+
 CREATE TABLE IF NOT EXISTS resolver_heartbeats (
     address     TEXT PRIMARY KEY,
     chain       TEXT NOT NULL CHECK (chain IN ('ethereum', 'stellar')),

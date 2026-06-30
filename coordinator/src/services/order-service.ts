@@ -152,4 +152,8 @@ export class OrderService {
     this.log.info({ publicId, status }, "status updated");
     ordersTotal.inc({ status });
   }
+
+  async getTransitions(publicId: string) {
+    return this.repo.getTransitions(publicId);
+  }
 }

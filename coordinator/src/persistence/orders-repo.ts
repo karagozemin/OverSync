@@ -53,6 +53,14 @@ export interface OrderRow {
   updatedAt: number;
 }
 
+export interface OrderTransition {
+  from: OrderStatus | null;
+  to: OrderStatus;
+  txHash: string | null;
+  category: string | null;
+  createdAt: number;
+}
+
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
@@ -140,6 +148,8 @@ export class OrdersRepository {
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
+  private readonly insertTransitionStmt: Statement;
+  private readonly selectTransitionsByPublicId: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -201,6 +211,28 @@ export class OrdersRepository {
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
     `);
+    this.insertTransitionStmt = db.prepare(`
+      INSERT INTO order_transitions (order_id, from_status, to_status, tx_hash, category)
+      VALUES (
+        (SELECT id FROM orders WHERE public_id = :publicId),
+        :fromStatus, :toStatus, :txHash, :category
+      )
+    `);
+    this.selectTransitionsByPublicId = db.prepare(`
+      SELECT
+        from_status AS from_status,
+        to_status AS to_status,
+        tx_hash AS tx_hash,
+        category AS category,
+        created_at AS created_at
+      FROM order_transitions
+      WHERE order_id = (SELECT id FROM orders WHERE public_id = :publicId)
+      ORDER BY created_at ASC
+    `);
+  }
+
+  private async insertTransition(publicId: string, fromStatus: OrderStatus | null, toStatus: OrderStatus, txHash: string | null, category: string | null): Promise<void> {
+    await this.run(this.insertTransitionStmt, { publicId, fromStatus, toStatus, txHash, category });
   }
 
   private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
@@ -237,6 +269,8 @@ export class OrdersRepository {
     await this.run(this.insertStmt, { publicId, ...input });
     const row = await this.get<OrderDbRow>(this.byPublicId, publicId);
     if (!row) throw new Error("Failed to insert order");
+    // Record initial announced transition (non-sensitive)
+    await this.insertTransition(publicId, null, "announced", null, "announce");
     return rowToOrder(row);
   }
 
@@ -266,7 +300,14 @@ export class OrdersRepository {
   }
 
   async setStatus(publicId: string, status: OrderStatus): Promise<void> {
+    const before = await this.findByPublicId(publicId);
+    const beforeStatus = before?.status ?? null;
     await this.run(this.updateStatus, { publicId, status });
+    const after = await this.findByPublicId(publicId);
+    const afterStatus = after?.status ?? null;
+    if (beforeStatus !== afterStatus && afterStatus !== null) {
+      await this.insertTransition(publicId, beforeStatus as OrderStatus | null, afterStatus as OrderStatus, null, "manual_status");
+    }
   }
 
   async recordSrcLock(input: {
@@ -276,7 +317,14 @@ export class OrdersRepository {
     blockNumber: number;
     timelock: number;
   }): Promise<void> {
+    const before = await this.findByPublicId(input.publicId);
+    const beforeStatus = before?.status ?? null;
     await this.run(this.updateSrcLock, input);
+    const after = await this.findByPublicId(input.publicId);
+    const afterStatus = after?.status ?? null;
+    if (beforeStatus !== afterStatus && afterStatus !== null) {
+      await this.insertTransition(input.publicId, beforeStatus as OrderStatus | null, afterStatus as OrderStatus, input.txHash, "src_lock");
+    }
   }
 
   async recordDstLock(input: {
@@ -287,7 +335,14 @@ export class OrdersRepository {
     timelock: number;
     resolver: string | null;
   }): Promise<void> {
+    const before = await this.findByPublicId(input.publicId);
+    const beforeStatus = before?.status ?? null;
     await this.run(this.updateDstLock, input);
+    const after = await this.findByPublicId(input.publicId);
+    const afterStatus = after?.status ?? null;
+    if (beforeStatus !== afterStatus && afterStatus !== null) {
+      await this.insertTransition(input.publicId, beforeStatus as OrderStatus | null, afterStatus as OrderStatus, input.txHash, "dst_lock");
+    }
   }
 
   async recordSecretRevealed(input: {
@@ -295,6 +350,27 @@ export class OrdersRepository {
     preimage: string;
     txHash: string;
   }): Promise<void> {
+    const before = await this.findByPublicId(input.publicId);
+    const beforeStatus = before?.status ?? null;
     await this.run(this.updateSecret, input);
+    const after = await this.findByPublicId(input.publicId);
+    const afterStatus = after?.status ?? null;
+    if (beforeStatus !== afterStatus && afterStatus !== null) {
+      await this.insertTransition(input.publicId, beforeStatus as OrderStatus | null, afterStatus as OrderStatus, input.txHash, "secret_reveal");
+    }
+  }
+
+  async getTransitions(publicId: string): Promise<OrderTransition[]> {
+    const rows = await this.all<{ from_status: string | null; to_status: string; tx_hash: string | null; category: string | null; created_at: number }>(
+      this.selectTransitionsByPublicId,
+      { publicId }
+    );
+    return rows.map((r) => ({
+      from: (r.from_status as OrderStatus) ?? null,
+      to: r.to_status as OrderStatus,
+      txHash: r.tx_hash ?? null,
+      category: r.category ?? null,
+      createdAt: Number(r.created_at)
+    }));
   }
 }

@@ -33,7 +33,6 @@ function serialiseOrder(order: OrderRow | null) {
     },
     secret: {
       revealed: order.preimage !== null,
-      preimage: order.preimage,
       revealedTx: order.secretRevealedTx
     },
     resolver: order.resolverAddress,
@@ -72,6 +71,15 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       res.json(serialiseOrder(order));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    try {
+      const transitions = await orders.getTransitions(req.params.id);
+      res.json({ transitions });
     } catch (err) {
       next(err);
     }
