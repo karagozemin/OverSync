@@ -13,20 +13,24 @@ vi.mock('../config/networks', () => ({
 }));
 
 // Mutable mock object for deployments
-const mockDeployments = {
-  ethereum: {
-    contracts: {
-      HTLCEscrow: '0xb352339BEb146f2699d28D736700B953988bB178',
-      ResolverRegistry: '0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99',
-    },
-  },
-  stellar: {
-    contracts: {
-      HTLC: 'CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK',
-      ResolverRegistry: 'CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF',
-    },
-  },
-};
+const { mockDeployments } = vi.hoisted(() => {
+  return {
+    mockDeployments: {
+      ethereum: {
+        contracts: {
+          HTLCEscrow: '0xb352339BEb146f2699d28D736700B953988bB178',
+          ResolverRegistry: '0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99',
+        },
+      },
+      stellar: {
+        contracts: {
+          HTLC: 'CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK',
+          ResolverRegistry: 'CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF',
+        },
+      },
+    }
+  };
+});
 
 vi.mock('../../../deployments.testnet.json', () => ({
   default: mockDeployments,
