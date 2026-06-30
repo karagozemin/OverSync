@@ -19,6 +19,7 @@ const configSchema = z.object({
   pollIntervalMs: z.coerce.number().int().positive().default(15_000),
   /** Maximum allowed JSON request body size in bytes. Default: 64 KiB. */
   maxRequestBodyBytes: z.coerce.number().int().positive().default(65_536),
+  demoFixtures: z.coerce.boolean().default(false),
   ethereum: z.object({
     rpcUrl: z.string().url(),
     chainId: z.number().int(),
@@ -61,6 +62,7 @@ export function loadConfig(): CoordinatorConfig {
       "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
     pollIntervalMs: process.env.COORDINATOR_POLL_INTERVAL_MS ?? "15000",
     maxRequestBodyBytes: process.env.COORDINATOR_MAX_BODY_BYTES ?? "65536",
+    demoFixtures: process.env.COORDINATOR_DEMO_FIXTURES ?? "false",
     ethereum: {
       rpcUrl: resolveEthereumRpcUrl(isMainnet ? "mainnet" : "testnet"),
       chainId: isMainnet ? 1 : 11_155_111,

@@ -49,6 +49,7 @@ export interface OrderRow {
   preimage: string | null;
   secretRevealedTx: string | null;
   resolverAddress: string | null;
+  fixture: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -102,6 +103,7 @@ interface OrderDbRow {
   preimage: string | null;
   secret_revealed_tx: string | null;
   resolver_address: string | null;
+  fixture: number;
   created_at: number;
   updated_at: number;
 }
@@ -133,6 +135,7 @@ function rowToOrder(r: OrderDbRow): OrderRow {
     preimage: r.preimage,
     secretRevealedTx: r.secret_revealed_tx,
     resolverAddress: r.resolver_address,
+    fixture: Boolean(r.fixture),
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };
@@ -204,6 +207,23 @@ export class OrdersRepository {
         status = CASE WHEN status IN ('announced', 'src_locked') THEN 'dst_locked' ELSE status END,
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
+    `);
+    this.insertFullStmt = db.prepare(`
+      INSERT INTO orders (
+        public_id, direction, status, hashlock,
+        src_chain, src_address, src_asset, src_amount, src_safety_deposit,
+        src_order_id, src_lock_tx, src_lock_block, src_timelock,
+        dst_chain, dst_address, dst_asset, dst_amount,
+        dst_order_id, dst_lock_tx, dst_lock_block, dst_timelock,
+        preimage, secret_revealed_tx, resolver_address, fixture
+      ) VALUES (
+        :publicId, :direction, :status, :hashlock,
+        :srcChain, :srcAddress, :srcAsset, :srcAmount, :srcSafetyDeposit,
+        :srcOrderId, :srcLockTx, :srcLockBlock, :srcTimelock,
+        :dstChain, :dstAddress, :dstAsset, :dstAmount,
+        :dstOrderId, :dstLockTx, :dstLockBlock, :dstTimelock,
+        :preimage, :secretRevealedTx, :resolverAddress, :fixture
+      )
     `);
     this.updateSecret = db.prepare(`
       UPDATE orders SET
@@ -284,6 +304,42 @@ export class OrdersRepository {
   async findByAddress(addr: string, limit = 50, offset = 0): Promise<OrderRow[]> {
     const rows = await this.all<OrderDbRow>(this.byAddress, { addr, limit, offset });
     return rows.map(rowToOrder);
+  }
+
+  async insertOrder(input: {
+    publicId: string;
+    direction: Direction;
+    status: OrderStatus;
+    hashlock: string;
+    srcChain: Chain;
+    srcAddress: string;
+    srcAsset: string;
+    srcAmount: string;
+    srcSafetyDeposit: string;
+    srcOrderId: string | null;
+    srcLockTx: string | null;
+    srcLockBlock: number | null;
+    srcTimelock: number | null;
+    dstChain: Chain;
+    dstAddress: string;
+    dstAsset: string;
+    dstAmount: string;
+    dstOrderId: string | null;
+    dstLockTx: string | null;
+    dstLockBlock: number | null;
+    dstTimelock: number | null;
+    preimage: string | null;
+    secretRevealedTx: string | null;
+    resolverAddress: string | null;
+    fixture: boolean;
+  }): Promise<OrderRow> {
+    if (!this.insertFullStmt) {
+      throw new Error("insertOrder is not available");
+    }
+    await this.run(this.insertFullStmt, input);
+    const row = await this.get<OrderDbRow>(this.byPublicId, input.publicId);
+    if (!row) throw new Error("Failed to insert order");
+    return rowToOrder(row);
   }
 
   async setStatus(publicId: string, status: OrderStatus): Promise<void> {
