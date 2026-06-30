@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { openDatabase } from "../src/persistence/db.js";
-import { OrdersRepository, buildSnapshot } from "../src/persistence/orders-repo.js";
+import { OrdersRepository, buildSnapshot, type OrderSnapshot } from "../src/persistence/orders-repo.js";
 import { OrderService } from "../src/services/order-service.js";
 import pino from "pino";
 
@@ -80,7 +80,7 @@ describe("OrderService.getSnapshots", () => {
 
     const snapshots = await orders.getSnapshots();
     expect(snapshots).toHaveLength(1);
-    const snapshot = snapshots[0];
+    const snapshot = snapshots[0]!;
     expect(snapshot.orderId).toBe(order.publicId);
     expect(snapshot.currentState).toBe("completed");
     expect(snapshot.transitions).toEqual(["announced", "src_locked", "dst_locked", "secret_revealed", "completed"]);
@@ -150,7 +150,7 @@ describe("OrderService.getSnapshots", () => {
 
     const snapshots = await orders.getSnapshots();
     expect(snapshots).toHaveLength(1);
-    const snapshot = snapshots[0];
+    const snapshot = snapshots[0]!;
     expect(snapshot.orderId).toBe(order.publicId);
     expect(snapshot.currentState).toBe("refunded");
     expect(snapshot.transitions).toEqual(["announced", "src_locked", "dst_locked", "secret_revealed", "refunded"]);
@@ -179,8 +179,8 @@ describe("OrderService.getSnapshots", () => {
 
     const snapshots = await orders.getSnapshots();
     expect(snapshots).toHaveLength(1);
-    expect(snapshots[0].orderId).toBe(refunded.publicId);
-    expect(snapshots[0].currentState).toBe("refunded");
+    expect(snapshots[0]!.orderId).toBe(refunded.publicId);
+    expect(snapshots[0]!.currentState).toBe("refunded");
   });
 
   it("handles multiple terminal orders sorted by updatedAt DESC", async () => {
@@ -236,7 +236,7 @@ describe("OrderService.getSnapshots", () => {
       refundedSnapshot.timestamps.updatedAt
     );
     // The array is sorted DESC, so whichever has the higher updatedAt is first.
-    const [first, second] = snapshots;
+    const [first, second] = snapshots as [OrderSnapshot, OrderSnapshot];
     const isCompletedFirst = first.orderId === completed1.publicId;
     if (isCompletedFirst) {
       expect(second.orderId).toBe(refunded1.publicId);

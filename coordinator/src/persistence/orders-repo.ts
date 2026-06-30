@@ -163,6 +163,9 @@ export class OrdersRepository {
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
   private readonly completedOrderRows: Statement;
+  private readonly metricsByStatus: Statement;
+  private readonly metricsTotal: Statement;
+  private readonly metricsLastUpdated: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -229,6 +232,13 @@ export class OrdersRepository {
       WHERE status IN ('completed', 'refunded', 'failed', 'expired')
       ORDER BY updated_at DESC
     `);
+    this.metricsByStatus = db.prepare(
+      "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
+    );
+    this.metricsTotal = db.prepare("SELECT COUNT(*) as count FROM orders");
+    this.metricsLastUpdated = db.prepare(
+      "SELECT MAX(updated_at) as ts FROM orders"
+    );
   }
 
   private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
@@ -324,6 +334,38 @@ export class OrdersRepository {
     txHash: string;
   }): Promise<void> {
     await this.run(this.updateSecret, input);
+  }
+
+  async getMetrics(): Promise<OrderMetrics> {
+    const byStatus = (await this.all<{ status: string; count: string }>(
+      this.metricsByStatus
+    )) as { status: string; count: string }[];
+    const totalRow = (await this.get<{ count: string }>(this.metricsTotal)) as
+      | { count: string }
+      | undefined;
+    const lastUpdatedRow = (await this.get<{ ts: number | null }>(
+      this.metricsLastUpdated
+    )) as { ts: number | null } | undefined;
+
+    const byStatusMap: Record<string, number> = {};
+    for (const r of byStatus) {
+      byStatusMap[r.status] = Number(r.count);
+    }
+
+    const totalOrders = Number(totalRow?.count ?? 0);
+    const completedOrders = byStatusMap["completed"] ?? 0;
+    const refundedOrders = byStatusMap["refunded"] ?? 0;
+    const staleExpiredOrders =
+      (byStatusMap["expired"] ?? 0) + (byStatusMap["failed"] ?? 0);
+
+    return {
+      totalOrders,
+      byStatus: byStatusMap,
+      completedOrders,
+      refundedOrders,
+      staleExpiredOrders,
+      lastUpdatedTimestamp: lastUpdatedRow?.ts ?? null
+    };
   }
 
   async getCompletedOrderSnapshots(): Promise<OrderSnapshot[]> {
