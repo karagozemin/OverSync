@@ -10,7 +10,8 @@ import { isTestnet, getCurrentNetwork } from '../config/networks';
 import type { NetworkModeState } from '../lib/useNetworkMode';
 import { parseHtlcReceipt } from '../lib/parseHtlcReceipt';
 import { sanitizeAmountInput } from '../lib/sanitizeAmountInput';
-import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2, Wallet } from 'lucide-react';
+import StellarWalletPreflight from './StellarWalletPreflight';
 
 // Web3 imports for contract interaction
 declare global {
@@ -1147,6 +1148,53 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   // Check if wallets are connected
   const walletsConnected = ethAddress && stellarAddress;
 
+  // Wallet readiness preflight state
+  const [showWalletPreflight, setShowWalletPreflight] = useState(false);
+  const [walletReady, setWalletReady] = useState(false);
+
+  // Check if this is a testnet/demo environment
+  const isTestnetEnvironment = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const urlNetwork = new URLSearchParams(window.location.search).get('network');
+    return urlNetwork === 'testnet' || !urlNetwork;
+  }, []);
+
+  // Show wallet preflight on testnet/demo environment
+  useEffect(() => {
+    if (isTestnetEnvironment && isTestnet()) {
+      setShowWalletPreflight(true);
+    }
+  }, [isTestnetEnvironment]);
+
+  // Check wallet readiness when preflight is shown
+  useEffect(() => {
+    if (!showWalletPreflight) return;
+    
+    const freighter = useFreighter();
+    
+    const checkPreflight = async () => {
+      try {
+        const result = await freighter.checkWalletReadiness();
+        const isReady = result.freighterReachable &&
+                       result.isConnected &&
+                       result.accountPresent &&
+                       result.testnetSelected &&
+                       result.accountFunded &&
+                       result.horizonReachable;
+        setWalletReady(isReady);
+      } catch (error) {
+        console.error('Preflight check failed:', error);
+        setWalletReady(false);
+      }
+    };
+    
+    checkPreflight();
+    
+    // Set up periodic checks
+    const interval = setInterval(checkPreflight, 5000);
+    return () => clearInterval(interval);
+  }, [showWalletPreflight]);
+
   // ---- Network mismatch guardrails ----
   const mismatchInfo = useMemo(() => {
     const ns = networkState;
@@ -1428,6 +1476,16 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                     ? 'Connect MetaMask to bridge.'
                     : 'Connect Freighter to bridge.'}
               </p>
+            </div>
+          )}
+          
+          {/* Wallet Readiness Preflight */}
+          {showWalletPreflight && (
+            <div className="overflow-hidden rounded-2xl border border-indigo-400/35 bg-indigo-500/12 transition-all duration-300">
+              <StellarWalletPreflight 
+                isVisible={showWalletPreflight}
+                onReady={setWalletReady}
+              />
             </div>
           )}
           
