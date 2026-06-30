@@ -35,10 +35,12 @@ describe("SDK Error Normalization", () => {
       publicClient: {} as PublicClient,
     });
 
-    await expect(client.claimOrder(1n, "0x")).rejects.toThrowError(OverSyncError);
+    const validPreimage = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
+
+    await expect(client.claimOrder(1n, validPreimage)).rejects.toThrowError(OverSyncError);
 
     try {
-      await client.claimOrder(1n, "0x");
+      await client.claimOrder(1n, validPreimage);
     } catch (e) {
       expect(e).toBeInstanceOf(OverSyncError);
       if (e instanceof OverSyncError) {

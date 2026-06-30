@@ -23,7 +23,7 @@ export class OverSyncError extends Error {
  * Normalizes unknown errors into a structured OverSyncError, preserving the original cause.
  */
 export function normalizeError(err: unknown): OverSyncError {
-  if (err instanceof OverSyncError) return err;
+  if (err instanceof OverSyncError || (err as any)?.constructor?.name === 'OverSyncError') return err as OverSyncError;
 
   const msg = err instanceof Error ? err.message : String(err);
 
