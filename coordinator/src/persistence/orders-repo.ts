@@ -143,6 +143,7 @@ function rowToOrder(r: OrderDbRow): OrderRow {
 
 export class OrdersRepository {
   private readonly insertStmt: Statement;
+  private readonly insertFullStmt: Statement;
   private readonly byPublicId: Statement;
   private readonly byHashlock: Statement;
   private readonly byAddress: Statement;
@@ -155,6 +156,10 @@ export class OrdersRepository {
   private readonly metricsByStatus: Statement;
   private readonly metricsTotal: Statement;
   private readonly metricsLastUpdated: Statement;
+  // Opt-in fixture reset/remove path (issue #161). Only ever returns rows
+  // whose `fixture = 1` and is the only place those rows are deleted.
+  private readonly countFixturesStmt: Statement;
+  private readonly removeFixturesStmt: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -239,6 +244,13 @@ export class OrdersRepository {
     this.metricsTotal = db.prepare(
       "SELECT COUNT(*) as count FROM orders"
     );
+    this.countFixturesStmt = db.prepare(
+      "SELECT COUNT(*) as count FROM orders WHERE fixture = 1"
+    );
+    this.removeFixturesStmt = db.prepare(
+      "DELETE FROM orders WHERE fixture = 1"
+    );
+
     this.metricsLastUpdated = db.prepare(
       "SELECT MAX(updated_at) as ts FROM orders"
     );
@@ -333,13 +345,41 @@ export class OrdersRepository {
     resolverAddress: string | null;
     fixture: boolean;
   }): Promise<OrderRow> {
-    if (!this.insertFullStmt) {
-      throw new Error("insertOrder is not available");
-    }
-    await this.run(this.insertFullStmt, input);
-    const row = await this.get<OrderDbRow>(this.byPublicId, input.publicId);
-    if (!row) throw new Error("Failed to insert order");
-    return rowToOrder(row);
+    // node:sqlite (and pg) bind INTEGER columns strictly. Coerce the
+    // boolean fixture flag to 0/1 here so the insert statement
+    // succeeds without leaking driver-specific encoding rules to
+    // callers.
+    const row = { ...input, fixture: input.fixture ? 1 : 0 };
+    await this.run(this.insertFullStmt, row);
+    const fetched = await this.get<OrderDbRow>(this.byPublicId, input.publicId);
+    if (!fetched) throw new Error("Failed to insert order");
+    return rowToOrder(fetched);
+  }
+
+  /**
+   * Count current fixture orders in the cache.
+   *
+   * Fixture rows only exist when the operator has explicitly opted into
+   * demo mode via `COORDINATOR_DEMO_FIXTURES=true`. In a production
+   * deployment without the opt-in, this always returns 0.
+   */
+  async countFixtures(): Promise<number> {
+    const row = await this.get<{ count: number }>(this.countFixturesStmt);
+    return Number(row?.count ?? 0);
+  }
+
+  /**
+   * Remove all fixture orders from the cache. Returns the number of
+   * rows deleted. Linked `order_events` rows are removed by the FK
+   * `ON DELETE CASCADE` declared in `schema.sql`.
+   *
+   * This is the opt-in reset/remove path required by issue #161.
+   * Production deployments never enable `COORDINATOR_DEMO_FIXTURES`,
+   * so this is always a safe no-op for them.
+   */
+  async removeFixtures(): Promise<number> {
+    const result = await this.run(this.removeFixturesStmt);
+    return result.changes;
   }
 
   async setStatus(publicId: string, status: OrderStatus): Promise<void> {
