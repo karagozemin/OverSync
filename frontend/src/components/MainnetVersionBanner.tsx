@@ -22,8 +22,8 @@ export default function MainnetVersionBanner({ networkState }: Props) {
           </div>
           <div className="text-blue-200/90">
             v2 decentralized HTLC stack (multi-resolver, on-chain hashlock/timelock) is
-            live on <b>testnet</b>. v2 mainnet launch is on the roadmap for Q1 2027
-            after audit. Switch to testnet to try the v2 flow today.
+            live on <b>testnet</b>. v2 mainnet launch is gated by independent security audits
+            and the completion of the mainnet readiness checklist. Switch to testnet to try the v2 flow today.
           </div>
         </div>
       </div>

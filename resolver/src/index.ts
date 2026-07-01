@@ -49,6 +49,15 @@ program
   });
 
 program
+  .command("preflight")
+  .description("Validate local configuration and prints actionable setup guidance before registration or staking.")
+  .action(async () => {
+    const { preflightCommand } = await import("./commands/preflight.js");
+    const code = await preflightCommand();
+    process.exit(code);
+  });
+
+program
   .command("readiness")
   .description(
     "Dry-run onboarding check: validates env, RPC reachability, resolver registry address, " +
