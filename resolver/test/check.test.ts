@@ -58,7 +58,9 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
 });
 
 import { checkPreflight } from "../src/commands/check.js";
-import { __setMockConfig } from "../src/config.js";
+import * as configModule from "../src/config.js";
+
+const __setMockConfig = (configModule as any).__setMockConfig;
 
 describe("checkPreflight", () => {
   beforeEach(() => {
