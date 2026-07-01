@@ -9,17 +9,17 @@
  * ✅ All existing SDK tests continue to pass (no regressions introduced).
  *
  * Run with:
- *   npm test                  (via jest / vitest — whichever is configured)
- *   npx vitest run            (direct)
+ *   pnpm --filter @oversync/sdk test
  */
 
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   getDeploymentEvidence,
   getEvidenceByContract,
   getEvidenceByChain,
   getEvidenceGeneratedAt,
   type DeploymentEvidence,
-} from "../src/index";
+} from "../src/index.js";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ describe("getDeploymentEvidence()", () => {
     expect(row.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
-  it("EVM HTLC row has a public explorer URL", () => {
+  it("EVM HTLC row has a public explorer URL containing the lowercase address", () => {
     const row = evidence.find(
       (e) => e.chain === "Ethereum" && e.contractName === "HTLC"
     )!;
@@ -115,6 +115,7 @@ describe("getDeploymentEvidence()", () => {
       (e) => e.chain === "Ethereum" && e.contractName === "ResolverRegistry"
     )!;
     expect(row.explorerUrl).toMatch(/^https:\/\//);
+    expect(row.explorerUrl).toContain(row.address.toLowerCase());
   });
 
   // ── Required rows — Soroban (Stellar) ──────────────────────────────────────
