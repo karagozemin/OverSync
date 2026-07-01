@@ -8,7 +8,7 @@ import {
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
-import { type FailureCode } from "@oversync/sdk/types";
+import { type FailureCode } from "@oversync/sdk";
 import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
 import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";

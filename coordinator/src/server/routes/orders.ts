@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { OrderRow } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
-import { FAILURE_CODE_CATALOG, type FailureCode } from "@oversync/sdk/types";
+import { FAILURE_CODE_CATALOG, type FailureCode } from "@oversync/sdk";
 
 function serialiseOrder(order: OrderRow | null) {
   if (!order) return null;

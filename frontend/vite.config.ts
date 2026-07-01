@@ -66,7 +66,6 @@ export default defineConfig(({ mode }) => {
         // Vitest don't cold-scan src/**/*.ts on first launch now that
         // the package exports point directly at TS source.
         '@oversync/sdk',
-        '@oversync/sdk/types',
       ],
     },
     test: {

@@ -7,7 +7,7 @@ import OrderStaleBanner from './OrderStaleBanner';
 import { classifyOrderFreshness } from '../lib/orderFreshness';
 import type { Address } from 'viem';
 import HtlcTimeline from './HtlcTimeline';
-import { FAILURE_CODE_CATALOG, type FailureCode } from '@oversync/sdk/types';
+import { FAILURE_CODE_CATALOG, type FailureCode } from '@oversync/sdk';
 
 interface Transaction {
   id: string;
