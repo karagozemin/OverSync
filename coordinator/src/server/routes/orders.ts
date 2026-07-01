@@ -63,6 +63,58 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  router.get("/orders/history", async (req, res, next) => {
+    // Support both single address and multiple addresses (eth + stellar)
+    const address = (req.query.address as string | undefined);
+    const ethAddress = (req.query.eth as string | undefined);
+    const stellarAddress = (req.query.stellar as string | undefined);
+
+    const addresses: string[] = [];
+    if (address) {
+      addresses.push(address);
+    }
+    if (ethAddress) {
+      addresses.push(ethAddress);
+    }
+    if (stellarAddress) {
+      addresses.push(stellarAddress);
+    }
+
+    if (addresses.length === 0) {
+      res.status(400).json({ error: "address_required" });
+      return;
+    }
+
+    const limit = Math.min(Number(req.query.limit ?? 50), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+
+    try {
+      // Fetch orders for each address and deduplicate by publicId
+      const allOrders = await Promise.all(
+        addresses.map(addr => orders.history(addr, limit, offset))
+      );
+
+      const seen = new Set<string>();
+      const deduped: typeof allOrders[0] = [];
+
+      for (const orderList of allOrders) {
+        for (const order of orderList) {
+          if (!seen.has(order.publicId)) {
+            seen.add(order.publicId);
+            deduped.push(order);
+          }
+        }
+      }
+
+      res.json({
+        transactions: deduped.map((o) => serialiseOrder(o)).filter(Boolean),
+        pagination: { limit, offset, count: deduped.length }
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
     try {
@@ -94,24 +146,6 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
-  router.get("/orders/history", async (req, res, next) => {
-    const address = (req.query.address as string | undefined) ?? "";
-    if (!address) {
-      res.status(400).json({ error: "address_required" });
-      return;
-    }
-    const limit = Math.min(Number(req.query.limit ?? 50), 200);
-    const offset = Math.max(Number(req.query.offset ?? 0), 0);
-    try {
-      const list = await orders.history(address, limit, offset);
-      res.json({
-        transactions: list.map((o) => serialiseOrder(o)).filter(Boolean),
-        pagination: { limit, offset, count: list.length }
-      });
-    } catch (err) {
-      next(err);
-    }
-  });
 
   const lockSchema = z.object({
     orderId: z.string().min(1),

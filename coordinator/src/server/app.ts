@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import cors from "cors";
 import pinoHttp from "pino-http";
 import type { Logger } from "pino";
 import { healthRoutes } from "./routes/health.js";
@@ -14,7 +15,7 @@ import type { QuoteService } from "../services/quote-service.js";
 
 export interface AppDeps {
   log: Logger;
-  corsOrigins: string[];
+  corsOrigin: string;
   /** Maximum allowed JSON request body size in bytes. Default: 65536 (64 KiB). */
   maxRequestBodyBytes: number;
   orders: OrderService;
@@ -26,8 +27,21 @@ export function createApp(deps: AppDeps): Express {
   const { maxRequestBodyBytes } = deps;
   const app = express();
   app.use(pinoHttp({ logger: deps.log }));
+  // Reject bodies exceeding the configured limit before any route logic runs.
   app.use(express.json({ limit: maxRequestBodyBytes }));
-  app.use(createCorsMiddleware(deps.corsOrigins));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || !deps.corsOrigin || deps.corsOrigin === "*") {
+          callback(null, true);
+        } else {
+          const allowedOrigins = deps.corsOrigin.split(",");
+          callback(null, allowedOrigins.includes(origin));
+        }
+      },
+      credentials: true
+    })
+  );
 
   // Prometheus HTTP duration instrumentation
   app.use((req, res, next) => {

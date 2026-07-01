@@ -23,6 +23,7 @@ export function quotesRoutes(quotes: QuoteService): Router {
         source: quote.source,
         issuedAt: quote.issuedAt,
         expiresAt: quote.expiresAt,
+        fetchedAt: quote.issuedAt,
         /** Convenience: milliseconds remaining until expiry (negative when expired). */
         freshMs: quote.expiresAt - Date.now()
       });
