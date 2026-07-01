@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { OrderRow } from "../../persistence/orders-repo.js";
+import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 
 function serialiseOrder(order: OrderRow | null) {
@@ -77,6 +77,23 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const transitions = await orders.getTransitions(id);
+      if (!transitions.length) {
+        const order = await orders.get(id);
+        if (!order) {
+          res.status(404).json({ error: "not_found" });
+          return;
+        }
+      }
+      res.json({ transitions });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/orders/history", async (req, res, next) => {
     const address = (req.query.address as string | undefined) ?? "";
     if (!address) {
@@ -142,6 +159,15 @@ export function ordersRoutes(orders: OrderService): Router {
         res.status(400).json({ error: "order_validation_error", message: err.message });
         return;
       }
+      next(err);
+    }
+  });
+
+  router.get("/orders/snapshot", async (_req, res, next) => {
+    try {
+      const snapshots = await orders.getSnapshots();
+      res.json({ snapshots });
+    } catch (err) {
       next(err);
     }
   });
