@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import cors from "cors";
 import pinoHttp from "pino-http";
 import type { Logger } from "pino";
 import { healthRoutes } from "./routes/health.js";

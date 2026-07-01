@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
   const app = createApp({
     log,
-    corsOrigin: cfg.corsOrigin,
+    corsOrigin: cfg.corsOrigins,
     maxRequestBodyBytes: cfg.maxRequestBodyBytes,
     orders,
     secrets,

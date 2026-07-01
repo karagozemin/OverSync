@@ -180,6 +180,7 @@ export class OrdersRepository {
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
+  private readonly completedOrderRows: Statement;
   private readonly metricsByStatus: Statement;
   private readonly metricsTotal: Statement;
   private readonly metricsLastUpdated: Statement;
@@ -250,6 +251,11 @@ export class OrdersRepository {
         status = 'secret_revealed',
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
+    `);
+    this.completedOrderRows = db.prepare(`
+      SELECT * FROM orders
+      WHERE status IN ('completed', 'refunded', 'failed', 'expired')
+      ORDER BY updated_at DESC
     `);
     this.metricsByStatus = db.prepare(
       "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
@@ -433,5 +439,51 @@ export class OrdersRepository {
       staleExpiredOrders: (statusMap["expired"] ?? 0) + (statusMap["failed"] ?? 0),
       lastUpdatedTimestamp: lastUpdatedRow?.ts != null ? Number(lastUpdatedRow.ts) : null
     };
+  }
+
+  async getCompletedOrderSnapshots(): Promise<OrderSnapshot[]> {
+    const rows = await this.all<OrderDbRow>(this.completedOrderRows);
+    return rows.map(rowToOrder).map(buildSnapshot);
+  }
+}
+
+export function buildSnapshot(order: OrderRow): OrderSnapshot {
+  const transitions = deriveTransitions(order.status);
+  const publicTxHashes = [
+    order.srcLockTx,
+    order.dstLockTx,
+    order.secretRevealedTx
+  ].filter((tx): tx is string => tx !== null);
+  const outcomeSummary = order.status === "completed" ? "Order completed successfully" :
+                         order.status === "refunded" ? "Order refunded" :
+                         order.status === "failed" ? "Order failed" :
+                         "Order expired";
+
+  return {
+    orderId: order.publicId,
+    currentState: order.status,
+    transitions,
+    publicTxHashes,
+    timestamps: {
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    },
+    direction: order.direction,
+    outcomeSummary
+  };
+}
+
+function deriveTransitions(status: OrderStatus): string[] {
+  switch (status) {
+    case "completed":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "completed"];
+    case "refunded":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "refunded"];
+    case "failed":
+      return ["announced", "failed"];
+    case "expired":
+      return ["announced", "expired"];
+    default:
+      return [status];
   }
 }
