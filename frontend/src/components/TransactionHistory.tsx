@@ -2,45 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { Clock, CheckCircle, XCircle, ArrowRight, ExternalLink, RefreshCw, Undo2, FileText } from 'lucide-react';
 import { isTestnet } from '../config/networks';
 import RefundDialog from '../features/refund/RefundDialog';
-import CopyableIdentifier from './CopyableIdentifier';
-import OrderStaleBanner from './OrderStaleBanner';
-import HtlcReceiptCard from './HtlcReceiptCard';
-import { classifyOrderFreshness } from '../lib/orderFreshness';
-import { buildHtlcReceipt } from '../lib/parseHtlcReceipt';
+import { useOrderRecovery } from '../lib/useOrderRecovery';
+import { deduplicateTransactions, type TransactionFromCoordinator } from '../lib/orderRecovery';
+import { getEthereumHtlcAddress } from '../lib/sdk-context';
 import type { Address } from 'viem';
 import HtlcTimeline from './HtlcTimeline';
+import CopyableIdentifier from './CopyableIdentifier';
+import OrderStaleBanner from './OrderStaleBanner';
+import { classifyOrderFreshness } from '../lib/orderFreshness';
+import HtlcReceiptCard from './HtlcReceiptCard';
+import { buildHtlcReceipt } from '../lib/parseHtlcReceipt';
 
-interface Transaction {
-  id: string;
-  txHash: string;
-  fromNetwork: string;
-  toNetwork: string;
-  fromToken: string;
-  toToken: string;
-  amount: string;
-  estimatedAmount: string;
-  status: 'pending' | 'completed' | 'cancelled' | 'failed';
-  timestamp: number;
-  ethTxHash?: string;
-  stellarTxHash?: string;
-  ethAddress?: string;
-  stellarAddress?: string;
-  direction: 'eth-to-xlm' | 'xlm-to-eth';
-  // Refund support
-  // ETH-side refund metadata (eth-to-xlm; populated when ETH is locked on-chain)
-  onChainOrderId?: string;       // bytes32 hex (v1) or uint256 string (v2)
-  htlcContractAddress?: string;  // contract holding the locked ETH
-  htlcContractMode?: 'v1-mainnet-htlc' | 'v2-escrow';
-  timelockUnixSeconds?: number;
-  amountWei?: string;
-  // Generic refund tracking (works for both directions)
-  refundTxHash?: string;
-  refundNetwork?: 'ethereum' | 'stellar';  // which chain the refund lives on
-  refundedAt?: number;
-  autoRefundFailed?: boolean;
-  autoRefundError?: string;
-  networkMode?: 'mainnet' | 'testnet';
-}
+interface Transaction extends TransactionFromCoordinator {}
 
 interface TransactionHistoryProps {
   ethAddress?: string;
@@ -81,65 +54,8 @@ const isTestnetTx = (tx: Transaction): boolean => {
   return tx.networkMode === 'testnet' || (tx.networkMode === undefined && isTestnet());
 };
 
-function mapCoordinatorOrderToTransaction(order: any): Transaction {
-  if (order.fromToken || order.fromNetwork) {
-    return order as Transaction;
-  }
-
-  const isEthToXlm = order.direction === 'eth_to_xlm' || order.direction === 'eth-to-xlm';
-  const isTestnetMode = isTestnet();
-
-  let status: Transaction['status'] = 'pending';
-  if (order.status === 'completed') {
-    status = 'completed';
-  } else if (order.status === 'failed' || order.status === 'expired') {
-    status = 'failed';
-  } else if (order.status === 'refunded') {
-    status = 'cancelled';
-  }
-
-  const srcAmount = order.src?.amount
-    ? (isEthToXlm ? parseFloat(order.src.amount) / 1e18 : parseFloat(order.src.amount) / 1e7).toString()
-    : '0';
-  const dstAmount = order.dst?.amount
-    ? (isEthToXlm ? parseFloat(order.dst.amount) / 1e7 : parseFloat(order.dst.amount) / 1e18).toString()
-    : '0';
-
-  return {
-    id: order.id,
-    txHash: order.src?.lockTx || order.id,
-    fromNetwork: isEthToXlm
-      ? (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet')
-      : (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet'),
-    toNetwork: isEthToXlm
-      ? (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet')
-      : (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet'),
-    fromToken: isEthToXlm ? 'ETH' : 'XLM',
-    toToken: isEthToXlm ? 'XLM' : 'ETH',
-    amount: srcAmount,
-    estimatedAmount: dstAmount,
-    status,
-    timestamp: order.createdAt ? order.createdAt * 1000 : Date.now(),
-    ethTxHash: isEthToXlm ? order.src?.lockTx : order.dst?.lockTx,
-    stellarTxHash: isEthToXlm ? order.dst?.lockTx : order.src?.lockTx,
-    ethAddress: isEthToXlm ? order.src?.address : order.dst?.address,
-    stellarAddress: isEthToXlm ? order.dst?.address : order.src?.address,
-    direction: isEthToXlm ? 'eth-to-xlm' : 'xlm-to-eth',
-    onChainOrderId: order.src?.orderId,
-    htlcContractAddress: order.src?.chain === 'ethereum' ? order.resolver : undefined,
-    htlcContractMode: order.src?.safetyDeposit ? 'v2-escrow' : 'v1-mainnet-htlc',
-    timelockUnixSeconds: order.src?.timelock,
-    amountWei: order.src?.amount,
-    refundTxHash: order.status === 'refunded' ? order.secret?.revealedTx : undefined,
-    refundNetwork: isEthToXlm ? 'ethereum' : 'stellar',
-    refundedAt: order.status === 'refunded' ? order.updatedAt * 1000 : undefined,
-    networkMode: isTestnetMode ? 'testnet' : 'mainnet'
-  };
-}
-
 export default function TransactionHistory({ ethAddress, stellarAddress }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all');
   const [refundTarget, setRefundTarget] = useState<Transaction | null>(null);
   const [manualRefundingIds, setManualRefundingIds] = useState<Set<string>>(() => new Set());
@@ -176,6 +92,14 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
     });
   };
 
+  // Recover pending orders from the coordinator after wallet reconnection
+  const { recovered, isLoading: isRecovering } = useOrderRecovery({
+    ethAddress,
+    stellarAddress,
+    apiBase: API_BASE_URL,
+    enabled: !!(ethAddress || stellarAddress),
+  });
+
   const loadFromStorage = useCallback((): Transaction[] => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -190,39 +114,35 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
   }, []);
 
   const refreshFromCoordinator = useCallback(async () => {
-    const apiBase = API_BASE_URL;
-    if (!ethAddress && !stellarAddress) {
-      setTransactions(loadFromStorage());
-      return;
-    }
-    setIsLoading(true);
+    const local = loadFromStorage();
+
+    // Enrich recovered orders with HTLC contract address from env
+    const enrichedRecovered = recovered.map(tx => {
+      if (tx.direction === 'eth-to-xlm' && !tx.htlcContractAddress) {
+        const htlcAddr = getEthereumHtlcAddress();
+        return { ...tx, htlcContractAddress: htlcAddr || undefined };
+      }
+      return tx;
+    });
+
+    // Merge local with recovered orders, deduplicating by order metadata
+    const merged = deduplicateTransactions(local, enrichedRecovered);
+    const sorted = merged.sort((a, b) => b.timestamp - a.timestamp);
+
     try {
-      const params = new URLSearchParams();
-      if (ethAddress) params.set('eth', ethAddress);
-      if (stellarAddress) params.set('stellar', stellarAddress);
-      const res = await fetch(`${apiBase}/api/orders/history?${params.toString()}`);
-      if (!res.ok) throw new Error(`Coordinator returned ${res.status}`);
-      const body = await res.json();
-      const remote: Transaction[] = Array.isArray(body?.transactions)
-        ? body.transactions.map(mapCoordinatorOrderToTransaction).filter(isRealTransaction)
-        : [];
-      const local = loadFromStorage();
-      const byId = new Map<string, Transaction>();
-      for (const tx of local) byId.set(tx.id, tx);
-      for (const tx of remote) byId.set(tx.id, tx);
-      const merged = Array.from(byId.values()).sort((a, b) => b.timestamp - a.timestamp);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      setTransactions(merged);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
     } catch (err) {
-      console.warn('Coordinator history unavailable, falling back to local cache:', err);
-      setTransactions(loadFromStorage());
-    } finally {
-      setIsLoading(false);
+      console.warn('Could not save transactions to storage:', err);
     }
-  }, [ethAddress, stellarAddress, loadFromStorage]);
+
+    setTransactions(sorted);
+  }, [loadFromStorage, recovered]);
 
   useEffect(() => {
+    // Load from storage immediately for fast initial render
     setTransactions(loadFromStorage());
+
+    // Merge with recovered orders once they arrive
     void refreshFromCoordinator();
   }, [loadFromStorage, refreshFromCoordinator]);
 
@@ -428,10 +348,10 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
         </div>
         <button
           onClick={refreshFromCoordinator}
-          disabled={isLoading}
+          disabled={isRecovering}
           className="button-hover-scale flex items-center justify-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-200/[0.12] px-4 py-2 text-sm font-semibold text-cyan-50 shadow-[0_12px_34px_rgba(0,226,255,0.12)] transition hover:border-cyan-100/45 hover:bg-cyan-200/[0.18] disabled:opacity-60"
         >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${isRecovering ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
