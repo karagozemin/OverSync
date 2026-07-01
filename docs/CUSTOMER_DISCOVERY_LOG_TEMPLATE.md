@@ -10,7 +10,7 @@
 ## Quick links
 
 - [Adoption Experiments Tracker](../docs/ADOPTION_EXPERIMENTS.md) *(create if not yet present)*
-- [Pilot Plan](../docs/PILOT_PLAN.md) *(create if not yet present)*
+- [Pilot Plan](../docs/TESTNET_PILOT_PLAN.md) *(create if not yet present)*
 - [Monthly Learning Update format](#monthly-learning-update-format) *(see bottom of this file)*
 
 ---
@@ -283,34 +283,33 @@ Updates are cumulative: each entry stands alone without needing prior entries.
 3. Review the linked [Adoption Experiments Tracker](../docs/ADOPTION_EXPERIMENTS.md)
    to know which hypotheses are currently live so you can probe for them.
 
-   ### During the interview
+### During the interview
 
-   - Use the relevant section template (A, B, or C) as a loose guide, not a
-     rigid script. Follow the conversation; fill gaps async.
-     - Do not record full sentences of quotes during the call — capture the
-       sentiment and paraphrase; get permission to quote before writing verbatim.
-       - If the participant brings up a topic not on the template, add a free-form
-         note under "Interviewer notes" and flag it for the next monthly update.
+- Use the relevant section template (A, B, or C) as a loose guide, not a
+  rigid script. Follow the conversation; fill gaps async.
+- Do not record full sentences of quotes during the call — capture the
+  sentiment and paraphrase; get permission to quote before writing verbatim.
+- If the participant brings up a topic not on the template, add a free-form
+  note under "Interviewer notes" and flag it for the next monthly update.
 
-         ### After the interview
+### After the interview
 
-         1. Fill in the template within 24 hours while memory is fresh.
-         2. Commit the new entry to a **private branch** and open a PR for internal
-            review before merging to `main` — a second pair of eyes catches
-               accidental PII before it enters git history.
-               3. If the session surfaces a new blocker or confirms/invalidates a hypothesis,
-                  update the [Adoption Experiments Tracker](../docs/ADOPTION_EXPERIMENTS.md).
+1. Fill in the template within 24 hours while memory is fresh.
+2. Commit the new entry to a **private branch** and open a PR for internal
+   review before merging to `main` — a second pair of eyes catches
+   accidental PII before it enters git history.
+3. If the session surfaces a new blocker or confirms/invalidates a hypothesis,
+   update the [Adoption Experiments Tracker](../docs/ADOPTION_EXPERIMENTS.md).
 
-                  ### What counts as PII (never commit)
+### What counts as PII (never commit)
 
-                  - Full name, username, social handle
-                  - Email, phone, messaging handle
-                  - Employer, project name (if identifying)
-                  - Wallet address or ENS name
-                  - Country narrower than a broad region (e.g., a specific city)
-                  - Any combination of attributes that could identify one person
+- Full name, username, social handle
+- Email, phone, messaging handle
+- Employer, project name (if identifying)
+- Wallet address or ENS name
+- Country narrower than a broad region (e.g., a specific city)- Any combination of attributes that could identify one person
 
-                  ---
+---
 
-                  *Template version: 1.0 · Maintained by OverSync core team*
-                  *Closes #[issue-number] — add the issue number when filing the PR*
+*Template version: 1.0 · Maintained by OverSync core team*
+*Closes #[issue-number] — add the issue number when filing the PR*
