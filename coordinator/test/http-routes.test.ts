@@ -47,7 +47,7 @@ function buildApp(maxRequestBodyBytes = SMALL_LIMIT) {
     quoteEthXlm: vi.fn().mockResolvedValue({ rate: 1 })
   } as unknown as QuoteService;
 
-  const app = createApp({ log, corsOrigin: "*", maxRequestBodyBytes, orders, secrets, quotes });
+  const app = createApp({ log, corsOrigins: ["*"], maxRequestBodyBytes, orders, secrets, quotes });
 
   return { app, orders, secrets };
 }

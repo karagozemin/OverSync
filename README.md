@@ -266,12 +266,14 @@ threat model.
 | [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) | Comparison with CCTP v2, Axelar ITS, Allbridge; where OverSync is the right vs wrong tool |
 | [`docs/TRACTION.md`](docs/TRACTION.md) | Go-to-market, KPIs we publish, partnership pipeline |
 | [`docs/METRICS_SCHEMA.md`](docs/METRICS_SCHEMA.md) | Public metrics schema: definitions, units, sources, cadence, and privacy boundaries |
+| [`docs/UNIT_ECONOMICS.md`](docs/UNIT_ECONOMICS.md) | Resolver cost model, bootstrap incentives, break-even ranges, and metrics needed before stronger claims |
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
 | [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | Post-demo evidence pack template for reviewer and investor follow-up |
 | [`docs/PARTNER_MAP.md`](docs/PARTNER_MAP.md) | Partner and referrer map: target stakeholders, concrete asks, outreach template |
+| [`docs/MAINNET_READINESS_SCORECARD.md`](docs/MAINNET_READINESS_SCORECARD.md) | Gate-by-gate checklist (audit, uptime, refunds, resolvers, observability, bounty, governance) that controls when mainnet is enabled |
 
 ---
 
