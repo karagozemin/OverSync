@@ -12,6 +12,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, FileText, ShieldCheck } from 'lucide-react';
 import AuditGateTimeline from '../components/AuditGateTimeline';
+import TestnetTractionCard from '../components/TestnetTractionCard';
 
 export default function LaunchReadinessSurface() {
   return (
@@ -48,6 +49,10 @@ export default function LaunchReadinessSurface() {
           drawn from <span className="text-white">ROADMAP.md</span>; no claim
           on this page should be read as mainnet being live or imminent.
         </p>
+
+        <div className="mt-10">
+          <TestnetTractionCard />
+        </div>
 
         <AuditGateTimeline />
 

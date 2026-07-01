@@ -3,8 +3,10 @@ import { z } from "zod";
 import {
   OrdersRepository,
   type OrderRow,
+  type OrderSnapshot,
   type AnnounceOrderInput,
   type OrderMetrics,
+  type OrderTransitionSummary,
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
@@ -129,6 +131,10 @@ export class OrderService {
     return this.repo.findByPublicId(publicId);
   }
 
+  getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
+    return this.repo.getTransitions(publicId);
+  }
+
   history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
     return this.repo.findByAddress(address, limit, offset);
   }
@@ -196,5 +202,9 @@ export class OrderService {
     await this.repo.setStatus(publicId, status);
     this.log.info({ publicId, status }, "status updated");
     ordersTotal.inc({ status });
+  }
+
+  async getSnapshots(): Promise<OrderSnapshot[]> {
+    return this.repo.getCompletedOrderSnapshots();
   }
 }
