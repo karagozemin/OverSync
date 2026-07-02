@@ -18,9 +18,9 @@ OverSync differs fundamentally by avoiding wrapping and validator committees ent
 
 ## Adapter Isolation and Feature Flagging
 
-As we build adapters to interact with tools like CCTP or Axelar, it is critical that the core HTLC logic remains strictly isolated. 
+As we build adapters to interact with tools like CCTP or Axelar, it is critical that the core HTLC logic remains strictly isolated.
 
-**Rule:** Every future ecosystem adapter must be deployed behind an explicit feature flag or launch gate. 
+**Rule:** Every future ecosystem adapter must be deployed behind an explicit feature flag or launch gate.
 - Core HTLC settlement must not depend on the availability or security of external bridge contracts.
 - Experimental integrations must not put mainnet funds at risk if a third-party bridge encounters downtime.
 - Adapters should be treated as composable modules rather than embedded core logic.

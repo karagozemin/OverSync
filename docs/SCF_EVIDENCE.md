@@ -103,7 +103,7 @@ Genuine traction narrative supported by verifiable evidence rather than vanity m
 #### 3.1 User Segments
 Docs/TRACTION.md defines 4 priority user segments:
 - Trust-conscious power users
-- Stellar-native protocols seeking ETH liquidity  
+- Stellar-native protocols seeking ETH liquidity
 - 1inch Fusion+ resolver operators
 - Treasuries and OTC desks
 
@@ -156,51 +156,51 @@ pnpm run test:e2e  # differential tests (if available)
 Document what changed since the rejected v1 attempt and where each fix lives.
 
 #### 5.1 Operator Model Change
-**Before:** Single privileged relayer with hot keys  
-**After:** Open resolver registry with stake + slash  
+**Before:** Single privileged relayer with hot keys
+**After:** Open resolver registry with stake + slash
 **Where:**
 - Registry contracts: `contracts/v2/ResolverRegistry.sol` + `soroban/contracts/resolver-registry`
 - Resolver runner: `resolver/` Docker image + `docs/RESOLVERS.md`
 - Evidence: `docs/REVIEW_RESPONSE.md` §§1, 8, 157-159
 
 #### 5.2 Stellar Settlement Change
-**Before:** Stellar claimable balance with unconditional claimants  
-**After:** Native Soroban HTLC contract with sha256 hashlock + timelock  
+**Before:** Stellar claimable balance with unconditional claimants
+**After:** Native Soroban HTLC contract with sha256 hashlock + timelock
 **Where:**
 - New contract: `soroban/contracts/htlc/src/lib.rs`
 - 10 unit tests covering happy path, refunds, double claims
 - Evidence: `docs/REVIEW_RESPONSE.md` §2
 
 #### 5.3 Refund Path Change
-**Before:** Mocked refunds (`relayer/src/recovery-service.ts:364-371`)  
-**After:** Permissionless on-chain refunds  
+**Before:** Mocked refunds (`relayer/src/recovery-service.ts:364-371`)
+**After:** Permissionless on-chain refunds
 **Where:**
 - EVM: `HTLCEscrow.refundOrder` function
-- Stellar: `oversync-htlc::refund_order` function  
+- Stellar: `oversync-htlc::refund_order` function
 - Frontend: `RefundDialog` component
 - Evidence: `docs/REVIEW_RESPONSE.md` §6
 
 #### 5.4 Data Integrity Change
-**Before:** Fake `0x1234567890abcdef` style transactions in history  
-**After:** All fake/mock data removed; only real on-chain events  
+**Before:** Fake `0x1234567890abcdef` style transactions in history
+**After:** All fake/mock data removed; only real on-chain events
 **Where:**
 - Frontend: `TransactionHistory.tsx` with `isRealHash` filter
 - Relayer: No mock data in `websocket-server.ts` or `index.ts`
 - Evidence: `docs/REVIEW_RESPONSE.md` §7
 
 #### 5.5 Documentation Change
-**Before:** Inconsistent docs (`MAINNET_SETUP.md`, `env.example` duplicate)  
-**After:** Consolidated into `docs/DEPLOYMENT.md`  
+**Before:** Inconsistent docs (`MAINNET_SETUP.md`, `env.example` duplicate)
+**After:** Consolidated into `docs/DEPLOYMENT.md`
 **Where:** Entire `docs/DEPLOYMENT.md` file
 
 #### 5.6 Code Quality Change
-**Before:** Monolithic v1 relayer (3,276 lines)  
-**After:** Modular v2 coordinator (<200 lines)  
+**Before:** Monolithic v1 relayer (3,276 lines)
+**After:** Modular v2 coordinator (<200 lines)
 **Where:** `coordinator/` directory
 
 #### 5.7 Budget Realignment
-**Before:** $30K broad request  
-**After:** $40K tranche-gated request  
+**Before:** $30K broad request
+**After:** $40K tranche-gated request
 **Where:** `docs/REVIEW_RESPONSE.md` §167-182
 
 ---
@@ -243,7 +243,7 @@ Every major claim has an evidence link or an explicit "not yet shipped" status.
 
 #### 8.1 Stellar/Soroban Usage
 - [x] Soroban HTLC contract deployed and testable
-- [x] Soroban resolver registry deployed and testable  
+- [x] Soroban resolver registry deployed and testable
 - [x] Testnet contract IDs published
 - [x] SDK Soroban integration completed
 - [x] Freighter wallet flow implemented

@@ -1,7 +1,7 @@
 # OverSync v2 — SCF Diligence Data Room
 
-> **Audience:** Stellar Community Fund (SCF) reviewers and prospective investors.  
-> **Reading time:** ≤ 10 minutes (use the section links below to jump to what you need).  
+> **Audience:** Stellar Community Fund (SCF) reviewers and prospective investors.
+> **Reading time:** ≤ 10 minutes (use the section links below to jump to what you need).
 > **Status (June 2026):** v2 is live on Sepolia + Stellar testnet. Mainnet is intentionally gated on independent audits (target: Q1 2027). No protocol behaviour changed in this document — it is documentation only.
 
 ---
@@ -25,7 +25,7 @@
 
 ## 1. Live testnet contracts
 
-All addresses are sourced directly from [`deployments.testnet.json`](../deployments.testnet.json).  
+All addresses are sourced directly from [`deployments.testnet.json`](../deployments.testnet.json).
 No mainnet contracts are active in the v2 UI (`VITE_MAINNET_ENABLED=false`).
 
 ### Ethereum — Sepolia (chain ID 11155111)
