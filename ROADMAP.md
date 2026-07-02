@@ -131,4 +131,3 @@ demand from integrators after mainnet.
 ## Open dependencies and risks
 
 For a comprehensive tracking of external blockers, audit schedules, resolver coldstart incentives, RPC dependencies, and tooling status, see the detailed [Roadmap Dependency Tracker](docs/ROADMAP_DEPENDENCIES.md).
-

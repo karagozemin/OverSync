@@ -1,6 +1,6 @@
 # OverSync KPI Dashboard Specification
 
-This document defines the overarching narrative, decision thresholds, and key performance indicators (KPIs) required to determine our testnet traction and mainnet launch readiness. 
+This document defines the overarching narrative, decision thresholds, and key performance indicators (KPIs) required to determine our testnet traction and mainnet launch readiness.
 
 It explicitly maps to our canonical [Public Metrics Schema](./METRICS_SCHEMA.md) and our [User Adoption Experiments](./ADOPTION_EXPERIMENTS.md).
 
@@ -18,7 +18,7 @@ It explicitly maps to our canonical [Public Metrics Schema](./METRICS_SCHEMA.md)
 - **Source:** Coordinator logs (`/metrics` endpoint)
 - **Cadence:** Daily
 - **Owner:** Core Team (Backend)
-- **Thresholds:** 
+- **Thresholds:**
   - 🟢 **Green (Launch Ready):** > 98%
   - 🟡 **Yellow (Investigate):** 90% - 98%
   - 🔴 **Red (Blocker):** < 90%
@@ -86,7 +86,7 @@ It explicitly maps to our canonical [Public Metrics Schema](./METRICS_SCHEMA.md)
 - **Owner:** Core Team (Smart Contracts)
 - **Thresholds:**
   - 🟢 **Green (Launch Ready):** 0%
-  - 🟡 **Yellow (Investigate):** N/A 
+  - 🟡 **Yellow (Investigate):** N/A
   - 🔴 **Red (Blocker):** > 0%
 
 ---
@@ -114,7 +114,7 @@ It explicitly maps to our canonical [Public Metrics Schema](./METRICS_SCHEMA.md)
 - **Owner:** Core Team (Security Lead)
 - **Thresholds:**
   - 🟢 **Green (Launch Ready):** 0
-  - 🟡 **Yellow (Investigate):** N/A 
+  - 🟡 **Yellow (Investigate):** N/A
   - 🔴 **Red (Blocker):** > 0
 
 ---

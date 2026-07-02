@@ -19,7 +19,7 @@ All addresses below are from [`deployments.testnet.json`](../deployments.testnet
 | Stellar testnet | `HTLC` | `CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK` | [`soroban/contracts/htlc/src/lib.rs`](../soroban/contracts/htlc/src/lib.rs) |
 | Stellar testnet | `ResolverRegistry` | `CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF` | [`soroban/contracts/resolver-registry/src/lib.rs`](../soroban/contracts/resolver-registry/src/lib.rs) |
 
-**Testnet deployer EOA (EVM):** `0x686Be1DEF4b9Bd725A5Df07505E25a94Fa71394c`  
+**Testnet deployer EOA (EVM):** `0x686Be1DEF4b9Bd725A5Df07505E25a94Fa71394c`
 **Testnet deployer account (Stellar):** `GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL`
 
 > The legacy v1 contracts (`HTLCBridge.sol`, `EscrowFactory.sol`,
@@ -84,7 +84,7 @@ user funds."*
 
 **Admin role: `Admin` key in instance storage**
 
-Current holder: `GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL`  
+Current holder: `GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL`
 Config at deploy: `minStake = 1 000 000 000 stroops (100 XLM)`,
 `slashBeneficiary = deployer address` (see
 [`deployments.testnet.json`](../deployments.testnet.json) §`resolverRegistryConfig`).

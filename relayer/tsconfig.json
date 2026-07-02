@@ -17,7 +17,10 @@
     "removeComments": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"]
+    "types": ["node", "jest"],
+    "paths": {
+      "@oversync/sdk/logging": ["../packages/sdk/src/logging/index.ts"]
+    }
   },
   "include": [
     "src/**/*"
@@ -25,6 +28,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "test"
+    "test",
+    "src/**/*.test.ts"
   ]
 } 
