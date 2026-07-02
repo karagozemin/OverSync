@@ -75,14 +75,14 @@ async function seedOrders(orders: OrderService) {
     orderId: "src-2",
     txHash: "0xbbb",
     blockNumber: 2,
-    timelock: 2000
+    timelock: 3000
   });
   await orders.recordDstLock({
     publicId: dstLocked.publicId,
     orderId: "dst-1",
     txHash: "0xccc",
     blockNumber: 3,
-    timelock: 3000,
+    timelock: 2000,
     resolver: null
   });
 
@@ -104,14 +104,14 @@ async function seedOrders(orders: OrderService) {
     orderId: "src-3",
     txHash: "0xddd",
     blockNumber: 4,
-    timelock: 4000
+    timelock: 5000
   });
   await orders.recordDstLock({
     publicId: completed.publicId,
     orderId: "dst-2",
     txHash: "0xeee",
     blockNumber: 5,
-    timelock: 5000,
+    timelock: 4000,
     resolver: null
   });
   await orders.recordSecret(completed.publicId, "0xdeadbeef", "0xfff");
