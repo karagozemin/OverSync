@@ -10,6 +10,19 @@ type AsyncCapableStatement = Statement & {
   allAsync?: (...params: any[]) => Promise<unknown[]>;
 };
 
+export interface OrderSnapshot {
+  orderId: string;
+  currentState: OrderStatus;
+  transitions: string[];
+  publicTxHashes: string[];
+  timestamps: {
+    createdAt: number;
+    updatedAt: number;
+  };
+  direction: Direction;
+  outcomeSummary: string;
+}
+
 export type OrderStatus =
   | "announced"
   | "src_locked"
@@ -51,6 +64,31 @@ export interface OrderRow {
   resolverAddress: string | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface OrderMetrics {
+  totalOrders: number;
+  byStatus: Record<string, number>;
+  completedOrders: number;
+  refundedOrders: number;
+  staleExpiredOrders: number;
+  lastUpdatedTimestamp: number | null;
+}
+
+export interface OrderTransitionSummary {
+  from: OrderStatus | null;
+  to: OrderStatus;
+  timestamp: number;
+  txHash: string | null;
+  category: string;
+}
+
+interface OrderEventDbRow {
+  id: number;
+  order_id: number;
+  event_type: string;
+  payload_json: string;
+  created_at: number;
 }
 
 export interface AnnounceOrderInput {
@@ -136,10 +174,16 @@ export class OrdersRepository {
   private readonly byAddress: Statement;
   private readonly bySrcOrderId: Statement;
   private readonly byDstOrderId: Statement;
+  private readonly insertOrderEvent: Statement;
+  private readonly transitionsByOrderId: Statement;
   private readonly updateStatus: Statement;
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
   private readonly updateSecret: Statement;
+  private readonly completedOrderRows: Statement;
+  private readonly metricsByStatus: Statement;
+  private readonly metricsTotal: Statement;
+  private readonly metricsLastUpdated: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -166,6 +210,13 @@ export class OrdersRepository {
     `);
     this.byDstOrderId = db.prepare(`
       SELECT * FROM orders WHERE dst_chain = :chain AND dst_order_id = :orderId
+    `);
+    this.insertOrderEvent = db.prepare(`
+      INSERT INTO order_events (order_id, event_type, payload_json)
+      VALUES (:orderId, :eventType, :payloadJson)
+    `);
+    this.transitionsByOrderId = db.prepare(`
+      SELECT * FROM order_events WHERE order_id = :orderId ORDER BY created_at ASC
     `);
     this.updateStatus = db.prepare(`
       UPDATE orders
@@ -201,6 +252,18 @@ export class OrdersRepository {
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
     `);
+    this.completedOrderRows = db.prepare(`
+      SELECT * FROM orders
+      WHERE status IN ('completed', 'refunded', 'failed', 'expired')
+      ORDER BY updated_at DESC
+    `);
+    this.metricsByStatus = db.prepare(
+      "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
+    );
+    this.metricsTotal = db.prepare("SELECT COUNT(*) as count FROM orders");
+    this.metricsLastUpdated = db.prepare(
+      "SELECT MAX(updated_at) as ts FROM orders"
+    );
   }
 
   private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
@@ -237,7 +300,9 @@ export class OrdersRepository {
     await this.run(this.insertStmt, { publicId, ...input });
     const row = await this.get<OrderDbRow>(this.byPublicId, publicId);
     if (!row) throw new Error("Failed to insert order");
-    return rowToOrder(row);
+    const order = rowToOrder(row);
+    await this.recordTransition(order.id, null, "announced", null, "created");
+    return order;
   }
 
   async findByPublicId(publicId: string): Promise<OrderRow | null> {
@@ -265,8 +330,32 @@ export class OrdersRepository {
     return rows.map(rowToOrder);
   }
 
+  async getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) return [];
+    const rows = await this.all<OrderEventDbRow>(this.transitionsByOrderId, { orderId: order.id });
+    return rows.map((row) => {
+      const payload = JSON.parse(row.payload_json) as {
+        from: OrderStatus | null;
+        to: OrderStatus;
+        txHash?: string | null;
+        category?: string;
+      };
+      return {
+        from: payload.from ?? null,
+        to: payload.to,
+        timestamp: Number(row.created_at),
+        txHash: payload.txHash ?? null,
+        category: payload.category ?? "transition"
+      };
+    });
+  }
+
   async setStatus(publicId: string, status: OrderStatus): Promise<void> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateStatus, { publicId, status });
+    await this.recordTransition(order.id, order.status, status, null, status);
   }
 
   async recordSrcLock(input: {
@@ -276,7 +365,10 @@ export class OrdersRepository {
     blockNumber: number;
     timelock: number;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateSrcLock, input);
+    await this.recordTransition(order.id, order.status, "src_locked", input.txHash, "src_locked");
   }
 
   async recordDstLock(input: {
@@ -287,7 +379,10 @@ export class OrdersRepository {
     timelock: number;
     resolver: string | null;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateDstLock, input);
+    await this.recordTransition(order.id, order.status, "dst_locked", input.txHash, "dst_locked");
   }
 
   async recordSecretRevealed(input: {
@@ -295,6 +390,110 @@ export class OrdersRepository {
     preimage: string;
     txHash: string;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateSecret, input);
+    await this.recordTransition(order.id, order.status, "secret_revealed", input.txHash, "secret_revealed");
+  }
+
+  private async insertEvent(orderId: number, eventType: string, payload: Record<string, unknown>): Promise<void> {
+    await this.run(this.insertOrderEvent, {
+      orderId,
+      eventType,
+      payloadJson: JSON.stringify(payload)
+    });
+  }
+
+  private async recordTransition(
+    orderId: number,
+    from: OrderStatus | null,
+    to: OrderStatus,
+    txHash: string | null,
+    category: string
+  ): Promise<void> {
+    await this.insertEvent(orderId, "transition_summary", {
+      from,
+      to,
+      txHash,
+      category
+    });
+  }
+
+  async getMetrics(): Promise<OrderMetrics> {
+    const byStatus = (await this.all<{ status: string; count: string }>(
+      this.metricsByStatus
+    )) as { status: string; count: string }[];
+    const totalRow = (await this.get<{ count: string }>(this.metricsTotal)) as
+      | { count: string }
+      | undefined;
+    const lastUpdatedRow = (await this.get<{ ts: number | null }>(
+      this.metricsLastUpdated
+    )) as { ts: number | null } | undefined;
+
+    const byStatusMap: Record<string, number> = {};
+    for (const r of byStatus) {
+      byStatusMap[r.status] = Number(r.count);
+    }
+
+    const totalOrders = Number(totalRow?.count ?? 0);
+    const completedOrders = byStatusMap["completed"] ?? 0;
+    const refundedOrders = byStatusMap["refunded"] ?? 0;
+    const staleExpiredOrders =
+      (byStatusMap["expired"] ?? 0) + (byStatusMap["failed"] ?? 0);
+
+    return {
+      totalOrders,
+      byStatus: byStatusMap,
+      completedOrders,
+      refundedOrders,
+      staleExpiredOrders,
+      lastUpdatedTimestamp: lastUpdatedRow?.ts ?? null
+    };
+  }
+
+  async getCompletedOrderSnapshots(): Promise<OrderSnapshot[]> {
+    const rows = await this.all<OrderDbRow>(this.completedOrderRows);
+    return rows.map(rowToOrder).map(buildSnapshot);
+  }
+}
+
+export function buildSnapshot(order: OrderRow): OrderSnapshot {
+  const transitions = deriveTransitions(order.status);
+  const publicTxHashes = [
+    order.srcLockTx,
+    order.dstLockTx,
+    order.secretRevealedTx
+  ].filter((tx): tx is string => tx !== null);
+  const outcomeSummary = order.status === "completed" ? "Order completed successfully" :
+                         order.status === "refunded" ? "Order refunded" :
+                         order.status === "failed" ? "Order failed" :
+                         "Order expired";
+
+  return {
+    orderId: order.publicId,
+    currentState: order.status,
+    transitions,
+    publicTxHashes,
+    timestamps: {
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    },
+    direction: order.direction,
+    outcomeSummary
+  };
+}
+
+function deriveTransitions(status: OrderStatus): string[] {
+  switch (status) {
+    case "completed":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "completed"];
+    case "refunded":
+      return ["announced", "src_locked", "dst_locked", "secret_revealed", "refunded"];
+    case "failed":
+      return ["announced", "failed"];
+    case "expired":
+      return ["announced", "expired"];
+    default:
+      return [status];
   }
 }

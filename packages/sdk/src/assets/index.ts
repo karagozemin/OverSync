@@ -73,3 +73,5 @@ export function resolveEthereumToken(
   const mapping = MAPPINGS[network]?.stellarToEth || MAPPINGS.testnet.stellarToEth;
   return mapping[key] ?? NATIVE_ETH_ADDRESS;
 }
+
+export * from "./capabilities.js";
