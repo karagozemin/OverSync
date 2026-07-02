@@ -88,7 +88,7 @@ describe('DiligenceSnapshot', () => {
     (mockDeployments.ethereum.contracts as any).HTLCEscrow = '';
 
     render(<DiligenceSnapshot />);
-    
+
     // The mutated value should result in "Not configured"
     expect(screen.queryByText(originalEthHtlc)).not.toBeInTheDocument();
     expect(screen.getByText('Sepolia HTLC contract').nextSibling).toHaveTextContent('Not configured');

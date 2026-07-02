@@ -15,9 +15,9 @@ export default function DiligenceSnapshot() {
   // Coordinator status url
   const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   const isProd = (import.meta as any).env?.PROD;
-  
+
   const isCoordinatorConfigured = !!(apiBaseUrl || isProd);
-  const coordinatorStatusUrl = apiBaseUrl 
+  const coordinatorStatusUrl = apiBaseUrl
     ? `${apiBaseUrl.replace(/\/+$/, '')}/health`
     : 'https://oversync-k36vx.ondigitalocean.app/health';
 
