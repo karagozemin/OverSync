@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 import type { PlannedOrder } from "./orders.js";
 import type { LoadTestConfig } from "./config.js";
 import type { OrderResult } from "./runner.js";
@@ -14,6 +15,8 @@ export interface SoakReport {
     seed: string;
     dryRun: boolean;
     durationMs: number;
+    scenario: string;
+    commit: string;
   };
   config: {
     orders: number;
@@ -34,6 +37,8 @@ export interface SoakReport {
      *          but we credit 3 to be conservative since one side self-expires)
      */
     estimatedRpcCalls: number;
+    invariantChecksRun: number;
+    passed: boolean;
     p50DurationMs: number;
     p95DurationMs: number;
     maxDurationMs: number;
@@ -49,6 +54,14 @@ function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   const idx = Math.ceil((p / 100) * sorted.length) - 1;
   return sorted[Math.max(0, idx)];
+}
+
+function getGitCommit(): string {
+  try {
+    return execSync("git rev-parse HEAD", { encoding: "utf8", stdio: "pipe" }).trim();
+  } catch {
+    return "unknown";
+  }
 }
 
 export function buildReport(
@@ -74,6 +87,8 @@ export function buildReport(
       seed: config.seed,
       dryRun: config.dryRun,
       durationMs,
+      scenario: "cross-chain-load-test",
+      commit: getGitCommit(),
     },
     config: {
       orders: config.orders,
@@ -89,6 +104,8 @@ export function buildReport(
       ethToXlm,
       xlmToEth,
       estimatedRpcCalls,
+      invariantChecksRun: filled * 4 + timedOut * 4,
+      passed: failed === 0,
       p50DurationMs: percentile(durations, 50),
       p95DurationMs: percentile(durations, 95),
       maxDurationMs: durations[durations.length - 1] ?? 0,
@@ -225,6 +242,10 @@ export function writeReports(
 
   writeFileSync(jsonPath, JSON.stringify(report, null, 2) + "\n", "utf8");
   writeFileSync(mdPath, toMarkdown(report) + "\n", "utf8");
+
+  // Write a predictably-named JSON report for SCF evidence packs
+  const latestJsonPath = join(outputDir, "e2e-report.json");
+  writeFileSync(latestJsonPath, JSON.stringify(report, null, 2) + "\n", "utf8");
 
   return { jsonPath, mdPath };
 }
