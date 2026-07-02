@@ -25,6 +25,16 @@ describe('LaunchReadinessSurface', () => {
     expect(screen.getByTestId('audit-gate-timeline')).toBeInTheDocument();
   });
 
+  test('renders the testnet traction card with measured metrics', () => {
+    renderAt('/launch-readiness');
+
+    expect(screen.getByText('Testnet traction')).toBeInTheDocument();
+    expect(screen.getByText('Public metrics')).toBeInTheDocument();
+    expect(screen.getByText('Deployed contracts')).toBeInTheDocument();
+    expect(screen.getByText('Supported testnet routes')).toBeInTheDocument();
+    expect(screen.getByText('ETH / XLM')).toBeInTheDocument();
+  });
+
   test('locks the audit-first disclaimer copy so the suppression contract cannot regress', () => {
     renderAt('/launch-readiness');
 
