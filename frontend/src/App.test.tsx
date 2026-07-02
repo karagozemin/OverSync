@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
 vi.mock('./config/networks', () => ({
@@ -62,7 +63,7 @@ describe('App — Mainnet safety gates', () => {
 
   describe('mainnet disabled (VITE_MAINNET_ENABLED unset or false)', () => {
     test('shows "Mainnet Coming" badge when mainnet is disabled', () => {
-      render(<App />);
+      render(<App />, { wrapper: MemoryRouter });
       expect(screen.getByText('Mainnet Coming')).toBeInTheDocument();
       expect(
         screen.getByTitle(/v2 mainnet launches after independent audit/i),
@@ -70,13 +71,13 @@ describe('App — Mainnet safety gates', () => {
     });
 
     test('Mainnet Coming badge is a disabled button when mainnet is disabled', () => {
-      render(<App />);
+      render(<App />, { wrapper: MemoryRouter });
       const badge = screen.getByRole('button', { name: 'Mainnet Coming' });
       expect(badge).toBeDisabled();
     });
 
     test('no mainnet contract addresses, RPC endpoints, or mainnet-specific copy leak in disabled state', () => {
-      render(<App />);
+      render(<App />, { wrapper: MemoryRouter });
       expect(
         screen.queryByText(/0xa7bcb4ea/i),
       ).not.toBeInTheDocument();
@@ -97,7 +98,7 @@ describe('App — Mainnet safety gates', () => {
     });
 
     test('Mode metric tile shows "Testnet" when mainnet is disabled', () => {
-      render(<App />);
+      render(<App />, { wrapper: MemoryRouter });
       const modeTiles = screen.getAllByText('Testnet');
       expect(modeTiles.length).toBeGreaterThanOrEqual(1);
     });
@@ -108,7 +109,7 @@ describe('App — Mainnet safety gates', () => {
       const { isMainnetEnabled } = await import('./config/networks');
       vi.mocked(isMainnetEnabled).mockReturnValue(true);
 
-      render(<App />);
+      render(<App />, { wrapper: MemoryRouter });
 
       expect(screen.queryByText('Mainnet Coming')).not.toBeInTheDocument();
       const toggle = screen.getByRole('button', { name: 'Testnet' });
