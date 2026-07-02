@@ -26,14 +26,14 @@ export function redactLog(message: string): string {
 }
 
 /**
- * Deep recursive object sanitizer to ensure credentials hidden inside 
+ * Deep recursive object sanitizer to ensure credentials hidden inside
  * structured log objects (like metadata dumps or parsed JSON configs) are also caught.
  */
 function sanitizeObject(obj: any): any {
   if (!obj || typeof obj !== "object") {
     return typeof obj === "string" ? redactLog(obj) : obj;
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => sanitizeObject(item));
   }
@@ -58,7 +58,7 @@ export function getLogger(level: string = "info"): Logger {
       transport: process.env.NODE_ENV === "production"
         ? undefined
         : { target: "pino/file", options: { destination: 1 } },
-      
+
       // Use Pino's native logMethod hook to intercept all statements transparently
       hooks: {
         logMethod(inputArgs, method) {
@@ -70,7 +70,7 @@ export function getLogger(level: string = "info"): Logger {
             }
             return arg;
           });
-          
+
           return method.apply(this, sanitizedArgs as [string, ...any[]]);
         }
       }

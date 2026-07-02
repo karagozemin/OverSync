@@ -96,7 +96,7 @@ export function loadConfig(): ResolverConfig {
   // Instantiate logger configuration context
   const logger = getLogger(config.logLevel);
 
-  // Print startup configuration indicators safely 
+  // Print startup configuration indicators safely
   logger.info("Initializing OverSync Resolver engine instance configurations...");
   logger.info(`Network operating target: ${config.network}`);
   logger.info(`Coordinator upstream mapping endpoint: ${config.coordinatorUrl}`);

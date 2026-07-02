@@ -3,13 +3,13 @@ import { redactLog, getLogger } from "./logger.js";
 import pino from "pino";
 
 describe("OverSync Resolver Log Redaction Framework Regression Tests", () => {
-  
+
   describe("Core redactLog Pure Utility Matching Validation", () => {
     it("should securely filter out 64-character raw hex private keys", () => {
       const targetRawKey = "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b";
       const cleanLog = `Initializing signature contexts utilizing key: 0x${targetRawKey}`;
       const result = redactLog(cleanLog);
-      
+
       expect(result).not.toContain(targetRawKey);
       expect(result).toContain("[REDACTED_KEY]");
     });
@@ -50,7 +50,7 @@ describe("OverSync Resolver Log Redaction Framework Regression Tests", () => {
     let writeSpy: any;
 
     beforeEach(() => {
-      // Intercept standard streams to capture formatting payload evaluations 
+      // Intercept standard streams to capture formatting payload evaluations
       writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     });
 
@@ -61,7 +61,7 @@ describe("OverSync Resolver Log Redaction Framework Regression Tests", () => {
     it("should sanitize nested objects passed directly to pino log methods", () => {
       // Force development mode profile configuration targeting stream writing loops
       const logger = getLogger("info");
-      
+
       logger.info({
         msg: "Runtime debugging profile",
         secretData: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
@@ -72,7 +72,7 @@ describe("OverSync Resolver Log Redaction Framework Regression Tests", () => {
 
       expect(writeSpy).toHaveBeenCalled();
       const rawLoggedOutput = writeSpy.mock.calls[0][0] as string;
-      
+
       expect(rawLoggedOutput).not.toContain("1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b");
       expect(rawLoggedOutput).not.toContain("secret-token-abc");
       expect(rawLoggedOutput).toContain("[REDACTED_KEY]");
