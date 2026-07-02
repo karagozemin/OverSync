@@ -1,4 +1,3 @@
-import React from 'react';
 import { isMainnetEnabled, ETHEREUM_NETWORKS } from '../config/networks';
 import deployments from '../../../deployments.testnet.json';
 import { ExternalLink, ShieldAlert } from 'lucide-react';
@@ -13,13 +12,12 @@ export default function DiligenceSnapshot() {
   const stellarRegistry = deployments?.stellar?.contracts?.ResolverRegistry || null;
 
   // Coordinator status url
-  const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL;
-  const isProd = (import.meta as any).env?.PROD;
-  
-  const isCoordinatorConfigured = !!(apiBaseUrl || isProd);
-  const coordinatorStatusUrl = apiBaseUrl 
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+  const isCoordinatorConfigured = !!apiBaseUrl;
+  const coordinatorStatusUrl = apiBaseUrl
     ? `${apiBaseUrl.replace(/\/+$/, '')}/health`
-    : 'https://oversync-k36vx.ondigitalocean.app/health';
+    : '';
 
   const sepoliaExplorerBase = ETHEREUM_NETWORKS.sepolia?.explorerUrl || 'https://sepolia.etherscan.io';
 

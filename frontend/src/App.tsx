@@ -4,7 +4,6 @@ import BridgeForm from './components/BridgeForm'
 import DarkVeil from './components/DarkVeil'
 
 import TransactionHistory from './components/TransactionHistory'
-import DiligenceSnapshot from './components/DiligenceSnapshot'
 
 import { ToastContainer, useToast } from './components/Toast'
 import { useFreighter } from './hooks/useFreighter'
