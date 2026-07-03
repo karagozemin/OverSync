@@ -20,21 +20,21 @@ export function useFreighter() {
   useEffect(() => {
     const checkConnection = async () => {
       console.log('🚀 Checking Freighter connection...');
-      
+
       try {
         // Check if Freighter is available
         if (!freighterApi || typeof freighterApi.isConnected !== 'function') {
           console.log('❌ Freighter API not available');
           return;
         }
-        
+
         const isConnected = await freighterApi.isConnected();
         console.log('🚀 Freighter connection status:', isConnected);
-        
+
         if (isConnected) {
           const { address } = await freighterApi.getAddress();
           console.log('🚀 Freighter address:', address);
-          
+
           setState(prev => ({
             ...prev,
             isConnected: true,
@@ -58,27 +58,27 @@ export function useFreighter() {
   const connect = useCallback(async () => {
     console.log('🚀 Connecting to Freighter...');
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       // Check if Freighter is available
       if (!freighterApi || typeof freighterApi.isConnected !== 'function') {
         throw new Error('Freighter wallet extension bulunamadı. Lütfen Freighter extension\'ı yükleyin.');
       }
-      
+
       const isAvailable = await freighterApi.isConnected();
       console.log('🚀 Freighter availability:', isAvailable);
-      
+
       if (!isAvailable) {
         throw new Error('Freighter wallet is not available. Please install Freighter extension.');
       }
 
       console.log('🚀 Requesting Freighter permission...');
       await freighterApi.setAllowed();
-      
+
       console.log('🚀 Getting Freighter address...');
       const { address } = await freighterApi.getAddress();
       console.log('🚀 Freighter connected successfully:', address);
-      
+
       setState(prev => ({
         ...prev,
         isConnected: true,
@@ -127,10 +127,10 @@ export function useFreighter() {
   const checkWalletReadiness = useCallback(async () => {
     const { checkHorizonHealth } = await import('../lib/checkHorizonHealth');
     const { STELLAR_NETWORKS } = await import('../config/networks');
-    
+
     const networkName = window.location.search.includes('network=mainnet') ? 'mainnet' : 'testnet';
     const horizonUrl = STELLAR_NETWORKS[networkName].horizonUrl;
-    
+
     const results = {
       freighterReachable: false,
       isConnected: false,
@@ -189,7 +189,7 @@ export function useFreighter() {
           if (address) {
             const horizonResult = await checkHorizonHealth(horizonUrl);
             results.horizonReachable = horizonResult.reachable;
-            
+
             if (horizonResult.reachable) {
               const accountResponse = await fetch(`${horizonUrl}/accounts/${address}`);
               if (accountResponse.ok) {
@@ -252,4 +252,4 @@ export function useFreighter() {
     signTransaction,
     checkWalletReadiness,
   };
-} 
+}

@@ -1,6 +1,6 @@
 /**
  * Check if a Stellar Horizon RPC endpoint is reachable and responding.
- * 
+ *
  * This is a read-only health check suitable for preflight validation.
  * Returns an object indicating reachability and response time.
  */
@@ -17,11 +17,11 @@ export async function checkHorizonHealth(
   timeout: number = 5000
 ): Promise<HorizonHealthResult> {
   const startTime = Date.now();
-  
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
+
     const response = await fetch(`${horizonUrl}/health`, {
       signal: controller.signal,
       method: 'GET',
@@ -29,10 +29,10 @@ export async function checkHorizonHealth(
         'Accept': 'application/json',
       },
     });
-    
+
     clearTimeout(timeoutId);
     const responseTime = Date.now() - startTime;
-    
+
     if (!response.ok) {
       return {
         reachable: false,
@@ -40,9 +40,9 @@ export async function checkHorizonHealth(
         error: `HTTP ${response.status}: ${response.statusText}`,
       };
     }
-    
+
     const data = await response.json();
-    
+
     return {
       reachable: true,
       responseTime,

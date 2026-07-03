@@ -66,7 +66,7 @@ describe('StellarWalletPreflight', () => {
 
   it('renders wallet readiness check results', async () => {
     makeFreighterMock(readyState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -82,7 +82,7 @@ describe('StellarWalletPreflight', () => {
 
   it('renders wallet not ready state with errors', async () => {
     makeFreighterMock(unreachableState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -92,13 +92,13 @@ describe('StellarWalletPreflight', () => {
 
     const errorItems = screen.getAllByRole('listitem');
     expect(errorItems).toHaveLength(6);
-    
+
     expect(screen.getByText('Issues to fix:')).toBeInTheDocument();
   });
 
   it('shows correct next step for freighter not reachable', async () => {
     makeFreighterMock(unreachableState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -113,9 +113,9 @@ describe('StellarWalletPreflight', () => {
     partialState.freighterReachable = true;
     partialState.isConnected = false;
     partialState.errors = ['Freighter wallet not connected'];
-    
+
     makeFreighterMock(partialState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -128,9 +128,9 @@ describe('StellarWalletPreflight', () => {
     const partialState = { ...unreachableState };
     partialState.testnetSelected = false;
     partialState.errors = ['Wrong network: Testnet not selected'];
-    
+
     makeFreighterMock(partialState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -143,9 +143,9 @@ describe('StellarWalletPreflight', () => {
     const partialState = { ...unreachableState };
     partialState.accountFunded = false;
     partialState.errors = ['Account does not exist or is unfunded'];
-    
+
     makeFreighterMock(partialState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -156,23 +156,23 @@ describe('StellarWalletPreflight', () => {
 
   it('retries check when retry button is clicked', async () => {
     makeFreighterMock(unreachableState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
 
     const retryButton = screen.getByRole('button', { name: /Retry Check/i });
     await userEvent.click(retryButton);
-    
+
     expect(mockCheckWalletReadiness).toHaveBeenCalledTimes(1);
   });
 
   it('handles checkWalletReadiness throwing an error', async () => {
     const mockFreighter = makeFreighterMock(readyState, true);
     mockCheckWalletReadiness.mockRejectedValue(new Error('Network error'));
-    
+
     render(<StellarWalletPreflight isVisible={true} />);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });
@@ -184,9 +184,9 @@ describe('StellarWalletPreflight', () => {
   it('calls onReady callback when ready', async () => {
     const mockOnReady = vi.fn();
     makeFreighterMock(readyState);
-    
+
     render(<StellarWalletPreflight isVisible={true} onReady={mockOnReady} />);
-    
+
     await waitFor(() => {
       expect(mockOnReady).toHaveBeenCalledWith(true);
     });
@@ -195,9 +195,9 @@ describe('StellarWalletPreflight', () => {
   it('calls onReady callback when not ready', async () => {
     const mockOnReady = vi.fn();
     makeFreighterMock(unreachableState);
-    
+
     render(<StellarWalletPreflight isVisible={true} onReady={mockOnReady} />);
-    
+
     await waitFor(() => {
       expect(mockOnReady).toHaveBeenCalledWith(false);
     });
@@ -213,9 +213,9 @@ describe('StellarWalletPreflight', () => {
       horizonReachable: false,
       errors: [],
     };
-    
+
     makeFreighterMock(partialState);
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Checking wallet readiness...')).not.toBeInTheDocument();
     });

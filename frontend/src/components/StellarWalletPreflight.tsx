@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle, Wallet, Network, Loader2, RefreshCw } from 'lucide-react';
 import { useFreighter } from '../hooks/useFreighter';
-import { isTestnet } from '../config/networks';
 import './StellarWalletPreflight.css';
 
 interface WalletReadinessResult {
@@ -73,7 +72,7 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
   };
 
   const formatError = (error: string): string => {
-    const errorPatterns = {
+    const errorPatterns: Record<string, string> = {
       'Freighter extension not available': 'Install Freighter wallet extension',
       'Freighter wallet not connected': 'Connect your Freighter wallet',
       'No account address found': 'Select an account in Freighter',
@@ -97,7 +96,7 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
     try {
       const result = await freighter.checkWalletReadiness();
       setReadiness(result);
-      
+
       if (onReady) {
         const isReady = isWalletReady(result);
         onReady(isReady);
@@ -134,6 +133,14 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
 
   if (!isVisible) return null;
 
+  const checks = [
+    { key: 'freighterReachable' as const, label: 'Freighter reachable', icon: CheckCircle },
+    { key: 'isConnected' as const, label: 'Wallet connected', icon: Wallet },
+    { key: 'accountPresent' as const, label: 'Account present', icon: CheckCircle },
+    { key: 'testnetSelected' as const, label: 'Testnet selected', icon: Network },
+    { key: 'accountFunded' as const, label: 'Account funded', icon: CheckCircle },
+  ];
+
   return (
     <div className="wallet-preflight-overlay">
       <div className="wallet-preflight-container">
@@ -143,8 +150,8 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
           </div>
           <h2 className="wallet-preflight-title">Stellar Wallet Readiness Check</h2>
           <div className="wallet-preflight-progress">
-            <div 
-              className="wallet-preflight-progress-fill" 
+            <div
+              className="wallet-preflight-progress-fill"
               style={{ width: `${getProgressPercentage()}%` }}
             />
             <span className="wallet-preflight-progress-text">
@@ -158,31 +165,23 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
             <Loader2 className="h-8 w-8 animate-spin" />
             <p>Checking wallet readiness...</p>
           </div>
-        ) : readiness && (
+        ) : readiness ? (
           <div className="wallet-preflight-content">
             <div className="wallet-preflight-results">
-              {
-                [
-                  { key: 'freighterReachable', label: 'Freighter reachable', icon: CheckCircle },
-                  { key: 'isConnected', label: 'Wallet connected', icon: Wallet },
-                  { key: 'accountPresent', label: 'Account present', icon: CheckCircle },
-                  { key: 'testnetSelected', label: 'Testnet selected', icon: Network },
-                  { key: 'accountFunded', label: 'Account funded', icon: CheckCircle },
-                ].map((check) => {
-                  const isOk = readiness[check.key as keyof WalletReadinessResult];
-                  const Icon = isOk ? check.icon : AlertTriangle;
-                  const colorClass = isOk ? 'text-green-400' : 'text-amber-400';
+              {checks.map((check) => {
+                const isOk = readiness[check.key];
+                const Icon = isOk ? check.icon : AlertTriangle;
+                const colorClass = isOk ? 'text-green-400' : 'text-amber-400';
 
-                  return (
-                    <div key={check.key} className="wallet-preflight-result-item">
-                      <div className={`wallet-preflight-status-icon ${colorClass}`>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <span className="wallet-preflight-status-text">{check.label}</span>
+                return (
+                  <div key={check.key} className="wallet-preflight-result-item">
+                    <div className={`wallet-preflight-status-icon ${colorClass}`}>
+                      <Icon className="h-4 w-4" />
                     </div>
-                  );
-                })
-              }
+                    <span className="wallet-preflight-status-text">{check.label}</span>
+                  </div>
+                );
+              })}
             </div>
 
             {readiness.errors.length > 0 && (
@@ -219,7 +218,7 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
               )}
             </div>
           </div>
-        )}
+        ) : null}
 
         {readiness && !isLoading && (
           <div className="wallet-preflight-footer">
