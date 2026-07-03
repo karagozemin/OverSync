@@ -250,5 +250,6 @@ export function useFreighter() {
     disconnect,
     getNetworkInfo,
     signTransaction,
+    checkWalletReadiness,
   };
 } 

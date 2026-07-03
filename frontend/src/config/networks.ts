@@ -2,7 +2,7 @@
  * Network Configuration for FusionBridge
  */
 
-import { resolveViteMainnetRpcUrl, resolveViteSepoliaRpcUrl } from './rpc-urls';
+import { resolveViteMainnetRpcUrl, resolveViteSepoliaRpcUrl, STELLAR_TESTNET_HORIZON_URLS, STELLAR_MAINNET_HORIZON_URLS } from './rpc-urls';
 
 export type AppNetworkMode = 'mainnet' | 'testnet';
 

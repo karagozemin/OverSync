@@ -24,40 +24,44 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
   const [isLoading, setIsLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const freighter = useFreighter();
+  const [isVisiblePanel, setIsVisiblePanel] = useState(isVisible);
 
-  const checkReadiness = async () => {
-    setIsLoading(true);
-    try {
-      const result = await freighter.checkWalletReadiness();
-      setReadiness(result);
-      
-      if (onReady) {
-        const isReady = isWalletReady(result);
-        onReady(isReady);
-      }
-      setRetryCount(prev => prev + 1);
-    } catch (error) {
-      console.error('Error checking wallet readiness:', error);
-      setReadiness({
-        freighterReachable: false,
-        isConnected: false,
-        accountPresent: false,
-        testnetSelected: false,
-        accountFunded: false,
-        horizonReachable: false,
-        errors: ['Failed to check wallet readiness'],
-      });
-      if (onReady) onReady(false);
-    } finally {
-      setIsLoading(false);
+  const getNextStepMessage = () => {
+    if (!readiness) return '';
+
+    if (!readiness.freighterReachable) {
+      return 'Install Freighter from https://freighter.app/';
     }
+    if (!readiness.isConnected) {
+      return 'Click "Connect Wallet" in Freighter and select your account';
+    }
+    if (!readiness.accountPresent) {
+      return 'Ensure an account is selected in Freighter';
+    }
+    if (!readiness.testnetSelected) {
+      return 'Switch to Stellar Testnet in Freighter settings';
+    }
+    if (!readiness.accountFunded) {
+      return 'Visit https://laboratory.stellar.org/#account-creator to fund your testnet account';
+    }
+    if (!readiness.horizonReachable) {
+      return 'Horizon RPC is not reachable - check network connectivity';
+    }
+    return 'Wallet is ready for demo flow';
   };
 
-  useEffect(() => {
-    if (isVisible) {
-      checkReadiness();
-    }
-  }, [isVisible]);
+  const getProgressPercentage = () => {
+    if (!readiness) return 0;
+    const checks = [
+      readiness.freighterReachable,
+      readiness.isConnected,
+      readiness.accountPresent,
+      readiness.testnetSelected,
+      readiness.accountFunded,
+      readiness.horizonReachable,
+    ];
+    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  };
 
   const isWalletReady = (result: WalletReadinessResult): boolean => {
     return result.freighterReachable &&
@@ -88,42 +92,45 @@ export default function StellarWalletPreflight({ isVisible, onReady }: StellarWa
     return error;
   };
 
-  const getNextStepMessage = () => {
-    if (!readiness) return '';
-
-    if (!readiness.freighterReachable) {
-      return 'Install Freighter from https://freighter.app/';
+  const checkReadiness = async () => {
+    setIsLoading(true);
+    try {
+      const result = await freighter.checkWalletReadiness();
+      setReadiness(result);
+      
+      if (onReady) {
+        const isReady = isWalletReady(result);
+        onReady(isReady);
+      }
+      setRetryCount(prev => prev + 1);
+    } catch (error) {
+      console.error('Error checking wallet readiness:', error);
+      setReadiness({
+        freighterReachable: false,
+        isConnected: false,
+        accountPresent: false,
+        testnetSelected: false,
+        accountFunded: false,
+        horizonReachable: false,
+        errors: ['Failed to check wallet readiness'],
+      });
+      if (onReady) onReady(false);
+    } finally {
+      setIsLoading(false);
     }
-    if (!readiness.isConnected) {
-      return 'Click \"Connect Wallet\" in Freighter and select your account';
-    }
-    if (!readiness.accountPresent) {
-      return 'Ensure an account is selected in Freighter';
-    }
-    if (!readiness.testnetSelected) {
-      return 'Switch to Stellar Testnet in Freighter settings';
-    }
-    if (!readiness.accountFunded) {
-      return 'Visit https://laboratory.stellar.org/#account-creator to fund your testnet account';
-    }
-    if (!readiness.horizonReachable) {
-      return 'Horizon RPC is not reachable - check network connectivity';
-    }
-    return 'Wallet is ready for demo flow';
   };
 
-    const getProgressPercentage = () => {
-    if (!readiness) return 0;
-    const checks = [
-      readiness.freighterReachable,
-      readiness.isConnected,
-      readiness.accountPresent,
-      readiness.testnetSelected,
-      readiness.accountFunded,
-      readiness.horizonReachable,
-    ];
-    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  };
+  useEffect(() => {
+    if (isVisible !== isVisiblePanel) {
+      setIsVisiblePanel(isVisible);
+    }
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (isVisible) {
+      checkReadiness();
+    }
+  }, [isVisible]);
 
   if (!isVisible) return null;
 
