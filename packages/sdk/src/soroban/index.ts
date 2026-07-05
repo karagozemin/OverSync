@@ -11,6 +11,9 @@ import {
   type Transaction
 } from "@stellar/stellar-sdk";
 import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
+import { assertValidSecretFormat } from "../secrets/index.js";
+import * as Errors from "../errors/index.js";
+const { OverSyncError, OverSyncErrorCode, normalizeError } = Errors;
 
 export interface SorobanHTLCClientOptions {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -72,7 +75,7 @@ export class SorobanHTLCClient {
   private hexToBytesN32(hex: `0x${string}`): Buffer {
     const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
     if (clean.length !== 64) {
-      throw new Error("hashlock must be exactly 32 bytes (64 hex chars)");
+      throw new OverSyncError("hashlock must be exactly 32 bytes (64 hex chars)", OverSyncErrorCode.VALIDATION_FAILED);
     }
     return Buffer.from(clean, "hex");
   }
@@ -120,36 +123,44 @@ export class SorobanHTLCClient {
     orderId: bigint,
     signer: SorobanSigner
   ): Promise<string> {
-    const op = this.contract.call(
-      "refund_order",
-      nativeToScVal(orderId, { type: "u64" }),
-      new SorobanAddress(callerAccountId).toScVal()
-    );
-    return this.simulateSignSubmit(callerAccountId, op, signer);
+    try {
+      const op = this.contract.call(
+        "refund_order",
+        nativeToScVal(orderId, { type: "u64" }),
+        new SorobanAddress(callerAccountId).toScVal()
+      );
+      return await this.simulateSignSubmit(callerAccountId, op, signer);
+    } catch (err) {
+      throw normalizeError(err);
+    }
   }
 
   async getOrder(orderId: bigint): Promise<SorobanOrderData | null> {
-    const op = this.contract.call(
-      "get_order",
-      nativeToScVal(orderId, { type: "u64" })
-    );
-    const sourceAccount = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB422";
-    const account = { accountId: () => sourceAccount, sequenceNumber: () => "0", incrementSequenceNumber: () => {} } as any;
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: this.networkPassphrase
-    })
-      .addOperation(op)
-      .setTimeout(180)
-      .build();
-    const sim = await this.server.simulateTransaction(tx);
-    if ("error" in sim && sim.error) {
-      throw new Error(`Simulation failed: ${sim.error}`);
+    try {
+      const op = this.contract.call(
+        "get_order",
+        nativeToScVal(orderId, { type: "u64" })
+      );
+      const sourceAccount = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB422";
+      const account = { accountId: () => sourceAccount, sequenceNumber: () => "0", incrementSequenceNumber: () => {} } as any;
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase
+      })
+        .addOperation(op)
+        .setTimeout(180)
+        .build();
+      const sim = await this.server.simulateTransaction(tx);
+      if ("error" in sim && sim.error) {
+        throw new OverSyncError(`Simulation failed: ${sim.error}`, OverSyncErrorCode.RPC_FAILURE);
+      }
+      const result = (sim as any).result;
+      if (!result || !result.retval) return null;
+      const native = scValToNative(result.retval);
+      return parseSorobanOrder(native);
+    } catch (err) {
+      throw normalizeError(err);
     }
-    const result = (sim as any).result;
-    if (!result || !result.retval) return null;
-    const native = scValToNative(result.retval);
-    return parseSorobanOrder(native);
   }
 
   private async simulateSignSubmit(
@@ -160,7 +171,7 @@ export class SorobanHTLCClient {
     let tx = await this.buildTx(sourceAccountId, op);
     const sim = await this.server.simulateTransaction(tx);
     if ("error" in sim && sim.error) {
-      throw new Error(`Simulation failed: ${sim.error}`);
+      throw new OverSyncError(`Simulation failed: ${sim.error}`, OverSyncErrorCode.RPC_FAILURE);
     }
     tx = rpc.assembleTransaction(tx, sim).build();
     const signedXdr = await signer({
@@ -171,7 +182,7 @@ export class SorobanHTLCClient {
     const signedTx = TransactionBuilder.fromXDR(signedXdr, this.networkPassphrase) as Transaction;
     const submitted = await this.server.sendTransaction(signedTx);
     if (submitted.status === "ERROR") {
-      throw new Error(`Submit failed: ${submitted.errorResult?.toXDR("base64") ?? "unknown"}`);
+      throw new OverSyncError(`Submit failed: ${submitted.errorResult?.toXDR("base64") ?? "unknown"}`, OverSyncErrorCode.RPC_FAILURE);
     }
     return submitted.hash;
   }
@@ -222,7 +233,7 @@ function bytesToHex(value: unknown): `0x${string}` {
     // Already a hex string (some SDK versions surface as string).
     return (value.startsWith("0x") ? value : "0x" + value) as `0x${string}`;
   }
-  throw new Error(`parseSorobanOrder: cannot convert value to hex: ${typeof value}`);
+  throw new OverSyncError(`parseSorobanOrder: cannot convert value to hex: ${typeof value}`, OverSyncErrorCode.VALIDATION_FAILED);
 }
 
 function toBigInt(value: unknown, field: string): bigint {
@@ -232,15 +243,15 @@ function toBigInt(value: unknown, field: string): bigint {
     try {
       return BigInt(value);
     } catch {
-      throw new Error(`parseSorobanOrder: field "${field}" is not a numeric type (got string "${value}")`);
+      throw new OverSyncError(`parseSorobanOrder: field "${field}" is not a numeric type (got string "${value}")`, OverSyncErrorCode.VALIDATION_FAILED);
     }
   }
-  throw new Error(`parseSorobanOrder: field "${field}" is not a numeric type (got ${typeof value})`);
+  throw new OverSyncError(`parseSorobanOrder: field "${field}" is not a numeric type (got ${typeof value})`, OverSyncErrorCode.VALIDATION_FAILED);
 }
 
 function toString(value: unknown, field: string): string {
   if (typeof value === "string") return value;
-  throw new Error(`parseSorobanOrder: field "${field}" is not a string (got ${typeof value})`);
+  throw new OverSyncError(`parseSorobanOrder: field "${field}" is not a string (got ${typeof value})`, OverSyncErrorCode.VALIDATION_FAILED);
 }
 
 /**
@@ -258,7 +269,7 @@ export function parseSorobanOrder(raw: unknown): SorobanOrderData | null {
   if (raw === null || raw === undefined) return null;
 
   if (typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error(`parseSorobanOrder: expected an object, got ${Array.isArray(raw) ? "array" : typeof raw}`);
+    throw new OverSyncError(`parseSorobanOrder: expected an object, got ${Array.isArray(raw) ? "array" : typeof raw}`, OverSyncErrorCode.VALIDATION_FAILED);
   }
 
   const r = raw as Record<string, unknown>;
@@ -271,7 +282,7 @@ export function parseSorobanOrder(raw: unknown): SorobanOrderData | null {
 
   for (const f of requiredFields) {
     if (!(f in r)) {
-      throw new Error(`parseSorobanOrder: missing required field "${f}"`);
+      throw new OverSyncError(`parseSorobanOrder: missing required field "${f}"`, OverSyncErrorCode.VALIDATION_FAILED);
     }
   }
 
@@ -279,7 +290,7 @@ export function parseSorobanOrder(raw: unknown): SorobanOrderData | null {
   const status: SorobanOrderStatus =
     typeof rawStatus === "string" && rawStatus in STATUS_MAP
       ? STATUS_MAP[rawStatus]
-      : (() => { throw new Error(`parseSorobanOrder: unknown status value "${rawStatus}"`); })();
+      : (() => { throw new OverSyncError(`parseSorobanOrder: unknown status value "${rawStatus}"`, OverSyncErrorCode.VALIDATION_FAILED); })();
 
   // preimage is an empty Bytes in Funded state; normalise to "".
   let preimage: `0x${string}` | "" = "";

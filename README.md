@@ -6,6 +6,7 @@
 
 **A non-custodial Ethereum ↔ Stellar bridge built on symmetric HTLCs — no validator set, no attester, no admin escape hatch.**
 
+
 OverSync moves native assets between Ethereum and Stellar atomically.
 Funds are locked in hash-time-lock contracts on both chains; settlement
 is a `sha256` preimage reveal, not a multisig attestation. If anything
@@ -223,6 +224,11 @@ cd soroban && cargo test --release && cd ..
 # No manual Hardhat node is required.
 pnpm test:e2e
 
+# Generate a machine-readable JSON report artifact for SCF evidence packs
+pnpm --filter @oversync/e2e load-test
+# The report will be saved to e2e/reports/e2e-report.json
+
+
 # Run coordinator
 pnpm --filter @oversync/coordinator dev
 
@@ -266,6 +272,7 @@ threat model.
 | [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md) | Comparison with CCTP v2, Axelar ITS, Allbridge; where OverSync is the right vs wrong tool |
 | [`docs/TRACTION.md`](docs/TRACTION.md) | Go-to-market, KPIs we publish, partnership pipeline |
 | [`docs/METRICS_SCHEMA.md`](docs/METRICS_SCHEMA.md) | Public metrics schema: definitions, units, sources, cadence, and privacy boundaries |
+| [`docs/UNIT_ECONOMICS.md`](docs/UNIT_ECONOMICS.md) | Resolver cost model, bootstrap incentives, break-even ranges, and metrics needed before stronger claims |
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |

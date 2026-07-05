@@ -6,6 +6,9 @@ import {
   parseEventLogs
 } from "viem";
 import { HTLC_ESCROW_ABI } from "./abi.js";
+import * as Errors from "../errors/index.js";
+const { OverSyncError, OverSyncErrorCode, normalizeError } = Errors;
+import { assertValidSecretFormat } from "../secrets/index.js";
 
 export { HTLC_ESCROW_ABI } from "./abi.js";
 
@@ -66,91 +69,119 @@ export class EthereumHTLCClient {
 
   private requireWallet(): WalletClient {
     if (!this.walletClient) {
-      throw new Error("This operation requires a wallet client (signer).");
+      throw new OverSyncError("This operation requires a wallet client (signer).", OverSyncErrorCode.VALIDATION_FAILED);
     }
     return this.walletClient;
   }
 
   async createOrder(input: CreateOrderInput): Promise<{ txHash: Hex; orderId: bigint }> {
-    const wallet = this.requireWallet();
-    const account = wallet.account;
-    if (!account) {
-      throw new Error("walletClient.account is required to send transactions");
+    try {
+      const wallet = this.requireWallet();
+      assertValidSecretFormat(input.hashlock, "hashlock");
+      const account = wallet.account;
+      if (!account) {
+        throw new OverSyncError("walletClient.account is required to send transactions", OverSyncErrorCode.VALIDATION_FAILED);
+      }
+      const value =
+        input.token === "0x0000000000000000000000000000000000000000"
+          ? input.amount + input.safetyDeposit
+          : input.safetyDeposit;
+
+      const { request, result } = await this.publicClient.simulateContract({
+        address: this.address,
+        abi: HTLC_ESCROW_ABI,
+        functionName: "createOrder",
+        args: [
+          input.beneficiary,
+          input.refundAddress,
+          input.token,
+          input.amount,
+          input.safetyDeposit,
+          input.hashlock,
+          input.timelockSeconds
+        ],
+        account: account.address,
+        value
+      });
+
+      const txHash = await wallet.writeContract(request);
+      return { txHash, orderId: result as bigint };
+    } catch (err) {
+      throw normalizeError(err);
     }
-    const value =
-      input.token === "0x0000000000000000000000000000000000000000"
-        ? input.amount + input.safetyDeposit
-        : input.safetyDeposit;
-
-    const { request, result } = await this.publicClient.simulateContract({
-      address: this.address,
-      abi: HTLC_ESCROW_ABI,
-      functionName: "createOrder",
-      args: [
-        input.beneficiary,
-        input.refundAddress,
-        input.token,
-        input.amount,
-        input.safetyDeposit,
-        input.hashlock,
-        input.timelockSeconds
-      ],
-      account: account.address,
-      value
-    });
-
-    const txHash = await wallet.writeContract(request);
-    return { txHash, orderId: result as bigint };
   }
 
   async claimOrder(orderId: bigint, preimage: Hex): Promise<Hex> {
-    const wallet = this.requireWallet();
-    if (!wallet.account) throw new Error("walletClient.account is required");
-    const { request } = await this.publicClient.simulateContract({
-      address: this.address,
-      abi: HTLC_ESCROW_ABI,
-      functionName: "claimOrder",
-      args: [orderId, preimage],
-      account: wallet.account.address
-    });
-    return wallet.writeContract(request);
+    try {
+      const wallet = this.requireWallet();
+      assertValidSecretFormat(preimage, "preimage");
+      if (!wallet.account) {
+        throw new OverSyncError("walletClient.account is required", OverSyncErrorCode.VALIDATION_FAILED);
+      }
+      const { request } = await this.publicClient.simulateContract({
+        address: this.address,
+        abi: HTLC_ESCROW_ABI,
+        functionName: "claimOrder",
+        args: [orderId, preimage],
+        account: wallet.account.address
+      });
+      return await wallet.writeContract(request);
+    } catch (err) {
+      throw normalizeError(err);
+    }
   }
 
   async refundOrder(orderId: bigint): Promise<Hex> {
-    const wallet = this.requireWallet();
-    if (!wallet.account) throw new Error("walletClient.account is required");
-    const { request } = await this.publicClient.simulateContract({
-      address: this.address,
-      abi: HTLC_ESCROW_ABI,
-      functionName: "refundOrder",
-      args: [orderId],
-      account: wallet.account.address
-    });
-    return wallet.writeContract(request);
+    try {
+      const wallet = this.requireWallet();
+      if (!wallet.account) {
+        throw new OverSyncError("walletClient.account is required", OverSyncErrorCode.VALIDATION_FAILED);
+      }
+      const { request } = await this.publicClient.simulateContract({
+        address: this.address,
+        abi: HTLC_ESCROW_ABI,
+        functionName: "refundOrder",
+        args: [orderId],
+        account: wallet.account.address
+      });
+      return await wallet.writeContract(request);
+    } catch (err) {
+      throw normalizeError(err);
+    }
   }
 
   async getOrder(orderId: bigint): Promise<OrderData> {
-    const result = (await this.publicClient.readContract({
-      address: this.address,
-      abi: HTLC_ESCROW_ABI,
-      functionName: "getOrder",
-      args: [orderId]
-    })) as OrderData;
-    return result;
+    try {
+      const result = (await this.publicClient.readContract({
+        address: this.address,
+        abi: HTLC_ESCROW_ABI,
+        functionName: "getOrder",
+        args: [orderId]
+      })) as OrderData;
+      return result;
+    } catch (err) {
+      throw normalizeError(err);
+    }
   }
 
   /**
    * Helper to extract the `orderId` from a `createOrder` tx receipt.
    */
   async waitForOrderCreation(txHash: Hex): Promise<bigint> {
-    const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
-    const events = parseEventLogs({
-      abi: HTLC_ESCROW_ABI,
-      eventName: "OrderCreated",
-      logs: receipt.logs
-    });
-    const first = events[0];
-    if (!first) throw new Error("OrderCreated event not found in receipt");
-    return first.args.orderId as bigint;
+    try {
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+      const events = parseEventLogs({
+        abi: HTLC_ESCROW_ABI,
+        eventName: "OrderCreated",
+        logs: receipt.logs
+      });
+      const first = events[0];
+      if (!first) {
+        throw new OverSyncError("OrderCreated event not found in receipt", OverSyncErrorCode.VALIDATION_FAILED);
+      }
+      return first.args.orderId as bigint;
+    } catch (err) {
+      throw normalizeError(err);
+    }
   }
 }
