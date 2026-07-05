@@ -105,3 +105,11 @@ export function isTerminal(status: OrderStatus): boolean {
 export function nextStatesOf(status: OrderStatus): OrderStatus[] {
   return [...TRANSITIONS[status]];
 }
+
+export {
+  simulateRefundTimeline,
+  type SimulatorDirection,
+  type SimulatedState,
+  type RefundTimelineInput,
+  type RefundTimelineResult,
+} from "./refund-timeline.js";
