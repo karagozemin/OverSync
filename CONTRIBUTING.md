@@ -10,6 +10,12 @@ requests against the codebase. If you want to operate a resolver, use
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
+### Stellar Testnet Funding
+
+- New Stellar testnet wallets start with **zero XLM**.
+- An unfunded wallet cannot perform balance checks or payments.
+- Fund the wallet via the built‑in testnet faucet or the Alchemy Stellar faucet link.
+- This requirement is **testnet‑only**; mainnet wallets are funded through normal on‑chain transactions.
 
 ## Repository layout
 
