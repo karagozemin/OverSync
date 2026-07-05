@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   canTransition,
+  getHtlcInvariantChecklist,
   InvalidTransitionError,
   isTerminal,
   nextStatesOf,
@@ -38,5 +39,51 @@ describe("order state machine", () => {
   it("nextStatesOf returns a stable list", () => {
     expect(nextStatesOf("announced")).toEqual(["src_locked", "failed", "expired"]);
     expect(nextStatesOf("completed")).toEqual([]);
+  });
+});
+
+describe("HTLC invariant checklist", () => {
+  const checklist = getHtlcInvariantChecklist();
+
+  it("includes all six expected invariants", () => {
+    const ids = checklist.map((i) => i.id);
+    expect(ids).toContain("same-hashlock");
+    expect(ids).toContain("dst-timelock-before-src");
+    expect(ids).toContain("beneficiary-claim-before-expiry");
+    expect(ids).toContain("refund-after-expiry");
+    expect(ids).toContain("coordinator-cannot-steal");
+    expect(ids).toContain("resolver-recovery");
+    expect(checklist).toHaveLength(6);
+  });
+
+  it("each entry has the correct shape", () => {
+    for (const inv of checklist) {
+      expect(inv.id).toBeTruthy();
+      expect(["settlement", "refund", "security", "recovery"]).toContain(inv.category);
+      expect(inv.summary).toBeTruthy();
+      expect(inv.description).toBeTruthy();
+    }
+  });
+
+  it("covers settlement invariants", () => {
+    const settlement = checklist.filter((i) => i.category === "settlement");
+    expect(settlement.map((i) => i.id)).toEqual(
+      expect.arrayContaining(["same-hashlock", "beneficiary-claim-before-expiry"])
+    );
+  });
+
+  it("covers refund invariants", () => {
+    expect(checklist.find((i) => i.id === "refund-after-expiry")?.category).toBe("refund");
+  });
+
+  it("covers security invariants", () => {
+    const security = checklist.filter((i) => i.category === "security");
+    expect(security.map((i) => i.id)).toEqual(
+      expect.arrayContaining(["dst-timelock-before-src", "coordinator-cannot-steal"])
+    );
+  });
+
+  it("covers recovery invariants", () => {
+    expect(checklist.find((i) => i.id === "resolver-recovery")?.category).toBe("recovery");
   });
 });
