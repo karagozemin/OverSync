@@ -98,4 +98,26 @@ describe('CopyableIdentifier', () => {
     expect(button).toHaveClass('h-6');
     expect(button).toHaveClass('w-6');
   });
+
+  test('dispatches custom event on success', async () => {
+    const toastEventPromise = new Promise<CustomEvent>((resolve) => {
+      window.addEventListener('oversync-toast', (e) => {
+        resolve(e as CustomEvent);
+      }, { once: true });
+    });
+
+    render(
+      <CopyableIdentifier value={FULL_HASH} copyLabel="transaction hash" />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /Copy transaction hash/i }));
+
+    const event = await toastEventPromise;
+    expect(event.detail).toEqual({
+      type: 'success',
+      title: 'Copied!',
+      message: 'Transaction hash copied to clipboard.',
+      duration: 3000,
+    });
+  });
 });
