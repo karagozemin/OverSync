@@ -1,6 +1,7 @@
 import { isMainnetEnabled, ETHEREUM_NETWORKS } from '../config/networks';
 import deployments from '../../../deployments.testnet.json';
 import { ExternalLink, ShieldAlert } from 'lucide-react';
+import CopyableIdentifier from './CopyableIdentifier';
 
 export default function DiligenceSnapshot() {
   const currentPublicMode = isMainnetEnabled() ? 'Mainnet-enabled' : 'Testnet-only';
@@ -12,36 +13,54 @@ export default function DiligenceSnapshot() {
   const stellarRegistry = deployments?.stellar?.contracts?.ResolverRegistry || null;
 
   // Coordinator status url
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  const isProd = (import.meta as any).env?.PROD;
 
-  const isCoordinatorConfigured = !!apiBaseUrl;
+  const isCoordinatorConfigured = !!(apiBaseUrl || isProd);
   const coordinatorStatusUrl = apiBaseUrl
     ? `${apiBaseUrl.replace(/\/+$/, '')}/health`
-    : '';
+    : 'https://oversync-k36vx.ondigitalocean.app/health';
 
   const sepoliaExplorerBase = ETHEREUM_NETWORKS.sepolia?.explorerUrl || 'https://sepolia.etherscan.io';
 
   const renderValueOrFallback = (
     value: string | null,
-    buildLink?: (val: string) => string
+    buildLink?: (val: string) => string,
+    copyLabel: string = 'address'
   ) => {
     if (!value) {
       return <span className="text-slate-400 font-medium">Not configured</span>;
     }
     if (buildLink) {
       return (
-        <a
-          href={buildLink(value)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-mono text-xs transition-colors"
-        >
-          <span className="truncate max-w-[180px] sm:max-w-xs">{value}</span>
-          <ExternalLink className="h-3 w-3 shrink-0" />
-        </a>
+        <span className="inline-flex items-center gap-1.5">
+          <a
+            href={buildLink(value)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-mono text-xs transition-colors"
+          >
+            <span className="truncate max-w-[180px] sm:max-w-xs">{value}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+          <CopyableIdentifier
+            value={value}
+            hideDisplay
+            copyLabel={copyLabel}
+          />
+        </span>
       );
     }
-    return <span className="font-mono text-xs text-white">{value}</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-mono text-xs text-white">{value}</span>
+        <CopyableIdentifier
+          value={value}
+          hideDisplay
+          copyLabel={copyLabel}
+        />
+      </span>
+    );
   };
 
   return (
@@ -66,22 +85,22 @@ export default function DiligenceSnapshot() {
 
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 border-b border-white/5 gap-1">
           <span className="text-slate-300 font-medium">Sepolia HTLC contract</span>
-          {renderValueOrFallback(ethHtlc, (addr) => `${sepoliaExplorerBase}/address/${addr}`)}
+          {renderValueOrFallback(ethHtlc, (addr) => `${sepoliaExplorerBase}/address/${addr}`, "Sepolia HTLC contract address")}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 border-b border-white/5 gap-1">
           <span className="text-slate-300 font-medium">Sepolia ResolverRegistry</span>
-          {renderValueOrFallback(ethRegistry, (addr) => `${sepoliaExplorerBase}/address/${addr}`)}
+          {renderValueOrFallback(ethRegistry, (addr) => `${sepoliaExplorerBase}/address/${addr}`, "Sepolia ResolverRegistry address")}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 border-b border-white/5 gap-1">
           <span className="text-slate-300 font-medium">Stellar Testnet HTLC contract</span>
-          {renderValueOrFallback(stellarHtlc, (id) => `https://stellar.expert/explorer/testnet/contract/${id}`)}
+          {renderValueOrFallback(stellarHtlc, (id) => `https://stellar.expert/explorer/testnet/contract/${id}`, "Stellar Testnet HTLC contract ID")}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 border-b border-white/5 gap-1">
           <span className="text-slate-300 font-medium">Stellar Testnet ResolverRegistry</span>
-          {renderValueOrFallback(stellarRegistry, (id) => `https://stellar.expert/explorer/testnet/contract/${id}`)}
+          {renderValueOrFallback(stellarRegistry, (id) => `https://stellar.expert/explorer/testnet/contract/${id}`, "Stellar Testnet ResolverRegistry contract ID")}
         </div>
 
         <div className="flex justify-between items-center py-1 border-b border-white/5">

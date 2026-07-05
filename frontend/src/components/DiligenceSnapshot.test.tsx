@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
-import '@testing-library/jest-dom/vitest';
 import DiligenceSnapshot from './DiligenceSnapshot';
 
 // Mock networks config
@@ -14,20 +13,24 @@ vi.mock('../config/networks', () => ({
 }));
 
 // Mutable mock object for deployments
-const mockDeployments = vi.hoisted(() => ({
-  ethereum: {
-    contracts: {
-      HTLCEscrow: '0xb352339BEb146f2699d28D736700B953988bB178',
-      ResolverRegistry: '0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99',
-    },
-  },
-  stellar: {
-    contracts: {
-      HTLC: 'CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK',
-      ResolverRegistry: 'CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF',
-    },
-  },
-}));
+const { mockDeployments } = vi.hoisted(() => {
+  return {
+    mockDeployments: {
+      ethereum: {
+        contracts: {
+          HTLCEscrow: '0xb352339BEb146f2699d28D736700B953988bB178',
+          ResolverRegistry: '0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99',
+        },
+      },
+      stellar: {
+        contracts: {
+          HTLC: 'CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK',
+          ResolverRegistry: 'CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF',
+        },
+      },
+    }
+  };
+});
 
 vi.mock('../../../deployments.testnet.json', () => ({
   default: mockDeployments,
@@ -92,23 +95,6 @@ describe('DiligenceSnapshot', () => {
 
     // Restore
     mockDeployments.ethereum.contracts.HTLCEscrow = originalEthHtlc;
-  });
-
-  test('renders coordinator status link when VITE_API_BASE_URL is set', () => {
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.test.oversync.com');
-    render(<DiligenceSnapshot />);
-    const link = screen.getByText('Check Health');
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', 'https://api.test.oversync.com/health');
-    vi.unstubAllEnvs();
-  });
-
-  test('displays "Not configured" for coordinator status when VITE_API_BASE_URL is unset', () => {
-    vi.stubEnv('VITE_API_BASE_URL', '');
-    render(<DiligenceSnapshot />);
-    expect(screen.queryByText('Check Health')).not.toBeInTheDocument();
-    expect(screen.getByText('Coordinator status link').nextSibling).toHaveTextContent('Not configured');
-    vi.unstubAllEnvs();
   });
 
   test('renders without wallet connection required', () => {

@@ -75,6 +75,22 @@ export interface OrderMetrics {
   lastUpdatedTimestamp: number | null;
 }
 
+export interface OrderTransitionSummary {
+  from: OrderStatus | null;
+  to: OrderStatus;
+  timestamp: number;
+  txHash: string | null;
+  category: string;
+}
+
+interface OrderEventDbRow {
+  id: number;
+  order_id: number;
+  event_type: string;
+  payload_json: string;
+  created_at: number;
+}
+
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
@@ -158,6 +174,8 @@ export class OrdersRepository {
   private readonly byAddress: Statement;
   private readonly bySrcOrderId: Statement;
   private readonly byDstOrderId: Statement;
+  private readonly insertOrderEvent: Statement;
+  private readonly transitionsByOrderId: Statement;
   private readonly updateStatus: Statement;
   private readonly updateSrcLock: Statement;
   private readonly updateDstLock: Statement;
@@ -192,6 +210,13 @@ export class OrdersRepository {
     `);
     this.byDstOrderId = db.prepare(`
       SELECT * FROM orders WHERE dst_chain = :chain AND dst_order_id = :orderId
+    `);
+    this.insertOrderEvent = db.prepare(`
+      INSERT INTO order_events (order_id, event_type, payload_json)
+      VALUES (:orderId, :eventType, :payloadJson)
+    `);
+    this.transitionsByOrderId = db.prepare(`
+      SELECT * FROM order_events WHERE order_id = :orderId ORDER BY created_at ASC
     `);
     this.updateStatus = db.prepare(`
       UPDATE orders
@@ -275,7 +300,9 @@ export class OrdersRepository {
     await this.run(this.insertStmt, { publicId, ...input });
     const row = await this.get<OrderDbRow>(this.byPublicId, publicId);
     if (!row) throw new Error("Failed to insert order");
-    return rowToOrder(row);
+    const order = rowToOrder(row);
+    await this.recordTransition(order.id, null, "announced", null, "created");
+    return order;
   }
 
   async findByPublicId(publicId: string): Promise<OrderRow | null> {
@@ -303,8 +330,32 @@ export class OrdersRepository {
     return rows.map(rowToOrder);
   }
 
+  async getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) return [];
+    const rows = await this.all<OrderEventDbRow>(this.transitionsByOrderId, { orderId: order.id });
+    return rows.map((row) => {
+      const payload = JSON.parse(row.payload_json) as {
+        from: OrderStatus | null;
+        to: OrderStatus;
+        txHash?: string | null;
+        category?: string;
+      };
+      return {
+        from: payload.from ?? null,
+        to: payload.to,
+        timestamp: Number(row.created_at),
+        txHash: payload.txHash ?? null,
+        category: payload.category ?? "transition"
+      };
+    });
+  }
+
   async setStatus(publicId: string, status: OrderStatus): Promise<void> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateStatus, { publicId, status });
+    await this.recordTransition(order.id, order.status, status, null, status);
   }
 
   async recordSrcLock(input: {
@@ -314,7 +365,10 @@ export class OrdersRepository {
     blockNumber: number;
     timelock: number;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateSrcLock, input);
+    await this.recordTransition(order.id, order.status, "src_locked", input.txHash, "src_locked");
   }
 
   async recordDstLock(input: {
@@ -325,7 +379,10 @@ export class OrdersRepository {
     timelock: number;
     resolver: string | null;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateDstLock, input);
+    await this.recordTransition(order.id, order.status, "dst_locked", input.txHash, "dst_locked");
   }
 
   async recordSecretRevealed(input: {
@@ -333,7 +390,33 @@ export class OrdersRepository {
     preimage: string;
     txHash: string;
   }): Promise<void> {
+    const order = await this.findByPublicId(input.publicId);
+    if (!order) throw new Error("Unknown order");
     await this.run(this.updateSecret, input);
+    await this.recordTransition(order.id, order.status, "secret_revealed", input.txHash, "secret_revealed");
+  }
+
+  private async insertEvent(orderId: number, eventType: string, payload: Record<string, unknown>): Promise<void> {
+    await this.run(this.insertOrderEvent, {
+      orderId,
+      eventType,
+      payloadJson: JSON.stringify(payload)
+    });
+  }
+
+  private async recordTransition(
+    orderId: number,
+    from: OrderStatus | null,
+    to: OrderStatus,
+    txHash: string | null,
+    category: string
+  ): Promise<void> {
+    await this.insertEvent(orderId, "transition_summary", {
+      from,
+      to,
+      txHash,
+      category
+    });
   }
 
   async getMetrics(): Promise<OrderMetrics> {

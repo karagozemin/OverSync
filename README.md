@@ -6,6 +6,7 @@
 
 **A non-custodial Ethereum ↔ Stellar bridge built on symmetric HTLCs — no validator set, no attester, no admin escape hatch.**
 
+
 OverSync moves native assets between Ethereum and Stellar atomically.
 Funds are locked in hash-time-lock contracts on both chains; settlement
 is a `sha256` preimage reveal, not a multisig attestation. If anything
@@ -222,6 +223,11 @@ cd soroban && cargo test --release && cd ..
 #
 # No manual Hardhat node is required.
 pnpm test:e2e
+
+# Generate a machine-readable JSON report artifact for SCF evidence packs
+pnpm --filter @oversync/e2e load-test
+# The report will be saved to e2e/reports/e2e-report.json
+
 
 # Run coordinator
 pnpm --filter @oversync/coordinator dev

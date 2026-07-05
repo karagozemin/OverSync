@@ -56,6 +56,16 @@ export function CopyableIdentifier({
     try {
       await copyTextToClipboard(value);
       setState('copied');
+      window.dispatchEvent(
+        new CustomEvent('oversync-toast', {
+          detail: {
+            type: 'success',
+            title: 'Copied!',
+            message: `${copyLabel.charAt(0).toUpperCase() + copyLabel.slice(1)} copied to clipboard.`,
+            duration: 3000,
+          },
+        })
+      );
     } catch {
       setState('error');
     }
@@ -64,7 +74,7 @@ export function CopyableIdentifier({
       window.clearTimeout(resetTimerRef.current);
     }
     resetTimerRef.current = window.setTimeout(() => setState('idle'), 2000);
-  }, [value]);
+  }, [value, copyLabel]);
 
   useEffect(
     () => () => {
