@@ -336,6 +336,9 @@ importers:
 
   resolver:
     dependencies:
+      '@oversync/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@stellar/stellar-sdk':
         specifier: ^13.0.0
         version: 13.3.0

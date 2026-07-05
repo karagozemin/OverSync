@@ -14,8 +14,9 @@ program
 program
   .command("run")
   .description("Start the resolver. Listens to both chains and reacts to HTLC events.")
-  .action(async () => {
-    await runCommand();
+  .option("--dry-run", "Plan destination orders without submitting anything", false)
+  .action(async (opts: { dryRun: boolean }) => {
+    await runCommand({ dryRun: opts.dryRun || process.env.RESOLVER_DRY_RUN === "true" });
   });
 
 program
