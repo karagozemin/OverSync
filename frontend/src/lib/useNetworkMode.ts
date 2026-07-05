@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import freighterApi from '@stellar/freighter-api';
 import { isMainnetEnabled, isTestnet, resolveNetworkMode } from '../config/networks';
 import { resolveViteMainnetRpcUrl, resolveViteSepoliaRpcUrl } from '../config/rpc-urls';
+import { checkNetworkMode, type NetworkModeGuard } from '@oversync/sdk';
 
 export type NetworkMode = 'testnet' | 'mainnet';
 
@@ -32,13 +33,13 @@ function normalizeChainId(chainId: string | null): string | null {
   return trimmed.toLowerCase();
 }
 
-function readModeFromUrl(): NetworkMode {
+function readRequestedModeFromUrl(): NetworkMode {
   if (typeof window === 'undefined') {
     return 'testnet';
   }
   const url = new URLSearchParams(window.location.search).get('network');
   if (url === 'mainnet' || url === 'testnet') {
-    return resolveNetworkMode(url);
+    return url;
   }
   return isTestnet() ? 'testnet' : 'mainnet';
 }
@@ -60,6 +61,8 @@ function eqHexChainId(a: string | null, b: string): boolean {
 
 export interface NetworkModeState {
   mode: NetworkMode;
+  requestedMode: NetworkMode;
+  guard: NetworkModeGuard;
   expectedEthChainIdHex: string;
   expectedStellarPassphrase: string;
 
@@ -96,7 +99,8 @@ export function useNetworkMode(opts: {
   ethAddress?: string;
   stellarAddress?: string;
 }): NetworkModeState {
-  const [mode, setLocalMode] = useState<NetworkMode>(() => readModeFromUrl());
+  const [requestedMode, setRequestedMode] = useState<NetworkMode>(() => readRequestedModeFromUrl());
+  const [mode, setLocalMode] = useState<NetworkMode>(() => resolveNetworkMode(readRequestedModeFromUrl()));
   const [metamaskChainId, setMetamaskChainId] = useState<string | null>(null);
   const [freighterNetworkPassphrase, setFreighterNetworkPassphrase] = useState<string | null>(null);
 
@@ -104,7 +108,11 @@ export function useNetworkMode(opts: {
   const freighterConnected = Boolean(opts.stellarAddress);
 
   useEffect(() => {
-    const handler = () => setLocalMode(readModeFromUrl());
+    const handler = () => {
+      const requested = readRequestedModeFromUrl();
+      setRequestedMode(requested);
+      setLocalMode(resolveNetworkMode(requested));
+    };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
   }, []);
@@ -118,6 +126,7 @@ export function useNetworkMode(opts: {
     if (url.searchParams.get('network') === 'mainnet') {
       url.searchParams.set('network', 'testnet');
       window.history.replaceState({}, '', url.toString());
+      setRequestedMode('mainnet');
       setLocalMode('testnet');
     }
   }, []);
@@ -273,6 +282,7 @@ export function useNetworkMode(opts: {
       }
 
       if (next === mode) {
+        setRequestedMode(next);
         return { ok: true };
       }
 
@@ -284,6 +294,7 @@ export function useNetworkMode(opts: {
       }
 
       writeUrlMode(next);
+      setRequestedMode(next);
       setLocalMode(next);
       await refreshMetamask();
       await refreshFreighter();
@@ -307,8 +318,12 @@ export function useNetworkMode(opts: {
     ? freighterNetworkPassphrase === expectedPassphrase
     : true;
 
+  const guard = checkNetworkMode(requestedMode, isMainnetEnabled());
+
   return {
     mode,
+    requestedMode,
+    guard,
     expectedEthChainIdHex: expectedChain,
     expectedStellarPassphrase: expectedPassphrase,
     metamaskChainId,

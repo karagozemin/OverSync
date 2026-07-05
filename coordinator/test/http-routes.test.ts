@@ -301,3 +301,183 @@ describe("Configurable limit override", () => {
     expect(res.body.message).toContain("50");
   });
 });
+
+// ─── GET /api/orders/history (Cursor Pagination) ─────────────────────────
+
+describe("GET /api/orders/history (cursor pagination)", () => {
+  it("returns 400 when address is missing", async () => {
+    const { app } = buildApp();
+    const res = await request(app).get("/api/orders/history");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("address_required");
+  });
+
+  it("returns 400 for invalid limit (non-integer)", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, limit: "abc" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_limit");
+  });
+
+  it("returns 400 for limit exceeding 200", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, limit: "201" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_limit");
+  });
+
+  it("returns 400 for limit less than 1", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, limit: "0" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_limit");
+  });
+
+  it("returns 400 for malformed cursor", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, cursor: "not-valid-base64!!!" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_cursor");
+  });
+
+  it("returns 200 with default limit (50) when no limit specified", async () => {
+    const { app, orders } = buildApp(65_536);
+    (orders.history as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        publicId: "order1",
+        direction: "eth_to_xlm",
+        status: "announced",
+        hashlock: VALID_HASHLOCK,
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "100",
+        srcSafetyDeposit: "1",
+        srcOrderId: null,
+        srcLockTx: null,
+        srcLockBlock: null,
+        srcTimelock: null,
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "10",
+        dstOrderId: null,
+        dstLockTx: null,
+        dstLockBlock: null,
+        dstTimelock: null,
+        preimage: null,
+        secretRevealedTx: null,
+        resolverAddress: null,
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ]);
+
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR });
+
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.limit).toBe(50);
+    expect(res.body.pagination.cursor).toBeNull();
+    expect(res.body.pagination.nextCursor).toBeNull();
+    expect(res.body.pagination.hasMore).toBe(false);
+    expect(res.body.transactions).toHaveLength(1);
+  });
+
+  it("returns nextCursor when more rows exist", async () => {
+    const { app, orders } = buildApp(65_536);
+    // Mock 21 orders (1 more than limit of 20) to indicate hasMore
+    const mockOrders = Array.from({ length: 21 }, (_, i) => ({
+      publicId: `order${i}`,
+      direction: "eth_to_xlm",
+      status: "announced",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "100",
+      srcSafetyDeposit: "1",
+      srcOrderId: null,
+      srcLockTx: null,
+      srcLockBlock: null,
+      srcTimelock: null,
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "10",
+      dstOrderId: null,
+      dstLockTx: null,
+      dstLockBlock: null,
+      dstTimelock: null,
+      preimage: null,
+      secretRevealedTx: null,
+      resolverAddress: null,
+      createdAt: 1000 + i,
+      updatedAt: 1000 + i
+    }));
+
+    (orders.history as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockOrders);
+
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, limit: "20" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.limit).toBe(20);
+    expect(res.body.pagination.hasMore).toBe(true);
+    expect(res.body.pagination.nextCursor).toBeTruthy();
+    expect(res.body.transactions).toHaveLength(20);
+  });
+
+  it("returns no nextCursor when at end of list", async () => {
+    const { app, orders } = buildApp(65_536);
+    const mockOrders = Array.from({ length: 10 }, (_, i) => ({
+      publicId: `order${i}`,
+      direction: "eth_to_xlm",
+      status: "announced",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "100",
+      srcSafetyDeposit: "1",
+      srcOrderId: null,
+      srcLockTx: null,
+      srcLockBlock: null,
+      srcTimelock: null,
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "10",
+      dstOrderId: null,
+      dstLockTx: null,
+      dstLockBlock: null,
+      dstTimelock: null,
+      preimage: null,
+      secretRevealedTx: null,
+      resolverAddress: null,
+      createdAt: 1000 + i,
+      updatedAt: 1000 + i
+    }));
+
+    (orders.history as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockOrders);
+
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: VALID_STELLAR_ADDR, limit: "20" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.hasMore).toBe(false);
+    expect(res.body.pagination.nextCursor).toBeNull();
+    expect(res.body.transactions).toHaveLength(10);
+  });
+});

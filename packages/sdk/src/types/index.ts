@@ -463,5 +463,6 @@ export interface ExternalBridgeAdapter {
     amount: string;
 
   }): Promise<ExternalBridgeRoute[]>;
-
 }
+
+export * from "./network-mode.js";
