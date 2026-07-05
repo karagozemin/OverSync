@@ -223,6 +223,11 @@ cd soroban && cargo test --release && cd ..
 # No manual Hardhat node is required.
 pnpm test:e2e
 
+# Generate a machine-readable JSON report artifact for SCF evidence packs
+pnpm --filter @oversync/e2e load-test
+# The report will be saved to e2e/reports/e2e-report.json
+
+
 # Run coordinator
 pnpm --filter @oversync/coordinator dev
 
