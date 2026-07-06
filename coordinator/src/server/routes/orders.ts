@@ -145,6 +145,16 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const transitions = await orders.getTransitions(id);
+      res.json({ transitions });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   const lockSchema = z.object({
     orderId: z.string().min(1),
     txHash: z.string().min(1),
