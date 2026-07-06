@@ -1,0 +1,47 @@
+name: address-verify
+
+on:
+  push:
+    paths:
+      - 'README.md'
+      - 'ROADMAP.md'
+      - 'deployments.testnet.json'
+      - 'deployments.mainnet.json'
+      - 'env.example'
+      - 'docs/DEPLOYMENT.md'
+      - 'frontend/src/config/**'
+      - 'frontend/src/lib/sdk-context.ts'
+      - 'resolver/src/config.ts'
+      - 'coordinator/src/config.ts'
+      - 'scripts/verify-addresses.mjs'
+      - '.github/workflows/address-verify.yml'
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'ROADMAP.md'
+      - 'deployments.testnet.json'
+      - 'deployments.mainnet.json'
+      - 'env.example'
+      - 'docs/DEPLOYMENT.md'
+      - 'frontend/src/config/**'
+      - 'frontend/src/lib/sdk-context.ts'
+      - 'resolver/src/config.ts'
+      - 'coordinator/src/config.ts'
+      - 'scripts/verify-addresses.mjs'
+      - '.github/workflows/address-verify.yml'
+
+jobs:
+  verify:
+    name: Docs/config address consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify addresses
+        run: node scripts/verify-addresses.mjs

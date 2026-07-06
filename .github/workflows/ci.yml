@@ -1,4 +1,5 @@
 name: ci
+# PR comparison marker – no functional impact
 
 on:
   push:
@@ -32,6 +33,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile=false
 
+      - name: Validate deployment JSON
+        run: pnpm validate:deployments
+
       - name: Build SDK
         run: pnpm --filter @oversync/sdk build
 
@@ -61,6 +65,21 @@ jobs:
 
       - name: Test — contracts (Hardhat)
         run: pnpm --filter @oversync/contracts exec hardhat test test/v2/HTLCEscrow.test.ts test/v2/ResolverRegistry.test.ts
+
+      - name: Check evidence links (advisory)
+        run: node scripts/check-evidence-links.mjs
+        continue-on-error: true
+
+      - name: Generate CI evidence summary
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: node scripts/generate-ci-evidence.mjs
+
+      - name: Upload CI evidence summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-summary-typescript
+          path: evidence-summary.md
 
   soroban:
     name: Soroban contracts
@@ -96,3 +115,14 @@ jobs:
 
       - name: Run unit tests
         run: cargo test --release
+
+      - name: Generate CI evidence summary (Soroban)
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: node ${{ github.workspace }}/scripts/generate-ci-evidence.mjs
+
+      - name: Upload CI evidence summary (Soroban)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-summary-soroban
+          path: evidence-summary.md
