@@ -144,3 +144,70 @@ docker stop oversync-postgres && docker rm oversync-postgres
 
 The schema migrations in `coordinator/migrations/` are applied automatically
 on startup, making it easy to manage database versions.
+
+## Demo Fixtures
+
+For local development and investor walkthroughs, the coordinator can seed
+non-sensitive demo orders across all HTLC lifecycle states. This makes the
+UI presentable without requiring fresh testnet orders.
+
+### Enabling fixture mode
+
+```bash
+COORDINATOR_DEMO_FIXTURES=true pnpm dev
+```
+
+Or set `COORDINATOR_DEMO_FIXTURES=true` in your `.env` file.
+
+Fixture mode is **opt-in and disabled by default**. It never activates in
+production unless explicitly configured. The env-var preprocessor rejects
+accidental truthy strings — only `"true"`, `"1"`, `"yes"`, and `"on"`
+(case-insensitive) enable it.
+
+### What gets seeded
+
+Six demo orders are created on startup with deterministic fake addresses
+and a recognizable `demo-*` public ID prefix:
+
+| publicId | status | direction | Shows in UI as |
+|---|---|---|---|
+| `demo-announced-001` | announced | eth→xlm | Created |
+| `demo-src-locked-001` | src_locked | xlm→eth | Locked (source) |
+| `demo-dst-locked-001` | dst_locked | eth→xlm | Locked (both sides) |
+| `demo-completed-001` | completed | eth→xlm | Claimed |
+| `demo-refunded-001` | refunded | xlm→eth | Refunded |
+| `demo-expired-001` | expired | eth→xlm | Expired |
+
+All fixture rows are flagged with `fixture = 1` in the database and are
+returned by the existing order APIs (`GET /api/orders/:id`,
+`GET /api/orders/history`, `GET /api/orders/snapshot`, etc.). Transition
+events are recorded so the UI can display the state history.
+
+Fixture data contains **no real secrets, preimages, or private keys**.
+
+### Removing fixture data
+
+Fixture orders can be removed in two ways:
+
+**1. Delete the database file (SQLite — local dev)**
+
+```bash
+rm -f ./oversync.db
+```
+
+The coordinator will recreate the schema on next startup.
+
+**2. Use the remove-fixtures script (any database engine)**
+
+```bash
+pnpm fixtures:remove
+```
+
+This connects to your configured `DATABASE_URL` and deletes all rows where
+`fixture = 1`, leaving real orders untouched. The script is idempotent —
+running it when no fixtures exist is a safe no-op.
+
+> **Note:** Setting `COORDINATOR_DEMO_FIXTURES=false` (or unsetting it)
+> does **not** remove existing fixtures from the database. It only prevents
+> new fixtures from being seeded on next startup. Use one of the removal
+> methods above to clean up.

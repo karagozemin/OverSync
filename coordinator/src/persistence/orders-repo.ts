@@ -188,7 +188,7 @@ export class OrdersRepository {
   private readonly metricsByStatus: Statement;
   private readonly metricsTotal: Statement;
   private readonly metricsLastUpdated: Statement;
-  // Opt-in fixture reset/remove path (issue #161). Only ever returns rows
+    // Opt-in fixture reset/remove path (issue #161). Only ever returns rows
   // whose `fixture = 1` and is the only place those rows are deleted.
   private readonly countFixturesStmt: Statement;
   private readonly removeFixturesStmt: Statement;
@@ -288,6 +288,12 @@ export class OrdersRepository {
     this.metricsTotal = db.prepare("SELECT COUNT(*) as count FROM orders");
     this.metricsLastUpdated = db.prepare(
       "SELECT MAX(updated_at) as ts FROM orders"
+    );
+    this.countFixturesStmt = db.prepare(
+      "SELECT COUNT(*) as count FROM orders WHERE fixture = 1"
+    );
+    this.removeFixturesStmt = db.prepare(
+      "DELETE FROM orders WHERE fixture = 1"
     );
   }
 
@@ -479,6 +485,73 @@ export class OrdersRepository {
   async getCompletedOrderSnapshots(): Promise<OrderSnapshot[]> {
     const rows = await this.all<OrderDbRow>(this.completedOrderRows);
     return rows.map(rowToOrder).map(buildSnapshot);
+  }
+
+  /**
+   * Insert a full order row directly (used by fixture seeding and tests).
+   * Unlike announce(), this accepts all columns including status and
+   * fixture flag. Does NOT record a transition event — callers can use
+   * recordOrderTransition() for that.
+   */
+  async insertOrder(input: {
+    publicId: string;
+    direction: Direction;
+    status: OrderStatus;
+    hashlock: string;
+    srcChain: Chain;
+    srcAddress: string;
+    srcAsset: string;
+    srcAmount: string;
+    srcSafetyDeposit: string;
+    srcOrderId: string | null;
+    srcLockTx: string | null;
+    srcLockBlock: number | null;
+    srcTimelock: number | null;
+    dstChain: Chain;
+    dstAddress: string;
+    dstAsset: string;
+    dstAmount: string;
+    dstOrderId: string | null;
+    dstLockTx: string | null;
+    dstLockBlock: number | null;
+    dstTimelock: number | null;
+    preimage: string | null;
+    secretRevealedTx: string | null;
+    resolverAddress: string | null;
+    fixture: boolean;
+  }): Promise<OrderRow> {
+    await this.run(this.insertFullStmt, { ...input, fixture: input.fixture ? 1 : 0 });
+    const row = await this.get<OrderDbRow>(this.byPublicId, input.publicId);
+    if (!row) throw new Error("Failed to insert order");
+    return rowToOrder(row);
+  }
+
+  /** Count all fixture-flagged rows. */
+  async countFixtures(): Promise<number> {
+    const row = await this.get<{ count: number }>(this.countFixturesStmt);
+    return Number(row?.count ?? 0);
+  }
+
+  /** Delete all fixture-flagged rows. Returns the number of deleted rows. */
+  async removeFixtures(): Promise<number> {
+    const result = await this.run(this.removeFixturesStmt);
+    return result.changes;
+  }
+
+  /**
+   * Record a transition event for an order identified by publicId.
+   * Used by the demo-fixture seeder to build realistic state histories.
+   */
+  async recordOrderTransition(
+    publicId: string,
+    from: OrderStatus | null,
+    to: OrderStatus,
+    txHash: string | null,
+    category: string
+  ): Promise<void> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) throw new Error("Unknown order");
+    await this.recordTransition(order.id, from, to, txHash, category);
   }
 }
 
