@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS orders (
     -- Resolver that filled the destination side (if any).
     resolver_address      TEXT,
 
+    -- Opt-in demo-fixture flag. Issue #161 requires a path to reset
+    -- these rows; see OrdersRepository.removeFixtures(). Always 0
+    -- unless COORDINATOR_DEMO_FIXTURES=true has seeded fixtures.
+    fixture               INTEGER NOT NULL DEFAULT 0 CHECK (fixture IN (0, 1)),
+
     created_at            INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)),
     updated_at            INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER))
 );
