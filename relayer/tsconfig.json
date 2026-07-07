@@ -3,7 +3,7 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "ignoreDeprecations": "5.0",
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
@@ -25,6 +25,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "test"
+    "test",
+    "src/**/*.test.ts"
   ]
 } 

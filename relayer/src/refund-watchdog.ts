@@ -13,6 +13,7 @@
  * one bad order can't take down the entire timer.
  */
 
+import { redactLogValue } from '@oversync/sdk/logging';
 import { refundXlmToUser, type RefundNetworkMode } from './xlm-refund.js';
 
 const DEFAULT_INTERVAL_MS = 60_000; // 1 minute
@@ -124,7 +125,7 @@ export function startRefundWatchdog(config: WatchdogConfig): { stop: () => void 
       } catch (err: any) {
         order.watchdogFailedAt = Date.now();
         order.watchdogFailureReason = err?.message ?? String(err);
-        console.error(`[refund-watchdog] ❌ failed to refund ${orderId}:`, err?.message ?? err);
+        console.error(`[refund-watchdog] failed to refund ${orderId}:`, redactLogValue(err?.message ?? err));
       }
     }
   };

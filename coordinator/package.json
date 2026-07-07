@@ -16,6 +16,7 @@
     "replay": "tsx src/replay.ts"
   },
   "dependencies": {
+    "@oversync/sdk": "workspace:*",
     "@stellar/stellar-sdk": "^13.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",

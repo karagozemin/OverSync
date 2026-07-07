@@ -2,6 +2,7 @@ import { loadConfig } from "../config.js";
 import { getLogger } from "../logger.js";
 import { EthereumListener } from "../listeners/ethereum.js";
 import { SorobanListener } from "../listeners/soroban.js";
+import { redactLogObject } from "@oversync/sdk/logging";
 import { checkPreflight } from "./check.js";
 import { buildPlan } from "../planner/index.js";
 import { observedFromEthereumEvent } from "../planner/index.js";
@@ -59,7 +60,7 @@ export async function runCommand(opts: RunOptions = {}): Promise<void> {
       );
     },
     onOrderClaimed: (e) => {
-      log.info({ orderId: e.orderId.toString(), preimage: e.preimage }, "ETH order claimed");
+      log.info(redactLogObject({ orderId: e.orderId.toString(), preimage: e.preimage }), "ETH order claimed");
     },
     onOrderRefunded: (e) => {
       log.info({ orderId: e.orderId.toString() }, "ETH order refunded");
