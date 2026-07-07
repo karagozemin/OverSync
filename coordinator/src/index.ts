@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   }
 
   const quotes = new QuoteService(log);
-  const orders = new OrderService(repo, log, quotes);
+  const orders = new OrderService(repo, log, quotes, cfg);
   const secrets = new SecretService(orders, log);
 
   const app = createApp({

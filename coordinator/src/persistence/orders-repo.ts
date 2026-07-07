@@ -91,7 +91,6 @@ interface OrderEventDbRow {
   payload_json: string;
   created_at: number;
 }
-
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
@@ -285,7 +284,9 @@ export class OrdersRepository {
     this.metricsByStatus = db.prepare(
       "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
     );
-    this.metricsTotal = db.prepare("SELECT COUNT(*) as count FROM orders");
+    this.metricsTotal = db.prepare(
+      "SELECT COUNT(*) as count FROM orders"
+    );
     this.metricsLastUpdated = db.prepare(
       "SELECT MAX(updated_at) as ts FROM orders"
     );
@@ -593,5 +594,25 @@ function deriveTransitions(status: OrderStatus): string[] {
       return ["announced", "expired"];
     default:
       return [status];
+  }
+
+  async getMetrics(): Promise<OrderMetrics> {
+    const byStatus = await this.all<{ status: string; count: number }>(this.metricsByStatus);
+    const totalRow = await this.get<{ count: number }>(this.metricsTotal);
+    const lastUpdatedRow = await this.get<{ ts: number | null }>(this.metricsLastUpdated);
+
+    const statusMap: Record<string, number> = {};
+    for (const row of byStatus) {
+      statusMap[row.status] = Number(row.count);
+    }
+
+    return {
+      totalOrders: Number(totalRow?.count ?? 0),
+      byStatus: statusMap,
+      completedOrders: statusMap["completed"] ?? 0,
+      refundedOrders: statusMap["refunded"] ?? 0,
+      staleExpiredOrders: (statusMap["expired"] ?? 0) + (statusMap["failed"] ?? 0),
+      lastUpdatedTimestamp: lastUpdatedRow?.ts != null ? Number(lastUpdatedRow.ts) : null
+    };
   }
 }
