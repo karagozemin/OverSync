@@ -131,6 +131,19 @@ export function ordersRoutes(orders: OrderService): Router {
   });
 
   // Parameterized routes come AFTER specific routes
+
+  // GET /orders/:id/transitions — must be declared before GET /orders/:id
+  // so Express matches the more specific path first.
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const transitions = await orders.getTransitions(id);
+      res.json({ transitions });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
     try {
