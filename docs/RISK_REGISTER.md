@@ -87,7 +87,7 @@
 | **Likelihood** | **Low** (rational resolvers compete for fees) |
 | **Impact** | **Low** — users can self-resolve by running their own resolver, or wait for timelock refund |
 | **Mitigation** | Anyone can run a resolver (open permissionless registry). Users can self-resolve by staking and running the open-source runner. The coordinator broadcasts orders to all registered resolvers simultaneously — no single resolver can suppress an order. |
-| **Current evidence** | Docs at [`docs/RESOLVERS.md`](RESOLVERS.md) and [`docs/TRUST_MODEL.md`](TRUST_MODEL.md). Coordinator order broadcast in [`coordinator/src/services/orderbook.ts`](../coordinator/src/services/orderbook.ts). |
+| **Current evidence** | Docs at [`docs/RESOLVERS.md`](RESOLVERS.md) and [`docs/TRUST_MODEL.md`](TRUST_MODEL.md). Coordinator order broadcast in [`coordinator/src/services/order-service.ts`](../coordinator/src/services/order-service.ts). |
 | **Owner / action** | Core team — monitor resolver fill rates post-launch; consider minimum-fill-rate slashing if resolver set becomes oligopolistic. |
 | **Next action** | File issue: *Define resolver performance metrics and potential slashing conditions for liveness failure*. |
 
@@ -117,7 +117,7 @@
 | **Likelihood** | **Moderate** |
 | **Impact** | **Medium** — delayed claims and refunds (liveness, not fund safety) |
 | **Mitigation** | Coordinator uses a round-robin pool of RPC endpoints (Alchemy, QuickNode, public). Resolver runner supports configurable RPC endpoints. On-chain refund is permissionless — any user can call `refundOrder` via any RPC, including their own. Watchdog refund scanner runs on a separate RPC fallback path. |
-| **Current evidence** | RPC configuration in [`coordinator/src/config/rpc.ts`](../coordinator/src/config/rpc.ts) and [`resolver/src/config.ts`](../resolver/src/config.ts). |
+| **Current evidence** | RPC configuration in [`coordinator/src/config.ts`](../coordinator/src/config.ts) and [`resolver/src/config.ts`](../resolver/src/config.ts). |
 | **Owner / action** | Core team — add monitoring for RPC failure rates and alert when fallback is active. |
 | **Next action** | File issue: *RPC health monitoring dashboard and automatic failover metrics*. |
 
