@@ -3,6 +3,7 @@ import { parseCorsOrigins } from "./server/cors.js";
 import { getLogger } from "./logger.js";
 import { openDatabase } from "./persistence/db.js";
 import { OrdersRepository } from "./persistence/orders-repo.js";
+import { seedDemoFixtures } from "./persistence/demo-fixtures.js";
 import { OrderService } from "./services/order-service.js";
 import { QuoteService } from "./services/quote-service.js";
 import { SecretService } from "./services/secret-service.js";
@@ -17,8 +18,13 @@ async function main(): Promise<void> {
 
   const db = await openDatabase(cfg.databaseUrl);
   const repo = new OrdersRepository(db);
+
+  if (cfg.demoFixtures) {
+    await seedDemoFixtures(repo, log);
+  }
+
   const quotes = new QuoteService(log);
-  const orders = new OrderService(repo, log, quotes);
+  const orders = new OrderService(repo, log, quotes, cfg);
   const secrets = new SecretService(orders, log);
 
   const app = createApp({
