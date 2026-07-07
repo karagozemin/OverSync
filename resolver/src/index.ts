@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { runCommand } from "./commands/run.js";
 import { registerCommand, statusCommand, unregisterCommand } from "./commands/register.js";
+import { readinessCommand } from "./commands/readiness.js";
 
 const program = new Command();
 
@@ -13,8 +14,9 @@ program
 program
   .command("run")
   .description("Start the resolver. Listens to both chains and reacts to HTLC events.")
-  .action(async () => {
-    await runCommand();
+  .option("--dry-run", "Plan destination orders without submitting anything", false)
+  .action(async (opts: { dryRun: boolean }) => {
+    await runCommand({ dryRun: opts.dryRun || process.env.RESOLVER_DRY_RUN === "true" });
   });
 
 program
@@ -42,9 +44,31 @@ program
 program
   .command("check")
   .description("Run a preflight check to verify if the resolver is active in configured registries.")
-  .action(async () => {
+  .option("--json", "Emit JSON output suitable for dashboards and monitoring")
+  .action(async (options) => {
     const { checkCommand } = await import("./commands/check.js");
-    await checkCommand();
+    await checkCommand({ json: Boolean(options.json) });
+  });
+
+program
+  .command("preflight")
+  .description("Validate local configuration and prints actionable setup guidance before registration or staking.")
+  .action(async () => {
+    const { preflightCommand } = await import("./commands/preflight.js");
+    const code = await preflightCommand();
+    process.exit(code);
+  });
+
+program
+  .command("readiness")
+  .description(
+    "Dry-run onboarding check: validates env, RPC reachability, resolver registry address, " +
+      "and detects the resolver's EVM/Stellar addresses without printing private keys. " +
+      "Exits non-zero when required config is missing. No transactions are submitted."
+  )
+  .action(async () => {
+    const code = await readinessCommand();
+    process.exit(code);
   });
 
 
