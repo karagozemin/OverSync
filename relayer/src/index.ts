@@ -14,6 +14,7 @@ import { ethers } from 'ethers';
 import { startRefundWatchdog } from './refund-watchdog.js';
 import { startContractEventPoller, type ContractEventBinding, type ContractEventPollerHandle } from './contract-event-poller.js';
 import { startAdaptivePoll, type AdaptivePollHandle } from './adaptive-poll.js';
+import { validateTimelockOrdering } from "./utils/timelock-validator.js";
 import { fetchIncomingEthPayments } from './eth-incoming-monitor.js';
 import {
   expireAbandonedOrders,
@@ -439,6 +440,7 @@ export const RELAYER_CONFIG = {
     minTimelockDuration: Number(process.env.MIN_TIMELOCK_DURATION) || 3600,
     maxTimelockDuration: Number(process.env.MAX_TIMELOCK_DURATION) || 604800,
     defaultTimelockDuration: Number(process.env.DEFAULT_TIMELOCK_DURATION) || 86400,
+    timelockSafetyGapSeconds: Number(process.env.TIMELOCK_SAFETY_GAP_SECONDS) || 600,
     emergencyShutdown: process.env.EMERGENCY_SHUTDOWN === 'true',
     maintenanceMode: process.env.MAINTENANCE_MODE === 'true',
   },
@@ -1044,6 +1046,10 @@ async function initializeRelayer() {
           };
           
           const srcCancellationTimestamp = Math.floor(Date.now() / 1000) + (4 * 60 * 60); // 4 hours
+          const validation = validateTimelockOrdering(srcCancellationTimestamp, dstImmutables.timelocks, 600);
+          if (!validation.isValid) {
+            throw new Error(`Invalid timelock ordering: ${validation.error}`);
+          }
           
           // Encode EscrowFactory createDstEscrow call (DOĞRU MAINNET ABI!)
           console.log('🔍 DEBUG: About to encode createDstEscrow with:', {
@@ -1180,6 +1186,7 @@ async function initializeRelayer() {
           ],
           safetyDeposit: ethers.formatEther(actualSafetyDeposit.toString()),
           totalCost: ethers.formatEther(totalCost.toString()),
+           timelocks: orderData.timelock,
           contractType: 'ESCROW_FACTORY_DIRECT_TESTNET',
           contractAddress: getEscrowFactoryAddress(requestNetwork),
           note: '✅ TESTNET: ESKİ createEscrow metodu - bizim custom contract!'
@@ -1285,11 +1292,25 @@ async function initializeRelayer() {
         // Store pending order data (NO ETH HTLC YET!)
         const relayerStellarAddress = process.env.RELAYER_STELLAR_PUBLIC || 'YOUR_STELLAR_PUBLIC_KEY_HERE';
         
+        // Calculate timelocks for XLM -> ETH
+        // Stellar lock (dst): 2 hours from now
+        // ETH lock (src): Stellar lock + 10m gap + 2 hours
+        const stellarTimelock = Math.floor(Date.now() / 1000) + (2 * 60 * 60);
+        const ethTimelock = stellarTimelock + RELAYER_CONFIG.security.timelockSafetyGapSeconds + (2 * 60 * 60);
+
+        // Validate
+        const validation = validateTimelockOrdering(ethTimelock, stellarTimelock, RELAYER_CONFIG.security.timelockSafetyGapSeconds);
+        if (!validation.isValid) {
+          throw new Error(`Invalid timelock ordering for XLM->ETH: ${validation.error}`);
+        }
+
         const orderData = {
           orderId,
           direction: 'xlm_to_eth',
           stellarAmount: (xlmAmount * 1e7).toString(),
           ethAmount: ethAmountWei.toString(),
+          stellarTimelock,
+          ethTimelock,
           ethAddress,
           stellarAddress,
           exchangeRate: ethToXlmRate,
@@ -1308,7 +1329,7 @@ async function initializeRelayer() {
             beneficiary: ethAddress
           }
         };
-        
+
         await storeActiveOrder(orderId, orderData);
 
         res.json({
@@ -1318,13 +1339,15 @@ async function initializeRelayer() {
           orderData: {
             stellarAmount: (xlmAmount * 1e7).toString(),
             stellarAddress: relayerStellarAddress,
+            stellarTimelock,
+            ethTimelock,
             memo: `XLM-ETH-${orderId.substring(0, 8)}`,
             expectedEthAmount: ethAmountWei.toString(),
             status: 'awaiting_xlm_payment',
             instructions: `Send ${xlmAmount} XLM to ${relayerStellarAddress} with memo: XLM-ETH-${orderId.substring(0, 8)}`
           }
         });
-        
+
       } else {
         throw new Error('Invalid direction specified');
       }
@@ -1898,8 +1921,14 @@ async function initializeRelayer() {
       // }
 
       // Use provided data or defaults if order not found in memory
-      const userEthAddress = storedOrder?.ethAddress || normalizedEthAddress;
-      const orderAmount = storedOrder?.amount || '10'; // Default for testing
+       const userEthAddress = storedOrder?.ethAddress || normalizedEthAddress;
+       if (storedOrder?.stellarTimelock && storedOrder?.ethTimelock) {
+         const validation = validateTimelockOrdering(storedOrder.ethTimelock, storedOrder.stellarTimelock, RELAYER_CONFIG.security.timelockSafetyGapSeconds);
+         if (!validation.isValid) {
+           throw new Error(`Invalid timelock ordering: ${validation.error}`);
+         }
+       }
+       const orderAmount = storedOrder?.amount || '10'; // Default for testing
 
       // 🛡️ Refund watchdog bookkeeping. We need:
       //   - `xlmReceivedAt`: when the user committed XLM (used to compute staleness)
