@@ -65,7 +65,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "0",
       txHash: "0xsrctx",
       blockNumber: 100,
-      timelock: 200
+      timelock: 900
     });
     await orders.recordDstLock({
       publicId: order.publicId,
@@ -104,7 +104,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "1",
       txHash: "0xsrc",
       blockNumber: 1,
-      timelock: 0
+      timelock: 600
     });
     await orders.recordDstLock({
       publicId: order.publicId,
@@ -136,7 +136,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "2",
       txHash: "0xsrcrtx",
       blockNumber: 50,
-      timelock: 150
+      timelock: 800
     });
     await orders.recordDstLock({
       publicId: order.publicId,
@@ -196,7 +196,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "c1",
       txHash: "0xc1src",
       blockNumber: 1,
-      timelock: 0
+      timelock: 600
     });
     await orders.recordDstLock({
       publicId: completed1.publicId,
