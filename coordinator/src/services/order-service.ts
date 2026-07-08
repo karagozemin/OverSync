@@ -14,6 +14,8 @@ import { type FailureCode } from "@oversync/sdk";
 import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
 import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
+import { loadConfig } from "../config.js";
+import { validateTimelockOrdering } from "../utils/timelock-validator.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -43,7 +45,7 @@ export const announceSchema = z.object({
 export type AnnounceInput = z.infer<typeof announceSchema>;
 
 export class OrderValidationError extends Error {
-  constructor(message: string, public readonly code: FailureCode = "VALIDATION_FAILED") {
+  constructor(message: string) {
     super(message);
     this.name = "OrderValidationError";
   }
@@ -73,12 +75,17 @@ function validateDirectionAgainstChains(input: AnnounceInput): void {
 }
 
 export class OrderService {
+  private readonly minGapSeconds: number;
+
   constructor(
     private readonly repo: OrdersRepository,
     private readonly log: Logger,
     /** Optional — when supplied, quoteId in announce requests is validated. */
-    private readonly quoteService?: QuoteService
-  ) {}
+    private readonly quoteService?: QuoteService,
+    config?: ReturnType<typeof loadConfig>
+  ) {
+    this.minGapSeconds = config?.timelockSafetyGapSeconds ?? 600;
+  }
 
   /**
    * Record a new order announcement. The coordinator does NOT lock any
@@ -181,6 +188,20 @@ export class OrderService {
     if (!canTransition(order.status, "dst_locked") && order.status !== "dst_locked") {
       throw new OrderValidationError(`cannot record dst lock from status ${order.status}`, "VALIDATION_FAILED");
     }
+
+    if (order.srcTimelock) {
+      const validation = validateTimelockOrdering(
+        order.srcTimelock,
+        input.timelock,
+        this.minGapSeconds
+      );
+      if (!validation.isValid) {
+        throw new OrderValidationError(
+          `Invalid destination timelock: ${validation.error === 'TIMELOCKS_REVERSED' ? 'reversed or equal to source timelock' : 'gap too small'}`
+        );
+      }
+    }
+
     await this.repo.recordDstLock(input);
     this.log.info({ publicId: input.publicId, dstOrderId: input.orderId }, "dst lock recorded");
     ordersTotal.inc({ status: "dst_locked" });

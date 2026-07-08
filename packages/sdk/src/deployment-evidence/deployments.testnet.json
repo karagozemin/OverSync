@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-05-14T00:00:00Z",
+  "deployments": [
+    {
+      "chain": "Ethereum",
+      "network": "Sepolia",
+      "contractName": "HTLC",
+      "address": "0xb352339BEb146f2699d28D736700B953988bB178",
+      "explorerUrl": "https://sepolia.etherscan.io/address/0xb352339beb146f2699d28d736700b953988bb178",
+      "sourcePath": "contracts/evm/src/HTLC.sol",
+      "status": "testnet-live",
+      "deployedAt": "2026-05-14T00:00:00Z",
+      "notes": "EVM Hash Time-Lock Contract on Sepolia. Accepts ETH and ERC-20 tokens."
+    },
+    {
+      "chain": "Ethereum",
+      "network": "Sepolia",
+      "contractName": "ResolverRegistry",
+      "address": "0x7D9ce70Aa40E144E8BbE266a0dc3b3F91B6D1D99",
+      "explorerUrl": "https://sepolia.etherscan.io/address/0x7d9ce70aa40e144e8bbe266a0dc3b3f91b6d1d99",
+      "sourcePath": "contracts/evm/src/ResolverRegistry.sol",
+      "status": "testnet-live",
+      "deployedAt": "2026-05-14T00:00:00Z",
+      "notes": "EVM resolver registry on Sepolia. Manages authorized resolver operator addresses."
+    },
+    {
+      "chain": "Stellar",
+      "network": "Testnet",
+      "contractName": "HTLC",
+      "address": "CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK",
+      "explorerUrl": "https://stellar.expert/explorer/testnet/contract/CDIKSJKVMXKGBRD3BBEBMF7Q4GQJ52ECU6R6G5HEKXKXVGGWK2CTA6JK",
+      "sourcePath": "soroban/contracts/htlc/src/lib.rs",
+      "status": "testnet-live",
+      "deployedAt": "2026-05-14T00:00:00Z",
+      "notes": "Soroban Hash Time-Lock Contract on Stellar Testnet. Supports XLM and SAC tokens."
+    },
+    {
+      "chain": "Stellar",
+      "network": "Testnet",
+      "contractName": "ResolverRegistry",
+      "address": "CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF",
+      "explorerUrl": "https://stellar.expert/explorer/testnet/contract/CBSR7Z4MHLPMLFFM5K3PK3YLZAVCOMJ4KPVRWO4VPL3FF64MSTIZ4WGF",
+      "sourcePath": "soroban/contracts/resolver-registry/src/lib.rs",
+      "status": "testnet-live",
+      "deployedAt": "2026-05-14T00:00:00Z",
+      "notes": "Soroban resolver registry on Stellar Testnet. Tracks authorized resolver operators."
+    }
+  ]
+}
