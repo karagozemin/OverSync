@@ -374,6 +374,104 @@ function resolveEthereumRpcUrlForRelayer(): string {
   return resolveEthereumRpcUrl(network);
 }
 
+// Validate required environment variables
+function validateRelayerConfig(): void {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Network mode validation
+  const networkMode = process.env.NETWORK_MODE || 'mainnet';
+  if (networkMode !== 'testnet' && networkMode !== 'mainnet') {
+    errors.push(`NETWORK_MODE must be 'testnet' or 'mainnet', got: ${networkMode}`);
+  }
+
+  // Mainnet requires explicit audit confirmation
+  if (networkMode === 'mainnet') {
+    const auditConfirmed = process.env.MAINNET_AUDIT_CONFIRMED === 'true';
+    if (!auditConfirmed) {
+      errors.push(
+        "MAINNET DEPLOYMENT BLOCKED: Set MAINNET_AUDIT_CONFIRMED=true only after " +
+        "completing the mainnet readiness checklist in docs/DEPLOYMENT.md. " +
+        "This includes audit completion, multisig ownership, and bug bounty."
+      );
+    }
+  }
+
+  // Required RPC URLs
+  const ethereumRpcUrl = resolveEthereumRpcUrlForRelayer();
+  if (!ethereumRpcUrl || ethereumRpcUrl.includes('YOUR_') || ethereumRpcUrl.includes('api_key_here')) {
+    errors.push("ETHEREUM_RPC_URL not configured. Set SEPOLIA_RPC_URL, MAINNET_RPC_URL, or INFURA_API_KEY.");
+  }
+
+  const stellarHorizonUrl = process.env.STELLAR_HORIZON_URL || 
+    (networkMode === 'mainnet' ? 'https://horizon.stellar.org' : 'https://horizon-testnet.stellar.org');
+  if (!stellarHorizonUrl || stellarHorizonUrl.includes('YOUR_')) {
+    errors.push("STELLAR_HORIZON_URL not configured.");
+  }
+
+  // Required private keys for production
+  if (networkMode === 'mainnet' || networkMode === 'testnet') {
+    if (!process.env.RELAYER_PRIVATE_KEY || process.env.RELAYER_PRIVATE_KEY.startsWith('0x000000')) {
+      errors.push("RELAYER_PRIVATE_KEY not configured or using placeholder. Generate a real key for production.");
+    }
+
+    if (!process.env.RELAYER_STELLAR_SECRET || process.env.RELAYER_STELLAR_SECRET.includes('SAMPLE')) {
+      errors.push("RELAYER_STELLAR_SECRET not configured or using placeholder. Generate real keys for production.");
+    }
+
+    if (!process.env.RELAYER_STELLAR_PUBLIC || process.env.RELAYER_STELLAR_PUBLIC.includes('YOUR_')) {
+      errors.push("RELAYER_STELLAR_PUBLIC not configured.");
+    }
+  }
+
+  // Testnet requires contract addresses
+  if (networkMode === 'testnet') {
+    const missingContracts = [];
+    if (!process.env.ETH_HTLC_ESCROW_TESTNET) {
+      missingContracts.push("ETH_HTLC_ESCROW_TESTNET");
+    }
+    if (!process.env.ETH_RESOLVER_REGISTRY_TESTNET) {
+      missingContracts.push("ETH_RESOLVER_REGISTRY_TESTNET");
+    }
+    if (!process.env.SOROBAN_HTLC_TESTNET) {
+      missingContracts.push("SOROBAN_HTLC_TESTNET");
+    }
+    if (!process.env.SOROBAN_RESOLVER_REGISTRY_TESTNET) {
+      missingContracts.push("SOROBAN_RESOLVER_REGISTRY_TESTNET");
+    }
+
+    if (missingContracts.length > 0) {
+      errors.push(
+        `TESTNET DEPLOYMENT INCOMPLETE: Missing required testnet contract addresses: ` +
+        missingContracts.join(", ") +
+        ". Deploy contracts first (see docs/DEPLOYMENT.md)."
+      );
+    }
+  }
+
+  // Timeout validation
+  const rpcTimeoutMs = Number(process.env.RELAYER_RPC_TIMEOUT_MS) || 30000;
+  if (rpcTimeoutMs < 1000 || rpcTimeoutMs > 300000) {
+    warnings.push(`RELAYER_RPC_TIMEOUT_MS=${rpcTimeoutMs} is outside recommended range (1000-300000ms)`);
+  }
+
+  // Report errors
+  if (errors.length > 0) {
+    console.error('❌ RELAYER CONFIGURATION ERRORS:');
+    errors.forEach(err => console.error(`   - ${err}`));
+    console.error('\nRelayer startup blocked. Fix the above errors and restart.');
+    process.exit(1);
+  }
+
+  // Report warnings
+  if (warnings.length > 0) {
+    console.warn('⚠️  Relayer configuration warnings:');
+    warnings.forEach(warn => console.warn(`   - ${warn}`));
+  }
+
+  console.log('✅ Relayer configuration validation passed');
+}
+
 // Relayer configuration from environment variables
 export const RELAYER_CONFIG = {
   // Service settings
@@ -455,31 +553,10 @@ export const RELAYER_CONFIG = {
   }
 };
 
-// Validate required environment variables
+// Legacy validation function (kept for backward compatibility)
 function validateConfig() {
-  const requiredVars = [
-    'ETHEREUM_RPC_URL',
-    'STELLAR_HORIZON_URL',
-  ];
-  
-  const missingVars = requiredVars.filter(varName => !process.env[varName] || process.env[varName]?.includes('YOUR_'));
-  
-  if (missingVars.length > 0) {
-    console.warn('⚠️  Missing or placeholder environment variables:');
-    missingVars.forEach(varName => {
-      console.warn(`   - ${varName}`);
-    });
-    console.warn('   Please copy env.template to .env and configure properly');
-  }
-  
-  // Check for placeholder private keys
-  if (process.env.RELAYER_PRIVATE_KEY?.startsWith('0x000000')) {
-    console.warn('⚠️  Using placeholder private key - generate a real key for production');
-  }
-  
-  if (process.env.RELAYER_STELLAR_SECRET?.includes('SAMPLE')) {
-    console.warn('⚠️  Using placeholder Stellar secret - generate real keys for production');
-  }
+  console.warn('⚠️  validateConfig() is deprecated. Use validateRelayerConfig() instead.');
+  validateRelayerConfig();
 }
 
 /**
@@ -531,8 +608,8 @@ async function initializeRelayer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
   
-  // Validate configuration
-  validateConfig();
+  // Validate configuration (fails fast on invalid config)
+  validateRelayerConfig();
   
   // Display configuration
   console.log(`🌐 Environment: ${RELAYER_CONFIG.nodeEnv}`);

@@ -14,6 +14,17 @@ contained inconsistencies flagged in v1 review feedback.
 - A funded Ethereum deployer key (Sepolia or mainnet)
 - A funded Stellar account (Soroban testnet or public)
 
+## Environment Validation
+
+All OverSync services now perform **strict environment validation at startup**:
+
+- **Coordinator**: Validates config with Zod schema, requires testnet contract addresses, blocks mainnet without audit confirmation
+- **Resolver**: Validates config with Zod schema, requires testnet contract addresses, blocks mainnet without audit confirmation  
+- **Relayer**: Validates RPC URLs, contract addresses, private keys, and timeout settings
+- **Frontend**: Validates contract addresses and network configuration at **build time** (Vite)
+
+**Services will fail to start if required environment variables are missing or malformed.**
+
 ## 1. Copy and fill in the env file
 
 ```bash
@@ -30,6 +41,8 @@ INFURA_API_KEY=<your_infura_project_key>
 SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 ETHERSCAN_API_KEY=<key>
 ```
+
+**⚠️  CRITICAL: Do NOT set `MAINNET_AUDIT_CONFIRMED=true` until you have completed the mainnet readiness checklist below.**
 
 Testnet asset identifier mappings (native ETH ↔ XLM, Sepolia USDC ↔ Stellar USDC)
 are centralized in `packages/sdk/src/assets/index.ts` and exported from
@@ -165,6 +178,15 @@ Before setting `VITE_MAINNET_ENABLED=true` and flipping backend
 - [ ] Public bug bounty announced
 - [ ] Sepolia run with $1k+ in TVL for a continuous 14-day window without incidents
 
+**Once all items are checked:**
+
+1. Set `MAINNET_AUDIT_CONFIRMED=true` in backend `.env` (coordinator, resolver, relayer)
+2. Set `VITE_MAINNET_AUDIT_CONFIRMED=true` in Vercel environment variables
+3. Set `VITE_MAINNET_ENABLED=true` in Vercel environment variables
+4. Flip backend `NETWORK_MODE=mainnet` and deploy
+
+**This three-step process prevents accidental mainnet enablement.**
+
 ## Rolling back
 
 If a serious bug is found post-launch, the HTLCEscrow contract has
@@ -204,8 +226,58 @@ the CI address-consistency check stays green:
    And the frontend Vercel env vars:
    ```
    VITE_ETH_HTLC_ESCROW_TESTNET=0x<new>
+   VITE_ETH_RESOLVER_REGISTRY_TESTNET=0x<new>
+   VITE_SOROBAN_HTLC_TESTNET=C<new>
+   VITE_SOROBAN_RESOLVER_REGISTRY_TESTNET=C<new>
    ```
 
 5. **Verify**: run `pnpm verify:addresses` locally before pushing. The same
    check runs in CI (`address-verify` workflow) on every PR that touches these
    files and will block the merge if any value drifts.
+
+## Environment Variable Reference
+
+See [`env.example`](../env.example) for a complete list of all environment variables
+with descriptions. Key variables by service:
+
+### Coordinator (`coordinator/src/config.ts`)
+- `NETWORK_MODE`, `MAINNET_AUDIT_CONFIRMED` (mainnet only)
+- `ETH_HTLC_ESCROW_TESTNET` / `ETH_HTLC_ESCROW_MAINNET`
+- `ETH_RESOLVER_REGISTRY_TESTNET` / `ETH_RESOLVER_REGISTRY_MAINNET`
+- `SOROBAN_HTLC_TESTNET` / `SOROBAN_HTLC_MAINNET`
+- `SOROBAN_RESOLVER_REGISTRY_TESTNET` / `SOROBAN_RESOLVER_REGISTRY_MAINNET`
+- `DATABASE_URL`, `COORDINATOR_PORT`, `LOG_LEVEL`
+
+### Resolver (`resolver/src/config.ts`)
+- Same contract address variables as coordinator
+- `RESOLVER_ETH_PRIVATE_KEY`, `RESOLVER_STELLAR_SECRET` (required for production)
+- `COORDINATOR_URL`, `RESOLVER_POLL_INTERVAL_MS`
+
+### Relayer (`relayer/src/index.ts`)
+- `RELAYER_PRIVATE_KEY`, `RELAYER_STELLAR_SECRET`, `RELAYER_STELLAR_PUBLIC`
+- `RELAYER_RPC_TIMEOUT_MS`, `RELAYER_RETRY_ATTEMPTS`
+- `ETHEREUM_NETWORK`, `STELLAR_NETWORK`
+- `GAS_PRICE_GWEI`, `GAS_LIMIT`
+
+### Frontend (`frontend/src/config/networks.ts`)
+- `VITE_NETWORK_MODE`, `VITE_MAINNET_ENABLED`, `VITE_MAINNET_AUDIT_CONFIRMED`
+- `VITE_ETH_HTLC_ESCROW_TESTNET` / `VITE_ETH_HTLC_ESCROW_MAINNET`
+- `VITE_ETH_RESOLVER_REGISTRY_TESTNET` / `VITE_ETH_RESOLVER_REGISTRY_MAINNET`
+- `VITE_SOROBAN_HTLC_TESTNET` / `VITE_SOROBAN_HTLC_MAINNET`
+- `VITE_SOROBAN_RESOLVER_REGISTRY_TESTNET` / `VITE_SOROBAN_RESOLVER_REGISTRY_MAINNET`
+- `VITE_API_BASE_URL`, `VITE_SEPOLIA_RPC_URL`, `VITE_MAINNET_RPC_URL`
+
+## Troubleshooting
+
+### "MAINNET DEPLOYMENT BLOCKED" error
+This is a safety feature. Complete the mainnet readiness checklist in `env.example`
+and set `MAINNET_AUDIT_CONFIRMED=true`.
+
+### "TESTNET DEPLOYMENT INCOMPLETE" error
+Deploy the testnet contracts first (see Section 2 and 3 above), then set the
+contract address environment variables.
+
+### Frontend build fails with "Frontend environment validation failed"
+Check that all `VITE_*` contract address variables are set in your Vercel
+environment variables. The build will fail if testnet/mainnet contract addresses
+are missing when the corresponding network mode is selected.
