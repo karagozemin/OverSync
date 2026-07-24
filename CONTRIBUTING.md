@@ -40,6 +40,7 @@ pnpm --filter @oversync/frontend dev
 Run the checks that match your change before opening a PR:
 
 ```bash
+pnpm validate:deployments
 pnpm --filter @oversync/sdk build
 pnpm --filter @oversync/sdk exec tsc --noEmit
 pnpm --filter @oversync/coordinator exec tsc --noEmit

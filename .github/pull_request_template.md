@@ -42,6 +42,7 @@ Tick the matches your change and paste the outcome below. Commands mirror the ma
 - [ ] `cd soroban && stellar contract build && cargo test --release`
 - [ ] `(cd contracts && forge test --match-path "test/foundry/*" -v)` (Solidity fuzz / invariant)
 - [ ] `pnpm test:e2e` (cross-chain differential harness)
+- [ ] `pnpm validate:deployments` — required if `deployments.*.json` changes
 - [ ] `node scripts/verify-addresses.mjs` — required if addresses, configs, or `env.example` change
 - [ ] `node scripts/check-evidence-links.mjs` — advisory; required if docs links change
 
