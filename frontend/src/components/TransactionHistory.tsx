@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, CheckCircle, XCircle, ArrowRight, ExternalLink, RefreshCw, Undo2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, ArrowRight, ExternalLink, RefreshCw, Undo2, FileText } from 'lucide-react';
 import { isTestnet } from '../config/networks';
 import RefundDialog from '../features/refund/RefundDialog';
 import CopyableIdentifier from './CopyableIdentifier';
 import OrderStaleBanner from './OrderStaleBanner';
+import HtlcReceiptCard from './HtlcReceiptCard';
 import { classifyOrderFreshness } from '../lib/orderFreshness';
+import { buildHtlcReceipt } from '../lib/parseHtlcReceipt';
 import type { Address } from 'viem';
 import HtlcTimeline from './HtlcTimeline';
 
@@ -142,6 +144,7 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
   const [refundTarget, setRefundTarget] = useState<Transaction | null>(null);
   const [manualRefundingIds, setManualRefundingIds] = useState<Set<string>>(() => new Set());
   const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
+  const [receiptOpenIds, setReceiptOpenIds] = useState<Set<string>>(() => new Set());
 
   const isTxExpanded = (tx: Transaction): boolean => {
     if (expandedTxIds.has(tx.id + '_hidden')) {
@@ -301,6 +304,15 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
 
   const getRefundNetworkLabel = (tx: Transaction): string =>
     getRefundNetwork(tx) === 'ethereum' ? 'Ethereum' : 'Stellar';
+
+  const toggleReceipt = (id: string) => {
+    setReceiptOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   /**
    * A pending ETH→XLM swap is "refundable" once we have all three on-chain
@@ -475,30 +487,44 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {tx.ethTxHash && isRealHash(tx.ethTxHash) && (
-                    <a
-                      href={getEtherscanUrl(tx.ethTxHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                      title="View on Etherscan"
-                    >
-                      <img src="/images/eth.png" alt="ETH" className="h-3.5 w-3.5" />
-                      <span>Etherscan</span>
-                      <ExternalLink className="h-3 w-3 opacity-70" />
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={getEtherscanUrl(tx.ethTxHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                        title="View on Etherscan"
+                      >
+                        <img src="/images/eth.png" alt="ETH" className="h-3.5 w-3.5" />
+                        <span>Etherscan</span>
+                        <ExternalLink className="h-3 w-3 opacity-70" />
+                      </a>
+                      <CopyableIdentifier
+                        value={getEtherscanUrl(tx.ethTxHash)}
+                        hideDisplay
+                        copyLabel="Etherscan URL"
+                      />
+                    </div>
                   )}
                   {tx.stellarTxHash && isRealHash(tx.stellarTxHash) && (
-                    <a
-                      href={getStellarExplorerUrl(tx.stellarTxHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                      title="View on Stellar Expert"
-                    >
-                      <img src="/images/xlm.png" alt="XLM" className="h-3.5 w-3.5" />
-                      <span>Stellar Expert</span>
-                      <ExternalLink className="h-3 w-3 opacity-70" />
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={getStellarExplorerUrl(tx.stellarTxHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                        title="View on Stellar Expert"
+                      >
+                        <img src="/images/xlm.png" alt="XLM" className="h-3.5 w-3.5" />
+                        <span>Stellar Expert</span>
+                        <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                      </a>
+                      <CopyableIdentifier
+                        value={getStellarExplorerUrl(tx.stellarTxHash)}
+                        hideDisplay
+                        copyLabel="Stellar Expert URL"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -551,23 +577,40 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
                       <span>{isTxExpanded(tx) ? 'Hide Timeline' : 'Show Timeline'}</span>
                     </button>
                   )}
-                  {tx.refundTxHash && (
-                    <a
-                      href={getRefundExplorerUrl(tx)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
-                      title={`Refund settled on ${getRefundNetworkLabel(tx)}. Click to view the refund transaction.`}
+                  {(tx.status === 'completed' || tx.status === 'cancelled' || tx.status === 'failed') && (
+                    <button
+                      onClick={() => toggleReceipt(tx.id)}
+                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white"
+                      title="View HTLC settlement receipt"
                     >
-                      <Undo2 className="h-3.5 w-3.5" />
-                      <span>Refunded · view on</span>
-                      <img
-                        src={getRefundNetwork(tx) === 'ethereum' ? '/images/eth.png' : '/images/xlm.png'}
-                        alt={getRefundNetworkLabel(tx)}
-                        className="h-3.5 w-3.5"
+                      <FileText className="h-3.5 w-3.5" />
+                      {receiptOpenIds.has(tx.id) ? 'Hide Receipt' : 'Receipt'}
+                    </button>
+                  )}
+                  {tx.refundTxHash && (
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={getRefundExplorerUrl(tx)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
+                        title={`Refund settled on ${getRefundNetworkLabel(tx)}. Click to view the refund transaction.`}
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                        <span>Refunded · view on</span>
+                        <img
+                          src={getRefundNetwork(tx) === 'ethereum' ? '/images/eth.png' : '/images/xlm.png'}
+                          alt={getRefundNetworkLabel(tx)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <span>{getRefundNetworkLabel(tx)}</span>
+                      </a>
+                      <CopyableIdentifier
+                        value={getRefundExplorerUrl(tx)}
+                        hideDisplay
+                        copyLabel="refund URL"
                       />
-                      <span>{getRefundNetworkLabel(tx)}</span>
-                    </a>
+                    </div>
                   )}
                   {canRefund(tx) && (
                     <button
@@ -604,6 +647,24 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
 
               {isTestnetTx(tx) && isTxExpanded(tx) && (
                 <HtlcTimeline tx={tx} />
+              )}
+              {receiptOpenIds.has(tx.id) && (
+                <HtlcReceiptCard
+                  receipt={buildHtlcReceipt({
+                    orderId: tx.onChainOrderId || tx.id,
+                    direction: tx.direction,
+                    amount: tx.amount,
+                    fromToken: tx.fromToken,
+                    toToken: tx.toToken,
+                    estimatedAmount: tx.estimatedAmount,
+                    status: tx.status,
+                    ethTxHash: tx.ethTxHash,
+                    stellarTxHash: tx.stellarTxHash,
+                    refundTxHash: tx.refundTxHash,
+                    refundNetwork: tx.refundNetwork,
+                    timelockUnixSeconds: tx.timelockUnixSeconds,
+                  })}
+                />
               )}
             </div>
           ))

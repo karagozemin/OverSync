@@ -57,8 +57,9 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   };
 });
 
-import { checkPreflight } from "../src/commands/check.js";
+import { checkPreflight, buildJsonOutput } from "../src/commands/check.js";
 import { __setMockConfig } from "../src/config.js";
+import type { ResolverConfig } from "../src/config.js";
 
 describe("checkPreflight", () => {
   beforeEach(() => {
@@ -166,5 +167,112 @@ describe("checkPreflight", () => {
     const results = await checkPreflight();
     expect(results[0].active).toBe("unknown");
     expect(results[1].active).toBe("unknown");
+  });
+});
+
+describe("buildJsonOutput", () => {
+  const baseConfig: ResolverConfig = {
+    network: "testnet",
+    pollIntervalMs: 15000,
+    coordinatorUrl: "http://localhost:3001",
+    logLevel: "info",
+    ethereum: {
+      rpcUrl: "http://localhost:8545",
+      chainId: 11155111,
+      htlcEscrow: "0x1111111111111111111111111111111111111111",
+      resolverRegistry: "0x2222222222222222222222222222222222222222",
+      resolverPrivateKey: "0xabc",
+    },
+    soroban: {
+      rpcUrl: "http://localhost:8000",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      horizonUrl: "http://localhost:8001",
+      htlc: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBB4",
+      resolverRegistry: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBB5",
+      resolverSecret: "SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBB6",
+    },
+  };
+
+  it("produces healthy status when all checks pass", () => {
+    const results = [
+      { chain: "ethereum", configured: true, active: true },
+      { chain: "soroban", configured: true, active: true },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    expect(output.status).toBe("healthy");
+    expect(output.networks).toHaveLength(2);
+    expect(output.warnings).toHaveLength(0);
+    expect(output.generatedAt).toBeTruthy();
+    expect(() => JSON.parse(JSON.stringify(output))).not.toThrow();
+  });
+
+  it("produces degraded status when one chain is not active", () => {
+    const results = [
+      { chain: "ethereum", configured: true, active: true },
+      { chain: "soroban", configured: true, active: false, reason: "Not staked" },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    expect(output.status).toBe("degraded");
+    expect(output.networks[1].active).toBe(false);
+    expect(output.networks[1].warnings).toContain("Resolver is not active. May need to stake/register.");
+  });
+
+  it("produces error status when a chain is not configured", () => {
+    const results = [
+      { chain: "ethereum", configured: false, active: "unknown", reason: "Missing registry" },
+      { chain: "soroban", configured: true, active: true },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    expect(output.status).toBe("error");
+    expect(output.networks[0].configured).toBe(false);
+    expect(output.networks[0].warnings).toContain("Missing registry");
+  });
+
+  it("sets rpcReachable based on configured and active state", () => {
+    const results = [
+      { chain: "ethereum", configured: false, active: "unknown" },
+      { chain: "soroban", configured: true, active: true },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    expect(output.networks[0].rpcReachable).toBe(false);
+    expect(output.networks[1].rpcReachable).toBe(true);
+  });
+
+  it("sets resolverAddress from config when credentials are present", () => {
+    const results = [
+      { chain: "ethereum", configured: true, active: true },
+      { chain: "soroban", configured: true, active: true },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    expect(output.networks[0].resolverAddress).toBe("0x123");
+    expect(output.networks[1].resolverAddress).toBe("G123");
+  });
+
+  it("sets resolverAddress to null when credentials are missing", () => {
+    const noCredsConfig: ResolverConfig = {
+      ...baseConfig,
+      ethereum: { ...baseConfig.ethereum, resolverPrivateKey: null },
+      soroban: { ...baseConfig.soroban, resolverSecret: null },
+    };
+    const results = [
+      { chain: "ethereum", configured: false, active: "unknown" },
+      { chain: "soroban", configured: false, active: "unknown" },
+    ];
+    const output = buildJsonOutput(results, noCredsConfig);
+    expect(output.networks[0].resolverAddress).toBeNull();
+    expect(output.networks[1].resolverAddress).toBeNull();
+  });
+
+  it("emits no private keys in output", () => {
+    const results = [
+      { chain: "ethereum", configured: true, active: true },
+      { chain: "soroban", configured: true, active: true },
+    ];
+    const output = buildJsonOutput(results, baseConfig);
+    const json = JSON.stringify(output);
+    expect(json).not.toContain("0xabc");
+    expect(json).not.toContain("SAAAAA");
+    expect(json).not.toContain("resolverPrivateKey");
+    expect(json).not.toContain("resolverSecret");
   });
 });
