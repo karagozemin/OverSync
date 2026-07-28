@@ -5,6 +5,7 @@ export * from "./assets/index.js";
 export * from "./logging/index.js";
 export * from "./errors/index.js";
 export * from "./explorers/index.js";
+export * from "./deployment-evidence/index.js";
 export {
   EthereumHTLCClient,
   HTLC_ESCROW_ABI,

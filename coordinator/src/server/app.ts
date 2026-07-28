@@ -45,7 +45,6 @@ export function createApp(deps: AppDeps): Express {
   app.use("/api", secretsRoutes(deps.secrets));
   app.use("/api", quotesRoutes(deps.quotes));
   app.use("/api", orderMetricsRoutes(deps.orders));
-
   // 413 / 400 handler — catches oversized request bodies and malformed JSON before the generic error handler.
   app.use(
     (

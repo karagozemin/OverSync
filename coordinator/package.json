@@ -13,7 +13,9 @@
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
-    "replay": "tsx src/replay.ts"
+    "replay": "tsx src/replay.ts",
+    "fixtures:seed": "COORDINATOR_DEMO_FIXTURES=true tsx src/index.ts",
+    "fixtures:remove": "tsx src/remove-fixtures.ts"
   },
   "dependencies": {
     "@oversync/sdk": "workspace:*",
