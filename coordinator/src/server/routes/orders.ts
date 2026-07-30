@@ -131,6 +131,21 @@ export function ordersRoutes(orders: OrderService): Router {
   });
 
   // Parameterized routes come AFTER specific routes
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const order = await orders.get(id);
+      if (!order) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+      const history = await orders.getTransitions(id);
+      res.json({ transitions: history });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
     try {
