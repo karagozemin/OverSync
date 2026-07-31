@@ -40,7 +40,9 @@
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
-    "verify:addresses": "node scripts/verify-addresses.mjs"
+    "verify:addresses": "node scripts/verify-addresses.mjs",
+    "soroban:verify": "node soroban/scripts/print-deployments.mjs testnet",
+    "soroban:verify:mainnet": "node soroban/scripts/print-deployments.mjs mainnet"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
