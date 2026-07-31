@@ -42,7 +42,8 @@
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
     "verify:addresses": "node scripts/verify-addresses.mjs",
     "soroban:verify": "node soroban/scripts/print-deployments.mjs testnet",
-    "soroban:verify:mainnet": "node soroban/scripts/print-deployments.mjs mainnet"
+    "soroban:verify:mainnet": "node soroban/scripts/print-deployments.mjs mainnet",
+    "soroban:test:verify": "node --test soroban/scripts/print-deployments.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
