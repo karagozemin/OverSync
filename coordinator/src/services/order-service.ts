@@ -3,13 +3,18 @@ import { z } from "zod";
 import {
   OrdersRepository,
   type OrderRow,
+  type OrderSnapshot,
   type AnnounceOrderInput,
+  type OrderMetrics,
+  type OrderTransitionSummary,
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
 import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
 import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
+import { loadConfig } from "../config.js";
+import { validateTimelockOrdering } from "../utils/timelock-validator.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -38,7 +43,12 @@ export const announceSchema = z.object({
 
 export type AnnounceInput = z.infer<typeof announceSchema>;
 
-export class OrderValidationError extends Error {}
+export class OrderValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderValidationError";
+  }
+}
 
 function validateChainAddress(chain: Chain, addr: string): void {
   if (chain === "ethereum" && !HEX_ADDRESS.test(addr)) {
@@ -63,12 +73,17 @@ function validateDirectionAgainstChains(input: AnnounceInput): void {
 }
 
 export class OrderService {
+  private readonly minGapSeconds: number;
+
   constructor(
     private readonly repo: OrdersRepository,
     private readonly log: Logger,
     /** Optional — when supplied, quoteId in announce requests is validated. */
-    private readonly quoteService?: QuoteService
-  ) {}
+    private readonly quoteService?: QuoteService,
+    config?: ReturnType<typeof loadConfig>
+  ) {
+    this.minGapSeconds = config?.timelockSafetyGapSeconds ?? 600;
+  }
 
   /**
    * Record a new order announcement. The coordinator does NOT lock any
@@ -128,6 +143,10 @@ export class OrderService {
     return this.repo.findByPublicId(publicId);
   }
 
+  getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
+    return this.repo.getTransitions(publicId);
+  }
+
   history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
     return this.repo.findByAddress(address, limit, offset);
   }
@@ -166,6 +185,20 @@ export class OrderService {
     if (!canTransition(order.status, "dst_locked") && order.status !== "dst_locked") {
       throw new OrderValidationError(`cannot record dst lock from status ${order.status}`);
     }
+
+    if (order.srcTimelock) {
+      const validation = validateTimelockOrdering(
+        order.srcTimelock,
+        input.timelock,
+        this.minGapSeconds
+      );
+      if (!validation.isValid) {
+        throw new OrderValidationError(
+          `Invalid destination timelock: ${validation.error === 'TIMELOCKS_REVERSED' ? 'reversed or equal to source timelock' : 'gap too small'}`
+        );
+      }
+    }
+
     await this.repo.recordDstLock(input);
     this.log.info({ publicId: input.publicId, dstOrderId: input.orderId }, "dst lock recorded");
     ordersTotal.inc({ status: "dst_locked" });
@@ -182,6 +215,10 @@ export class OrderService {
     ordersTotal.inc({ status: "secret_revealed" });
   }
 
+  async getOrderMetrics(): Promise<OrderMetrics> {
+    return this.repo.getMetrics();
+  }
+
   async markStatus(publicId: string, status: OrderRow["status"]): Promise<void> {
     const order = await this.repo.findByPublicId(publicId);
     if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
@@ -191,5 +228,9 @@ export class OrderService {
     await this.repo.setStatus(publicId, status);
     this.log.info({ publicId, status }, "status updated");
     ordersTotal.inc({ status });
+  }
+
+  async getSnapshots(): Promise<OrderSnapshot[]> {
+    return this.repo.getCompletedOrderSnapshots();
   }
 }

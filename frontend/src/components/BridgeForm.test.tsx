@@ -185,6 +185,32 @@ describe('BridgeForm network mismatch guardrails', () => {
     ).toBeInTheDocument();
   });
 
+  test('shows mainnet gated copy and disables the submit button when mainnet is requested but disabled', () => {
+    const gatedState: NetworkModeState = {
+      ...testnetState,
+      guard: {
+        mode: 'mainnet',
+        isMainnetEnabled: false,
+        status: 'mainnet_gated',
+        reason: 'Mainnet operations are currently gated pending final security audits.',
+        disableUiActions: true,
+      },
+    };
+
+    render(
+      <BridgeForm
+        ethAddress="0x1234567890123456789012345678901234567890"
+        stellarAddress="GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+        signStellarTransaction={nullSigner}
+        networkState={gatedState}
+      />,
+    );
+
+    expect(screen.getByText(/Mainnet operations are currently gated/i)).toBeInTheDocument();
+    const submitBtn = screen.getByRole('button', { name: 'Mainnet Gated' });
+    expect(submitBtn).toBeDisabled();
+  });
+
   test('shows combined warning when both EVM and Stellar networks mismatch', () => {
     const mismatchState: NetworkModeState = {
       ...testnetState,

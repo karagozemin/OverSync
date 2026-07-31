@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -156,7 +156,7 @@ export const ToastContainer = ({ toasts, onClose }: ToastContainerProps) => {
 export const useToast = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = (toast: Omit<Toast, 'id'>) => {
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: Toast = {
       id,
@@ -165,32 +165,45 @@ export const useToast = () => {
     };
     setToasts((prev) => [...prev, newToast]);
     return id;
-  };
+  }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setToasts([]);
-  };
+  }, []);
 
   // Convenience methods
-  const success = (title: string, message: string, options?: Partial<Toast>) => {
+  const success = useCallback((title: string, message: string, options?: Partial<Toast>) => {
     return addToast({ type: 'success', title, message, ...options });
-  };
+  }, [addToast]);
 
-  const error = (title: string, message: string, options?: Partial<Toast>) => {
+  const error = useCallback((title: string, message: string, options?: Partial<Toast>) => {
     return addToast({ type: 'error', title, message, ...options });
-  };
+  }, [addToast]);
 
-  const warning = (title: string, message: string, options?: Partial<Toast>) => {
+  const warning = useCallback((title: string, message: string, options?: Partial<Toast>) => {
     return addToast({ type: 'warning', title, message, ...options });
-  };
+  }, [addToast]);
 
-  const info = (title: string, message: string, options?: Partial<Toast>) => {
+  const info = useCallback((title: string, message: string, options?: Partial<Toast>) => {
     return addToast({ type: 'info', title, message, ...options });
-  };
+  }, [addToast]);
+
+  useEffect(() => {
+    const handleToastEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<Omit<Toast, 'id'>>;
+      if (customEvent.detail) {
+        addToast(customEvent.detail);
+      }
+    };
+    window.addEventListener('oversync-toast', handleToastEvent);
+    return () => {
+      window.removeEventListener('oversync-toast', handleToastEvent);
+    };
+  }, [addToast]);
 
   return {
     toasts,
