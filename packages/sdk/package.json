@@ -29,6 +29,10 @@
     "./types": {
       "import": "./dist/types/index.js",
       "types": "./dist/types/index.d.ts"
+    },
+    "./explorers": {
+      "import": "./dist/explorers/index.js",
+      "types": "./dist/explorers/index.d.ts"
     }
   },
   "scripts": {
