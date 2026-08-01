@@ -3,11 +3,15 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
-vi.mock('./config/networks', () => ({
-  isMainnetEnabled: vi.fn(() => false),
-  isTestnet: vi.fn(() => true),
-  resolveNetworkMode: vi.fn((requested: string) => requested),
-}));
+vi.mock('./config/networks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./config/networks')>();
+  return {
+    ...actual,
+    isMainnetEnabled: vi.fn(() => false),
+    isTestnet: vi.fn(() => true),
+    resolveNetworkMode: vi.fn((requested: string) => requested),
+  };
+});
 
 vi.mock('./lib/useNetworkMode', () => ({
   useNetworkMode: vi.fn(() => ({
