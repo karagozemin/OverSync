@@ -113,6 +113,9 @@ jobs:
       - name: Build WASM
         run: stellar contract build
 
+      - name: Pin ed25519-dalek to 2.1.1
+        run: cargo update -p ed25519-dalek --precise 2.1.1
+
       - name: Run unit tests
         run: cargo test --release
 
