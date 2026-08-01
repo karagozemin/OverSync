@@ -111,7 +111,10 @@ jobs:
           key: soroban-${{ runner.os }}-${{ hashFiles('soroban/Cargo.toml', 'soroban/contracts/**/Cargo.toml') }}
 
       - name: Pin ed25519-dalek to 2.1.1
-        run: cargo update -p ed25519-dalek --precise 2.1.1
+        run: |
+          cargo update -p ed25519-dalek@3.0.0 --precise 2.1.1 || true
+          cargo update -p ed25519-dalek@2.2.0 --precise 2.1.1 || true
+          cargo update -p ed25519-dalek --precise 2.1.1 || true
 
       - name: Build WASM
         run: stellar contract build
