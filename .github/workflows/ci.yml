@@ -97,9 +97,9 @@ jobs:
           targets: wasm32-unknown-unknown,wasm32v1-none
 
       - name: Install Stellar CLI
-        run: |
-          cargo install --locked stellar-cli --version 22.8.1 || true
-          stellar --version
+        uses: stellar/stellar-cli@v22.8.1
+        with:
+          version: 22.8.1
 
       - name: Cache cargo
         uses: actions/cache@v4
