@@ -464,10 +464,15 @@ export function buildSnapshot(order: OrderRow): OrderSnapshot {
     order.dstLockTx,
     order.secretRevealedTx
   ].filter((tx): tx is string => tx !== null);
-  const outcomeSummary = order.status === "completed" ? "Order completed successfully" :
-                         order.status === "refunded" ? "Order refunded" :
-                         order.status === "failed" ? "Order failed" :
-                         "Order expired";
+
+  let outcomeSummary = "Order expired";
+  if (order.status === "completed") {
+    outcomeSummary = "Order completed successfully";
+  } else if (order.status === "refunded") {
+    outcomeSummary = "Order refunded";
+  } else if (order.status === "failed") {
+    outcomeSummary = "Order failed";
+  }
 
   return {
     orderId: order.publicId,
