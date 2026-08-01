@@ -62,6 +62,7 @@ export interface OrderRow {
   preimage: string | null;
   secretRevealedTx: string | null;
   resolverAddress: string | null;
+  fixture: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -90,7 +91,6 @@ interface OrderEventDbRow {
   payload_json: string;
   created_at: number;
 }
-
 export interface AnnounceOrderInput {
   direction: Direction;
   hashlock: string;
@@ -131,6 +131,7 @@ interface OrderDbRow {
   preimage: string | null;
   secret_revealed_tx: string | null;
   resolver_address: string | null;
+  fixture: number;
   created_at: number;
   updated_at: number;
 }
@@ -162,6 +163,7 @@ function rowToOrder(r: OrderDbRow): OrderRow {
     preimage: r.preimage,
     secretRevealedTx: r.secret_revealed_tx,
     resolverAddress: r.resolver_address,
+    fixture: Boolean(r.fixture),
     createdAt: r.created_at,
     updatedAt: r.updated_at
   };
@@ -169,6 +171,7 @@ function rowToOrder(r: OrderDbRow): OrderRow {
 
 export class OrdersRepository {
   private readonly insertStmt: Statement;
+  private readonly insertFullStmt: Statement;
   private readonly byPublicId: Statement;
   private readonly byHashlock: Statement;
   private readonly byAddress: Statement;
@@ -184,6 +187,10 @@ export class OrdersRepository {
   private readonly metricsByStatus: Statement;
   private readonly metricsTotal: Statement;
   private readonly metricsLastUpdated: Statement;
+    // Opt-in fixture reset/remove path (issue #161). Only ever returns rows
+  // whose `fixture = 1` and is the only place those rows are deleted.
+  private readonly countFixturesStmt: Statement;
+  private readonly removeFixturesStmt: Statement;
 
   constructor(private readonly db: DatabaseT) {
     this.insertStmt = db.prepare(`
@@ -244,6 +251,23 @@ export class OrdersRepository {
         updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
     `);
+    this.insertFullStmt = db.prepare(`
+      INSERT INTO orders (
+        public_id, direction, status, hashlock,
+        src_chain, src_address, src_asset, src_amount, src_safety_deposit,
+        src_order_id, src_lock_tx, src_lock_block, src_timelock,
+        dst_chain, dst_address, dst_asset, dst_amount,
+        dst_order_id, dst_lock_tx, dst_lock_block, dst_timelock,
+        preimage, secret_revealed_tx, resolver_address, fixture
+      ) VALUES (
+        :publicId, :direction, :status, :hashlock,
+        :srcChain, :srcAddress, :srcAsset, :srcAmount, :srcSafetyDeposit,
+        :srcOrderId, :srcLockTx, :srcLockBlock, :srcTimelock,
+        :dstChain, :dstAddress, :dstAsset, :dstAmount,
+        :dstOrderId, :dstLockTx, :dstLockBlock, :dstTimelock,
+        :preimage, :secretRevealedTx, :resolverAddress, :fixture
+      )
+    `);
     this.updateSecret = db.prepare(`
       UPDATE orders SET
         preimage = :preimage,
@@ -260,9 +284,17 @@ export class OrdersRepository {
     this.metricsByStatus = db.prepare(
       "SELECT status, COUNT(*) as count FROM orders GROUP BY status"
     );
-    this.metricsTotal = db.prepare("SELECT COUNT(*) as count FROM orders");
+    this.metricsTotal = db.prepare(
+      "SELECT COUNT(*) as count FROM orders"
+    );
     this.metricsLastUpdated = db.prepare(
       "SELECT MAX(updated_at) as ts FROM orders"
+    );
+    this.countFixturesStmt = db.prepare(
+      "SELECT COUNT(*) as count FROM orders WHERE fixture = 1"
+    );
+    this.removeFixturesStmt = db.prepare(
+      "DELETE FROM orders WHERE fixture = 1"
     );
   }
 
@@ -455,6 +487,73 @@ export class OrdersRepository {
     const rows = await this.all<OrderDbRow>(this.completedOrderRows);
     return rows.map(rowToOrder).map(buildSnapshot);
   }
+
+  /**
+   * Insert a full order row directly (used by fixture seeding and tests).
+   * Unlike announce(), this accepts all columns including status and
+   * fixture flag. Does NOT record a transition event — callers can use
+   * recordOrderTransition() for that.
+   */
+  async insertOrder(input: {
+    publicId: string;
+    direction: Direction;
+    status: OrderStatus;
+    hashlock: string;
+    srcChain: Chain;
+    srcAddress: string;
+    srcAsset: string;
+    srcAmount: string;
+    srcSafetyDeposit: string;
+    srcOrderId: string | null;
+    srcLockTx: string | null;
+    srcLockBlock: number | null;
+    srcTimelock: number | null;
+    dstChain: Chain;
+    dstAddress: string;
+    dstAsset: string;
+    dstAmount: string;
+    dstOrderId: string | null;
+    dstLockTx: string | null;
+    dstLockBlock: number | null;
+    dstTimelock: number | null;
+    preimage: string | null;
+    secretRevealedTx: string | null;
+    resolverAddress: string | null;
+    fixture: boolean;
+  }): Promise<OrderRow> {
+    await this.run(this.insertFullStmt, { ...input, fixture: input.fixture ? 1 : 0 });
+    const row = await this.get<OrderDbRow>(this.byPublicId, input.publicId);
+    if (!row) throw new Error("Failed to insert order");
+    return rowToOrder(row);
+  }
+
+  /** Count all fixture-flagged rows. */
+  async countFixtures(): Promise<number> {
+    const row = await this.get<{ count: number }>(this.countFixturesStmt);
+    return Number(row?.count ?? 0);
+  }
+
+  /** Delete all fixture-flagged rows. Returns the number of deleted rows. */
+  async removeFixtures(): Promise<number> {
+    const result = await this.run(this.removeFixturesStmt);
+    return result.changes;
+  }
+
+  /**
+   * Record a transition event for an order identified by publicId.
+   * Used by the demo-fixture seeder to build realistic state histories.
+   */
+  async recordOrderTransition(
+    publicId: string,
+    from: OrderStatus | null,
+    to: OrderStatus,
+    txHash: string | null,
+    category: string
+  ): Promise<void> {
+    const order = await this.findByPublicId(publicId);
+    if (!order) throw new Error("Unknown order");
+    await this.recordTransition(order.id, from, to, txHash, category);
+  }
 }
 
 export function buildSnapshot(order: OrderRow): OrderSnapshot {
@@ -500,5 +599,25 @@ function deriveTransitions(status: OrderStatus): string[] {
       return ["announced", "expired"];
     default:
       return [status];
+  }
+
+  async getMetrics(): Promise<OrderMetrics> {
+    const byStatus = await this.all<{ status: string; count: number }>(this.metricsByStatus);
+    const totalRow = await this.get<{ count: number }>(this.metricsTotal);
+    const lastUpdatedRow = await this.get<{ ts: number | null }>(this.metricsLastUpdated);
+
+    const statusMap: Record<string, number> = {};
+    for (const row of byStatus) {
+      statusMap[row.status] = Number(row.count);
+    }
+
+    return {
+      totalOrders: Number(totalRow?.count ?? 0),
+      byStatus: statusMap,
+      completedOrders: statusMap["completed"] ?? 0,
+      refundedOrders: statusMap["refunded"] ?? 0,
+      staleExpiredOrders: (statusMap["expired"] ?? 0) + (statusMap["failed"] ?? 0),
+      lastUpdatedTimestamp: lastUpdatedRow?.ts != null ? Number(lastUpdatedRow.ts) : null
+    };
   }
 }
