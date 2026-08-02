@@ -17,6 +17,7 @@
  */
 
 import { isTestnet } from '../config/networks';
+import { computeRefundEligibility, type RefundEligibilityResult } from '@oversync/sdk';
 
 export interface Transaction {
   id: string;
@@ -50,6 +51,7 @@ export interface Transaction {
   autoRefundFailed?: boolean;
   autoRefundError?: string;
   networkMode?: 'mainnet' | 'testnet';
+  refundEligibility?: RefundEligibilityResult;
 }
 
 export interface RecoveryAddresses {
@@ -141,6 +143,11 @@ export function mapCoordinatorOrderToTransaction(order: any): Transaction {
     refundNetwork: isEthToXlm ? 'ethereum' : 'stellar',
     refundedAt: order.status === 'refunded' ? order.updatedAt * 1000 : undefined,
     networkMode: isTestnetMode ? 'testnet' : 'mainnet',
+    refundEligibility: order.refundEligibility ?? computeRefundEligibility({
+      status: order.status,
+      timelock: order.src?.timelock,
+      direction: order.direction,
+    }),
   };
 }
 

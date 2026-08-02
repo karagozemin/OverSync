@@ -17,21 +17,6 @@ import {
   type Transaction,
 } from '../lib/orderRecovery';
 
-interface TransactionHistoryProps {
-  ethAddress?: string;
-  stellarAddress?: string;
-}
-
-const STORAGE_KEY = 'oversync_transactions_v2';
-const PRODUCTION_API_BASE_URL = 'https://oversync-k36vx.ondigitalocean.app';
-const API_BASE_URL = import.meta.env.PROD
-  ? ''
-  : (import.meta as any).env?.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL;
-
-const isTestnetTx = (tx: Transaction): boolean => {
-  return tx.networkMode === 'testnet' || (tx.networkMode === undefined && isTestnet());
-};
-
 export default function TransactionHistory({ ethAddress, stellarAddress }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);

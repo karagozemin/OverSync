@@ -113,3 +113,11 @@ export {
   type RefundTimelineInput,
   type RefundTimelineResult,
 } from "./refund-timeline.js";
+
+export {
+  computeRefundEligibility,
+  type RefundEligibilityReasonCode,
+  type RefundEligibilityInput,
+  type RefundEligibilityResult,
+} from "./refund-eligibility.js";
+

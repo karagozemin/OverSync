@@ -18,6 +18,8 @@ import {
   validateTimelocksAtCreation,
   type TimelockValidationError
 } from "../utils/timelock-validator.js";
+import { computeRefundEligibility, type RefundEligibilityResult } from "@oversync/sdk";
+
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const ZERO_HASHLOCK = "0x" + "0".repeat(64);
@@ -184,6 +186,19 @@ export class OrderService {
 
   getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
     return this.repo.getTransitions(publicId);
+  }
+
+  async getRefundEligibility(publicId: string, nowUnixSeconds?: number): Promise<RefundEligibilityResult> {
+    const order = await this.repo.findByPublicId(publicId);
+    if (!order) {
+      return computeRefundEligibility({ status: null, nowUnixSeconds });
+    }
+    return computeRefundEligibility({
+      status: order.status,
+      timelock: order.srcTimelock,
+      direction: order.direction,
+      nowUnixSeconds,
+    });
   }
 
   history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
