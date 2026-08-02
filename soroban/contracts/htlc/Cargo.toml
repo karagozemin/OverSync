@@ -18,3 +18,4 @@ soroban-sdk = { workspace = true }
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 oversync-resolver-registry = { path = "../resolver-registry" }
+ed25519-dalek = { workspace = true }
