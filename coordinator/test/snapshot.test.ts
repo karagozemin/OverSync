@@ -236,7 +236,9 @@ describe("OrderService.getSnapshots", () => {
     // other (which flakes whenever the boundary falls mid-test).
     const updatedAts = snapshots.map((s) => s.timestamps.updatedAt);
     for (let i = 1; i < updatedAts.length; i++) {
-      expect(updatedAts[i - 1]).toBeGreaterThanOrEqual(updatedAts[i]);
+      const prev = updatedAts[i - 1]!;
+      const curr = updatedAts[i]!;
+      expect(prev).toBeGreaterThanOrEqual(curr);
     }
     // The array is sorted DESC, so whichever has the higher updatedAt is first.
     const [first, second] = snapshots as [OrderSnapshot, OrderSnapshot];
