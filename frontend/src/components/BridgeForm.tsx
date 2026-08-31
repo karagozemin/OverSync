@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  Horizon, 
-  Asset, 
-  Operation, 
-  TransactionBuilder, 
+import {
+  Horizon,
+  Asset,
+  Operation,
+  TransactionBuilder,
   Memo
 } from '@stellar/stellar-sdk';
 import { isTestnet, getCurrentNetwork } from '../config/networks';
@@ -11,6 +11,7 @@ import type { NetworkModeState } from '../lib/useNetworkMode';
 import { parseHtlcReceipt } from '../lib/parseHtlcReceipt';
 import { sanitizeAmountInput } from '../lib/sanitizeAmountInput';
 import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
+import StellarWalletPreflight from './StellarWalletPreflight';
 
 // Web3 imports for contract interaction
 declare global {
@@ -76,15 +77,15 @@ const saveTransactionToHistory = (transaction: {
   try {
     // Get current network info to determine correct network names
     const isTestnetMode = isTestnet();
-    
+
     const historyTransaction = {
       id: transaction.orderId,
       txHash: transaction.txHash,
-      fromNetwork: transaction.direction === 'eth-to-xlm' 
-        ? (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet') 
+      fromNetwork: transaction.direction === 'eth-to-xlm'
+        ? (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet')
         : (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet'),
-      toNetwork: transaction.direction === 'eth-to-xlm' 
-        ? (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet') 
+      toNetwork: transaction.direction === 'eth-to-xlm'
+        ? (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet')
         : (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet'),
       fromToken: transaction.direction === 'eth-to-xlm' ? 'ETH' : 'XLM',
       toToken: transaction.direction === 'eth-to-xlm' ? 'XLM' : 'ETH',
@@ -108,18 +109,18 @@ const saveTransactionToHistory = (transaction: {
     // Get existing transactions
     const existing = localStorage.getItem('oversync_transactions_v2');
     const transactions = existing ? JSON.parse(existing) : [];
-    
+
     // Add new transaction
     transactions.unshift(historyTransaction); // Add to beginning
-    
+
     // Keep only last 50 transactions
     if (transactions.length > 50) {
       transactions.splice(50);
     }
-    
+
     // Save back to localStorage
     localStorage.setItem('oversync_transactions_v2', JSON.stringify(transactions));
-    
+
     console.log('💾 Transaction saved to history:', historyTransaction);
   } catch (error) {
     console.error('❌ Failed to save transaction to history:', error);
@@ -133,18 +134,18 @@ const updateTransactionStatus = (orderId: string, status: 'pending' | 'completed
     if (existing) {
       const transactions = JSON.parse(existing);
       const transactionIndex = transactions.findIndex((tx: any) => tx.id === orderId);
-      
+
       if (transactionIndex !== -1) {
         transactions[transactionIndex].status = status;
-        
+
         // Add additional data if provided
         if (additionalData) {
           Object.assign(transactions[transactionIndex], additionalData);
         }
-        
+
         // Save back to localStorage
         localStorage.setItem('oversync_transactions_v2', JSON.stringify(transactions));
-        
+
         console.log(`💾 Transaction status updated: ${orderId} -> ${status}`);
       } else {
         console.log(`⚠️ Transaction not found for status update: ${orderId}`);
@@ -167,7 +168,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   const [networkInfo, setNetworkInfo] = useState(() => {
     const currentNetwork = getCurrentNetwork();
     const isTestnetMode = isTestnet();
-    
+
     return {
       isTestnet: isTestnetMode,
       ethereum: currentNetwork.ethereum,
@@ -181,7 +182,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
     const updateNetworkInfo = () => {
       const currentNetwork = getCurrentNetwork();
       const isTestnetMode = isTestnet();
-      
+
       setNetworkInfo({
         isTestnet: isTestnetMode,
         ethereum: currentNetwork.ethereum,
@@ -200,10 +201,10 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
     // Listen for popstate (browser back/forward)
     window.addEventListener('popstate', handleUrlChange);
-    
+
     // Listen for network changes every second
     const interval = setInterval(updateNetworkInfo, 1000);
-    
+
     return () => {
       window.removeEventListener('popstate', handleUrlChange);
       clearInterval(interval);
@@ -216,7 +217,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   const [orderId, setOrderId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [balance, setBalance] = useState<string>('0');
-  
+
   // Real-time exchange rate state.
   //
   // Quotes come from the relayer's /api/prices endpoint, which proxies
@@ -233,7 +234,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   const [priceSource, setPriceSource] = useState<'coingecko' | 'cache' | 'fallback' | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
   const [rateLastUpdated, setRateLastUpdated] = useState<Date | null>(null);
-  
+
   // From ve To tokenları
   const fromToken = direction === 'eth_to_xlm' ? ETH_TOKEN : XLM_TOKEN;
   const toToken = direction === 'eth_to_xlm' ? XLM_TOKEN : ETH_TOKEN;
@@ -307,7 +308,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
       cancelled = true;
     };
   }, [direction, ethAddress, stellarAddress, networkInfo.stellar.horizonUrl]);
-  
+
   // Fetch live prices from the relayer whenever the user is about to need a
   // quote. The relayer caches CoinGecko responses for 60s, so a flurry of
   // keystrokes ends up as at most one network round-trip per minute. We use a
@@ -381,7 +382,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
       cancelled = true;
     };
   }, [amount, direction]);
-  
+
   // Yön değiştirme
   const handleSwapDirection = () => {
     setDirection(prev => prev === 'eth_to_xlm' ? 'xlm_to_eth' : 'eth_to_xlm');
@@ -392,21 +393,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   // Form gönderimi - RELAYER API ÜZERİNDEN
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Log transaction details
-    console.log('🚀 Transaction Started:', { 
+    console.log('🚀 Transaction Started:', {
       direction: direction === 'eth_to_xlm' ? 'ETH → XLM' : 'XLM → ETH',
       amount,
       from: direction === 'eth_to_xlm' ? ethAddress : stellarAddress,
       to: direction === 'eth_to_xlm' ? stellarAddress : ethAddress
     });
-    
+
     if (!amount || !ethAddress || !stellarAddress) {
       console.error('❌ Missing required fields');
               alert('Please fill all fields and connect wallets.');
       return;
     }
-    
+
     if (!window.ethereum) {
       alert('MetaMask bulunamadı! Lütfen MetaMask yükleyin.');
       return;
@@ -426,25 +427,25 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
       setStatusMessage('');
       return;
     }
-    
+
     setIsSubmitting(true);
     setStatusMessage('Hazırlanıyor...');
-    
+
     let result: any;
-    
+
     try {
       // Check network and switch if needed
       console.log('🔗 Checking network...');
       console.log('🔗 Expected network info:', networkInfo);
-      
+
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
       console.log('🔗 Current chain ID:', chainId);
       console.log('🔗 Expected chain ID:', networkInfo.expectedChainId);
-      
+
       if (chainId !== networkInfo.expectedChainId) {
         const networkName = networkInfo.isTestnet ? 'Sepolia Testnet' : 'Ethereum Mainnet';
         console.log(`🔗 Switching to ${networkName}...`);
-        
+
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
@@ -476,7 +477,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                 decimals: 18
               }
             };
-            
+
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [networkConfig],
@@ -501,7 +502,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         'EXCHANGE_RATE': exchangeRate,
         'DIRECTION': direction
       });
-      
+
       const orderRequest = {
         fromChain: direction === 'eth_to_xlm' ? 'ethereum' : 'stellar',
         toChain: direction === 'eth_to_xlm' ? 'stellar' : 'ethereum',
@@ -514,19 +515,19 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         exchangeRate: exchangeRate, // Include real-time rate
         networkMode: networkInfo.isTestnet ? 'testnet' : 'mainnet' // DYNAMIC NETWORK
       };
-      
+
       console.log('📋 AFTER orderRequest creation:', {
         'orderRequest.amount': orderRequest.amount,
         'orderRequest_full': orderRequest
       });
-      
+
       if (networkInfo.isTestnet) {
         // TESTNET: Use existing relayer system
         console.log('🔄 Creating bridge order via Relayer API (Testnet)...');
         setStatusMessage('Creating order...');
-      
+
       console.log('📋 Order request:', orderRequest);
-      
+
       // Send request to relayer
       const response = await fetch(`${API_BASE_URL}/api/orders/create`, {
         method: 'POST',
@@ -535,15 +536,15 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         },
         body: JSON.stringify(orderRequest)
       });
-      
+
       console.log('📥 API Response status:', response.status);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error('❌ API Error:', errorData);
         throw new Error(errorData.error || `API Error: ${response.status}`);
       }
-      
+
         result = await response.json();
       console.log('✅ Order created via relayer:', result);
 
@@ -551,7 +552,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         // MAINNET: Relayer handles 1inch integration
         console.log('🔄 Creating bridge order via Relayer API (Mainnet)...');
         setStatusMessage('Creating mainnet order...');
-        
+
         // Send request to relayer (same as testnet)
         const response = await fetch(`${API_BASE_URL}/api/orders/create`, {
           method: 'POST',
@@ -560,28 +561,28 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
           },
           body: JSON.stringify(orderRequest)
         });
-        
+
         console.log('📥 Mainnet API Response status:', response.status);
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           console.error('❌ Mainnet API Error:', errorData);
           throw new Error(errorData.error || `Mainnet API Error: ${response.status}`);
         }
-        
+
         result = await response.json();
         console.log('✅ Mainnet order created via relayer:', result);
       }
-      
+
       // Handle different transaction types based on direction
       if (direction === 'eth_to_xlm' && (result.approvalTransaction || result.proxyTransaction)) {
         // ETH → XLM: Use MetaMask for ETH transaction
         console.log('🔄 Requesting ETH approval transaction...');
         console.log('📋 Instructions:', result.instructions);
-        
+
         // Use proxyTransaction if available, fallback to approvalTransaction
         const transactionData = result.proxyTransaction || result.approvalTransaction;
-        
+
         try {
           // Validate transaction parameters
           if (!transactionData.to || !transactionData.value) {
@@ -593,19 +594,19 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             ...transactionData,
             from: ethAddress
           });
-          
+
           // Check user balance first
           const balance = await window.ethereum.request({
             method: 'eth_getBalance',
             params: [ethAddress, 'latest']
           });
           console.log('💰 User balance:', balance);
-          
+
           // Additional balance checks
           const balanceWei = BigInt(balance);
           const valueWei = BigInt(transactionData.value);
           const estimatedGasCost = BigInt('0x5208') * BigInt('20000000000'); // Rough estimate
-          
+
           console.log('💰 Balance Analysis:', {
             balanceETH: (Number(balanceWei) / 1e18).toFixed(6),
             requiredETH: (Number(valueWei) / 1e18).toFixed(6),
@@ -613,7 +614,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             totalNeededETH: (Number(valueWei + estimatedGasCost) / 1e18).toFixed(6),
             hasSufficientBalance: balanceWei >= (valueWei + estimatedGasCost)
           });
-          
+
           // Estimate gas if not provided by relayer
           let gasLimit = transactionData.gas;
           if (!gasLimit) {
@@ -632,7 +633,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               gasLimit = '0x493E0'; // 300000 fallback for contract interaction
             }
           }
-          
+
           // ESCROW FACTORY DIRECT MODE: Using direct contract interaction
           console.log('🏭 ESCROW FACTORY DIRECT MODE: Using direct contract transaction');
           console.log('📋 Transaction details:', {
@@ -640,7 +641,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             from: ethAddress,
             gas: gasLimit
           });
-          
+
           const txHash = await window.ethereum.request({
             method: 'eth_sendTransaction',
             params: [{
@@ -649,24 +650,24 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               gas: gasLimit
             }],
           });
-          
+
           // ALWAYS log transaction details (production too)
           console.log('✅ ETH Transaction Sent!');
           console.log('📋 TX Hash:', txHash);
           console.log('🔗 View on Etherscan:', `${networkInfo.ethereum.explorerUrl}/tx/${txHash}`);
-          
+
           // Update UI status
           setStatusMessage('Gönderiliyor...');
           setIsSubmitting(true);
-          
+
           // Update status to confirmation waiting
           setStatusMessage('Confirming...');
-          
+
           // Wait for transaction receipt to confirm success
           let receipt = null;
           let attempts = 0;
           const maxAttempts = 120; // Wait max 2 minutes (1s * 120 = 120s)
-          
+
           while (!receipt && attempts < maxAttempts) {
             try {
               // First try to get transaction status
@@ -674,19 +675,19 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                 method: 'eth_getTransactionByHash',
                 params: [txHash]
               });
-              
+
               if (txStatus && txStatus.blockNumber) {
                 console.log('✅ Transaction confirmed via block number!');
                 receipt = { status: '0x1' }; // Assume success if confirmed
                 break;
               }
-              
+
               // Then try to get receipt
               receipt = await window.ethereum.request({
                 method: 'eth_getTransactionReceipt',
                 params: [txHash]
               });
-              
+
               if (!receipt) {
                 // Only log every 10 attempts to reduce spam
                 if ((attempts + 1) % 10 === 0 || attempts === 0) {
@@ -704,17 +705,17 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               await new Promise(resolve => setTimeout(resolve, 2000));
             }
           }
-          
+
           if (!receipt) {
             // Try alternative method - check transaction status directly
             console.log('🔄 Receipt not found, trying alternative confirmation method...');
-            
+
             try {
               const txStatus = await window.ethereum.request({
                 method: 'eth_getTransactionByHash',
                 params: [txHash]
               });
-              
+
               if (txStatus && txStatus.blockNumber) {
                 console.log('✅ Transaction confirmed via alternative method!');
                 receipt = { status: '0x1' }; // Assume success if confirmed
@@ -726,15 +727,15 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               throw new Error('Transaction confirmation timeout');
             }
           }
-          
+
           // Check transaction status
           const isSuccess = receipt.status === '0x1';
           console.log('📋 Transaction status:', receipt.status, isSuccess ? '✅ SUCCESS' : '❌ FAILED');
-          
+
           if (!isSuccess) {
             throw new Error('Transaction failed on blockchain');
           }
-          
+
           console.log('✅ Transaction confirmed successfully!');
           console.log('🤖 Now triggering cross-chain processing...');
 
@@ -773,17 +774,17 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             timelockUnixSeconds: refundMeta?.timelockUnixSeconds,
             amountWei: refundMeta?.amountWei,
           });
-          
+
           // Update status to cross-chain processing
           setStatusMessage('Bridging...');
-          
+
           // Show success with transaction hash
           setOrderId(txHash);
           setOrderCreated(true);
-          
+
           // ONLY process if Ethereum transaction was successful
           console.log('⚡ Triggering cross-chain processing after successful ETH tx...');
-          
+
           // Debug: Check order data before processing
           console.log('🔍 DEBUG Process Request:', {
             resultOrderId: result.orderId,
@@ -794,7 +795,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             ethAddress: ethAddress,
             fullResult: result
           });
-          
+
           try {
             const processResponse = await fetch(`${API_BASE_URL}/api/orders/process`, {
               method: 'POST',
@@ -808,21 +809,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                 ethAddress: ethAddress
               })
             });
-            
+
             if (processResponse.ok) {
               const processResult = await processResponse.json();
               console.log('✅ Cross-chain processing initiated:', processResult);
               console.log('🌟 Stellar transaction:', processResult.stellarTxId);
               console.log('💫 Expected XLM amount:', processResult.details?.stellar?.amount);
-              
+
               // Update transaction status to completed
               updateTransactionStatus(result.orderId, 'completed', {
                 stellarTxHash: processResult.stellarTxId
               });
-              
+
               console.log('🎉 Cross-Chain Bridge Completed!');
               console.log('📋 Stellar TX:', processResult.stellarTxId);
-              
+
               // Update status to completed
               setStatusMessage('Tamamlandı ✅');
               setIsSubmitting(false);
@@ -858,7 +859,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               setIsSubmitting(false);
             }
           }
-          
+
           // Store transaction details for tracking
           console.log('Order approved:', {
             orderId: result.orderId,
@@ -873,21 +874,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             message: result.message,
             nextStep: result.nextStep
           });
-          
+
         } catch (txError: any) {
           console.error('❌ Approval transaction failed:', txError);
-          
+
           // Update status to failed
           setStatusMessage('Failed ❌');
           setIsSubmitting(false);
-          
+
           console.error('🔍 Full error details:', {
             code: txError.code,
             message: txError.message,
             data: txError.data,
             stack: txError.stack
           });
-          
+
           // Handle MetaMask errors with more specific messages
           if (txError.code === 4001) {
             alert('Transaction was rejected by user');
@@ -907,23 +908,23 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         // XLM → ETH: Use Freighter for Stellar transaction
         console.log('🔄 Creating Stellar payment transaction...');
         console.log('💰 Sending', result.orderData.stellarAmount, 'stroops to relayer');
-        
+
         try {
           // Use network configuration to determine correct Horizon URL and network
           const stellarServer = new Horizon.Server(networkInfo.stellar.horizonUrl);
           const stellarNetworkPassphrase = networkInfo.stellar.networkPassphrase;
           const relayerStellarAddress = result.orderData.stellarAddress; // Use relayer provided address
-          
+
           console.log(`🔗 Using Stellar ${networkInfo.isTestnet ? 'testnet' : 'mainnet'}:`, {
             horizonUrl: networkInfo.stellar.horizonUrl,
             networkPassphrase: stellarNetworkPassphrase,
             relayerAddress: relayerStellarAddress,
             memo: result.orderData.memo
           });
-          
+
           // Get user's account to build transaction
           const userAccount = await stellarServer.loadAccount(stellarAddress);
-          
+
           // Create payment to relayer using exact amounts from relayer
           const xlmAmount = (parseInt(result.orderData.stellarAmount) / 10000000).toFixed(7); // Convert stroops to XLM
           const payment = Operation.payment({
@@ -931,7 +932,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             asset: Asset.native(), // XLM
             amount: xlmAmount
           });
-          
+
           console.log('💰 Payment details:', {
             destination: relayerStellarAddress,
             amount: xlmAmount + ' XLM',
@@ -950,21 +951,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             .build();
 
           console.log('📝 Signing transaction with Freighter...');
-          
+
           // Sign with Freighter using correct network
           const signedXdr = await signStellarTransaction(transaction.toXDR(), stellarNetworkPassphrase);
-          
+
           console.log('✅ Stellar transaction signed!');
-          
+
           // Submit signed transaction to Stellar network
           const signedTx = TransactionBuilder.fromXDR(signedXdr, stellarNetworkPassphrase);
           const submitResult = await stellarServer.submitTransaction(signedTx);
-          
+
           // ALWAYS log transaction details (production too)
           console.log('✅ Stellar Transaction Sent!');
           console.log('📋 TX Hash:', submitResult.hash);
           console.log('🔗 View on Stellar:', `${networkInfo.stellar.explorerUrl}/tx/${submitResult.hash}`);
-          
+
           // Save transaction to history immediately when XLM tx submits
           saveTransactionToHistory({
             orderId: result.orderId,
@@ -977,14 +978,14 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             stellarTxHash: submitResult.hash,
             status: 'pending' // Initial status, will update after ETH processing
           });
-          
+
           // Show success
           setOrderId(submitResult.hash);
           setOrderCreated(true);
-          
+
           // Process the order on backend
           console.log('⚡ Triggering ETH release...');
-          
+
           const requestBody = {
             orderId: result.orderId,
             stellarTxHash: submitResult.hash,
@@ -992,10 +993,10 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             ethAddress: ethAddress,
             networkMode: networkInfo.isTestnet ? 'testnet' : 'mainnet'  // ✅ Send network mode to backend
           };
-          
+
           console.log('🔍 FRONTEND DEBUG: XLM→ETH request body:', JSON.stringify(requestBody, null, 2));
           console.log('🔍 FRONTEND DEBUG: API_BASE_URL:', API_BASE_URL);
-          
+
           try {
             const processResponse = await fetch(`${API_BASE_URL}/api/orders/xlm-to-eth`, {
               method: 'POST',
@@ -1004,29 +1005,29 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               },
               body: JSON.stringify(requestBody)
             });
-            
+
             if (processResponse.ok) {
               const processResult = await processResponse.json();
               console.log('✅ ETH release initiated:', processResult);
               console.log('💰 Expected ETH amount:', result.orderData?.targetAmount || 'unknown', 'wei');
-              
+
               // Update transaction status to completed
               updateTransactionStatus(result.orderId, 'completed', {
                 ethTxHash: processResult.ethTxId
               });
-              
+
               console.log('🎉 Cross-Chain Bridge Completed!');
               console.log('📋 ETH TX:', processResult.ethTxId);
-              
+
               // Update status to completed
               setStatusMessage('Completed ✅');
               setIsSubmitting(false);
-              
+
             } else {
               const errorData = await processResponse.text();
               console.error('❌ ETH release failed:', processResponse.status);
               console.error('❌ Error response body:', errorData);
-              
+
               // Try to parse error details
               let parsedError: any = null;
               try {
@@ -1035,7 +1036,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               } catch (parseError) {
                 console.error('❌ Could not parse error response as JSON');
               }
-              
+
               // Check if automatic refund was processed by backend
               if (parsedError?.refund?.status === 'completed') {
                 console.log('✅ Automatic refund completed:', parsedError.refund.stellarTxHash);
@@ -1048,10 +1049,10 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                   refundNetwork: 'stellar',
                   refundedAt: Date.now(),
                 });
-                
+
                 setStatusMessage('Refunded ↩️');
                 setIsSubmitting(false);
-                
+
                 alert(
                   `ETH transfer failed, but your XLM has been automatically refunded to your wallet.\n\n` +
                   `Refund TX: ${parsedError.refund.stellarTxHash}\n\n` +
@@ -1060,22 +1061,22 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               } else {
                 // Refund failed or not attempted - inform user with manual refund instructions
                 console.error('❌ Automatic refund failed:', parsedError?.refund);
-                
+
                 updateTransactionStatus(result.orderId, 'failed', {
                   autoRefundFailed: parsedError?.refund?.status === 'failed',
                   autoRefundError: parsedError?.refund?.error,
                 });
-                
+
                 setStatusMessage('Failed ❌');
                 setIsSubmitting(false);
-                
-                const refundInfo = parsedError?.refund 
+
+                const refundInfo = parsedError?.refund
                   ? `\n\nAutomatic refund failed: ${parsedError.refund.error}\n\n` +
                     `To recover your XLM, contact support with:\n` +
                     `- Stellar TX: ${submitResult.hash}\n` +
                     `- Stellar Address: ${stellarAddress}`
                   : '';
-                
+
                 alert(`ETH sending failed: ${parsedError?.details || errorData}${refundInfo}`);
               }
             }
@@ -1086,21 +1087,21 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               name: processError.name,
               stack: processError.stack
             });
-            
+
             // Update status to failed
                           setStatusMessage('Network error ❌');
             setIsSubmitting(false);
-            
+
             // Update transaction status to failed
             updateTransactionStatus(result.orderId, 'failed');
-            
-            // Show error to user  
+
+            // Show error to user
                           alert(`ETH sending network error: ${processError.message}`);
           }
 
         } catch (stellarError: any) {
           console.error('❌ Stellar transaction failed:', stellarError);
-          
+
           // Handle Freighter errors
           if (stellarError.message?.includes('User declined')) {
             alert('Stellar transaction was rejected by user');
@@ -1113,7 +1114,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         // Fallback: show order created without transaction
         setOrderId(result.orderId);
         setOrderCreated(true);
-        
+
         console.log('Order created (no transaction):', {
           orderId: result.orderId,
           fromToken,
@@ -1125,10 +1126,10 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
           direction
         });
       }
-      
+
     } catch (error: any) {
       console.error('❌ Error creating order:', error);
-      
+
       // Show error message
       alert(`Error: ${error.message || 'Unknown error occurred'}`);
     } finally {
@@ -1146,6 +1147,23 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
   // Check if wallets are connected
   const walletsConnected = ethAddress && stellarAddress;
+
+  // Wallet readiness preflight state
+  const [showWalletPreflight, setShowWalletPreflight] = useState(false);
+
+  // Check if this is a testnet/demo environment
+  const isTestnetEnvironment = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const urlNetwork = new URLSearchParams(window.location.search).get('network');
+    return urlNetwork === 'testnet' || !urlNetwork;
+  }, []);
+
+  // Show wallet preflight on testnet/demo environment
+  useEffect(() => {
+    if (isTestnetEnvironment && isTestnet()) {
+      setShowWalletPreflight(true);
+    }
+  }, [isTestnetEnvironment]);
 
   // ---- Network mismatch guardrails ----
   const mismatchInfo = useMemo(() => {
@@ -1190,14 +1208,14 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-300/12 shadow-[0_18px_48px_rgba(16,185,129,0.18)]">
             <CheckCircle2 className="h-8 w-8 text-emerald-200" />
           </div>
-          
+
           <div>
             <h3 className="mb-2 text-2xl font-semibold tracking-tight text-white">Order Created</h3>
             <p className="text-slate-300">
               Your cross-chain order has been successfully created and is now processing.
             </p>
           </div>
-          
+
           <div className="surface-panel rounded-2xl p-4 text-left">
             <div className="mb-2">
               <span className="text-sm text-slate-400">Order ID:</span>
@@ -1212,7 +1230,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               <p className="text-white">{estimatedAmount} {toToken.symbol}</p>
             </div>
           </div>
-          
+
           <div className="pt-4">
             <button
               onClick={handleReset}
@@ -1339,7 +1357,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
               <div className="mt-1 text-xs text-slate-500">$0.00</div>
             </div>
           </div>
-          
+
           {/* Fee and Time Estimate */}
           <div className="flex items-center justify-between px-1 text-xs text-slate-400">
             <div>Fee: $0.00</div>
@@ -1401,7 +1419,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
                 </div>
               )}
           </div>
-          
+
           {/* Status Message */}
           {statusMessage && (
             <div className="rounded-2xl border border-cyan-200/30 bg-cyan-200/[0.12] p-3 text-center">

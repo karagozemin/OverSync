@@ -1,5 +1,5 @@
 /**
- * Browser-side EVM RPC URLs (MetaMask / wallet reads).
+ * Browser-side RPC endpoints for network health checks and wallet readiness.
  *
  * Set either the full URL (VITE_SEPOLIA_RPC_URL) or VITE_INFURA_API_KEY.
  * Infura keys in the frontend are visible in the bundle — that is normal for
@@ -34,3 +34,14 @@ export function resolveViteMainnetRpcUrl(): string {
     PUBLIC_MAINNET
   );
 }
+
+// Explicit Stellar Horizon endpoints for wallet preflight checks
+export const STELLAR_TESTNET_HORIZON_URLS = [
+  'https://horizon-testnet.stellar.org',
+  'https://soroban-testnet.stellar.org',
+];
+
+export const STELLAR_MAINNET_HORIZON_URLS = [
+  'https://horizon.stellar.org',
+  'https://soroban.stellar.org',
+];
