@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createHash } from "node:crypto";
+import { createReadinessRateLimiter, type ReadinessRateLimitOptions } from "../readiness-rate-limit.js";
 
 function getBuildEnv(): "testnet" | "mainnet" {
   const v = (process.env.NETWORK_MODE ?? "testnet").toLowerCase();
@@ -74,9 +75,10 @@ function configuredStellarPassphrase(): string {
   );
 }
 
-export function healthRoutes(): Router {
+export function healthRoutes(rateLimit?: ReadinessRateLimitOptions): Router {
   const router = Router();
   const startedAt = Date.now();
+  router.use(createReadinessRateLimiter(rateLimit));
 
   // ── GET /health — existing contract, unchanged ───────────────────────────
   router.get("/health", (_req, res) => {
