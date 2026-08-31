@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
+import { FAILURE_CODE_CATALOG, type FailureCode } from "@oversync/sdk";
 import { encodeCursor, decodeCursor } from "./cursor-utils.js";
 
 function serialiseOrder(order: OrderRow | null) {
@@ -10,6 +11,7 @@ function serialiseOrder(order: OrderRow | null) {
     id: order.publicId,
     direction: order.direction,
     status: order.status,
+    failureCode: order.failureCode,
     hashlock: order.hashlock,
     src: {
       chain: order.srcChain,
@@ -43,6 +45,14 @@ function serialiseOrder(order: OrderRow | null) {
   };
 }
 
+export function sendError(res: any, code: FailureCode, status: number = 400) {
+  const detail = FAILURE_CODE_CATALOG[code];
+  res.status(status).json({
+    error: code,
+    message: detail.message
+  });
+}
+
 export function ordersRoutes(orders: OrderService): Router {
   const router = Router();
 
@@ -53,11 +63,11 @@ export function ordersRoutes(orders: OrderService): Router {
       res.status(201).json(serialiseOrder(order));
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        sendError(res, "VALIDATION_FAILED");
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        sendError(res, err.code);
         return;
       }
       next(err);
@@ -68,7 +78,7 @@ export function ordersRoutes(orders: OrderService): Router {
   router.get("/orders/history", async (req, res, next) => {
     const address = (req.query.address as string | undefined) ?? "";
     if (!address) {
-      res.status(400).json({ error: "address_required" });
+      sendError(res, "VALIDATION_FAILED");
       return;
     }
 
@@ -76,7 +86,7 @@ export function ordersRoutes(orders: OrderService): Router {
     const limitStr = req.query.limit as string | undefined;
     const limit = limitStr ? Number(limitStr) : 50;
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
-      res.status(400).json({ error: "invalid_limit", message: "limit must be an integer between 1 and 200" });
+      sendError(res, "VALIDATION_FAILED");
       return;
     }
 
@@ -86,7 +96,7 @@ export function ordersRoutes(orders: OrderService): Router {
     if (cursorStr) {
       const decoded = decodeCursor(cursorStr);
       if (!decoded) {
-        res.status(400).json({ error: "invalid_cursor", message: "cursor is malformed or expired" });
+        sendError(res, "VALIDATION_FAILED");
         return;
       }
       offset = decoded.offset;
@@ -136,7 +146,7 @@ export function ordersRoutes(orders: OrderService): Router {
     try {
       const order = await orders.get(id);
       if (!order) {
-        res.status(404).json({ error: "not_found" });
+        sendError(res, "ORDER_NOT_FOUND", 404);
         return;
       }
       res.json(serialiseOrder(order));
@@ -145,6 +155,22 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const transitions = await orders.getTransitions(id);
+      if (!transitions.length) {
+        const order = await orders.get(id);
+        if (!order) {
+          sendError(res, "ORDER_NOT_FOUND", 404);
+          return;
+        }
+      }
+      res.json({ transitions });
+    } catch (err) {
+      next(err);
+    }
+  });
   const lockSchema = z.object({
     orderId: z.string().min(1),
     txHash: z.string().min(1),
@@ -159,11 +185,11 @@ export function ordersRoutes(orders: OrderService): Router {
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        sendError(res, "VALIDATION_FAILED");
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        sendError(res, err.code);
         return;
       }
       next(err);
@@ -184,11 +210,11 @@ export function ordersRoutes(orders: OrderService): Router {
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        sendError(res, "VALIDATION_FAILED");
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        sendError(res, err.code);
         return;
       }
       next(err);

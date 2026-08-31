@@ -62,6 +62,10 @@ export default defineConfig(({ mode }) => {
         'ethers',
         '@rainbow-me/rainbowkit',
         'wagmi',
+        // Pre-bundle the workspace SDK so the Vite dev server and
+        // Vitest don't cold-scan src/**/*.ts on first launch now that
+        // the package exports point directly at TS source.
+        '@oversync/sdk',
       ],
     },
     test: {

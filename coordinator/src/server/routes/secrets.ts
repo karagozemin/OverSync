@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { sendError } from "./orders.js";
 import type { SecretService } from "../../services/secret-service.js";
 
 export function secretsRoutes(secrets: SecretService): Router {
@@ -18,7 +19,7 @@ export function secretsRoutes(secrets: SecretService): Router {
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        sendError(res, "VALIDATION_FAILED");
         return;
       }
       if (err instanceof Error) {

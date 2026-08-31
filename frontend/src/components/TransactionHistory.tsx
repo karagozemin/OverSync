@@ -9,6 +9,7 @@ import { classifyOrderFreshness } from '../lib/orderFreshness';
 import { buildHtlcReceipt } from '../lib/parseHtlcReceipt';
 import type { Address } from 'viem';
 import HtlcTimeline from './HtlcTimeline';
+import { FAILURE_CODE_CATALOG, type FailureCode } from '@oversync/sdk';
 
 interface Transaction {
   id: string;
@@ -20,6 +21,7 @@ interface Transaction {
   amount: string;
   estimatedAmount: string;
   status: 'pending' | 'completed' | 'cancelled' | 'failed';
+  failureCode?: FailureCode;
   timestamp: number;
   ethTxHash?: string;
   stellarTxHash?: string;
@@ -484,6 +486,16 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
                     {formatTime(tx.timestamp)}
                   </span>
                 </div>
+                {tx.status === 'failed' && (
+                  <div className="mt-2 text-xs text-red-400 flex items-start gap-1.5">
+                    <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>
+                      {tx.failureCode && FAILURE_CODE_CATALOG[tx.failureCode]
+                        ? FAILURE_CODE_CATALOG[tx.failureCode].message
+                        : 'Something went wrong with this transaction.'}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {tx.ethTxHash && isRealHash(tx.ethTxHash) && (

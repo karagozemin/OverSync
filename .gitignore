@@ -92,6 +92,9 @@ e2e/load-test/reports/*.json
 e2e/load-test/reports/*.md
 # Fallback if LOAD_TEST_OUTPUT_DIR is set to an absolute path outside the tree
 
+# Local SQLite databases (generated at runtime)
+*.db
+
 # Miscellaneous
 .cache/
 .parcel-cache/

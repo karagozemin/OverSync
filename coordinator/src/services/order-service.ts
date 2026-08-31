@@ -10,6 +10,7 @@ import {
   type Direction,
   type Chain
 } from "../persistence/orders-repo.js";
+import { type FailureCode } from "@oversync/sdk";
 import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
 import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
@@ -52,10 +53,10 @@ export class OrderValidationError extends Error {
 
 function validateChainAddress(chain: Chain, addr: string): void {
   if (chain === "ethereum" && !HEX_ADDRESS.test(addr)) {
-    throw new OrderValidationError(`${addr} is not a valid Ethereum address`);
+    throw new OrderValidationError(`${addr} is not a valid Ethereum address`, "VALIDATION_FAILED");
   }
   if (chain === "stellar" && !STELLAR_ADDRESS.test(addr)) {
-    throw new OrderValidationError(`${addr} is not a valid Stellar account`);
+    throw new OrderValidationError(`${addr} is not a valid Stellar account`, "VALIDATION_FAILED");
   }
 }
 
@@ -67,7 +68,8 @@ function validateDirectionAgainstChains(input: AnnounceInput): void {
   const want = expected[input.direction];
   if (want.src !== input.srcChain || want.dst !== input.dstChain) {
     throw new OrderValidationError(
-      `Direction ${input.direction} requires src=${want.src} and dst=${want.dst}`
+      `Direction ${input.direction} requires src=${want.src} and dst=${want.dst}`,
+      "VALIDATION_FAILED"
     );
   }
 }
@@ -124,7 +126,8 @@ export class OrderService {
     const existing = await this.repo.findByHashlock(input.hashlock);
     if (existing) {
       throw new OrderValidationError(
-        `An order with hashlock ${input.hashlock} already exists (publicId=${existing.publicId})`
+        `An order with hashlock ${input.hashlock} already exists (publicId=${existing.publicId})`,
+        "VALIDATION_FAILED"
       );
     }
 
@@ -163,9 +166,9 @@ export class OrderService {
     timelock: number;
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
-    if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
-    if (!canTransition(order.status, "src_locked") && order.status !== "src_locked") {
-      throw new OrderValidationError(`cannot record src lock from status ${order.status}`);
+    if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`, "ORDER_NOT_FOUND");
+    if (!canTransition(order.status, "src_locked")) {
+      throw new OrderValidationError(`cannot record src lock from status ${order.status}`, "VALIDATION_FAILED");
     }
     await this.repo.recordSrcLock(input);
     this.log.info({ publicId: input.publicId, srcOrderId: input.orderId }, "src lock recorded");
@@ -181,9 +184,9 @@ export class OrderService {
     resolver: string | null;
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
-    if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
+    if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`, "ORDER_NOT_FOUND");
     if (!canTransition(order.status, "dst_locked") && order.status !== "dst_locked") {
-      throw new OrderValidationError(`cannot record dst lock from status ${order.status}`);
+      throw new OrderValidationError(`cannot record dst lock from status ${order.status}`, "VALIDATION_FAILED");
     }
 
     if (order.srcTimelock) {
@@ -206,9 +209,9 @@ export class OrderService {
 
   async recordSecret(publicId: string, preimage: string, txHash: string): Promise<void> {
     const order = await this.repo.findByPublicId(publicId);
-    if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
+    if (!order) throw new OrderValidationError(`unknown order ${publicId}`, "ORDER_NOT_FOUND");
     if (!canTransition(order.status, "secret_revealed") && order.status !== "secret_revealed") {
-      throw new OrderValidationError(`cannot record secret from status ${order.status}`);
+      throw new OrderValidationError(`cannot record secret from status ${order.status}`, "VALIDATION_FAILED");
     }
     await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
     this.log.info({ publicId }, "secret recorded");
@@ -219,14 +222,14 @@ export class OrderService {
     return this.repo.getMetrics();
   }
 
-  async markStatus(publicId: string, status: OrderRow["status"]): Promise<void> {
+  async markStatus(publicId: string, status: OrderRow["status"], failureCode: string | null = null): Promise<void> {
     const order = await this.repo.findByPublicId(publicId);
-    if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
+    if (!order) throw new OrderValidationError(`unknown order ${publicId}`, "ORDER_NOT_FOUND");
     if (!canTransition(order.status, status)) {
-      throw new OrderValidationError(`cannot transition from ${order.status} to ${status}`);
+      throw new OrderValidationError(`cannot transition from ${order.status} to ${status}`, "VALIDATION_FAILED");
     }
-    await this.repo.setStatus(publicId, status);
-    this.log.info({ publicId, status }, "status updated");
+    await this.repo.setStatus(publicId, status, failureCode);
+    this.log.info({ publicId, status, failureCode }, "status updated");
     ordersTotal.inc({ status });
   }
 

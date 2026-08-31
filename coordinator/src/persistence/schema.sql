@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
     direction             TEXT    NOT NULL CHECK (direction IN ('eth_to_xlm', 'xlm_to_eth')),
     status                TEXT    NOT NULL CHECK (status IN ('announced', 'src_locked', 'dst_locked', 'secret_revealed', 'completed', 'refunded', 'failed', 'expired')),
+    failure_code          TEXT,
 
     -- Cross-chain link.
     hashlock              TEXT    NOT NULL,    -- 0x-prefixed 32-byte hex.

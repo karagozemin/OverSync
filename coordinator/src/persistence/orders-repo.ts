@@ -41,6 +41,7 @@ export interface OrderRow {
   publicId: string;
   direction: Direction;
   status: OrderStatus;
+  failureCode: string | null;
   hashlock: string;
   srcChain: Chain;
   srcAddress: string;
@@ -110,6 +111,7 @@ interface OrderDbRow {
   public_id: string;
   direction: Direction;
   status: OrderStatus;
+  failure_code: string | null;
   hashlock: string;
   src_chain: Chain;
   src_address: string;
@@ -142,6 +144,7 @@ function rowToOrder(r: OrderDbRow): OrderRow {
     publicId: r.public_id,
     direction: r.direction,
     status: r.status,
+    failureCode: r.failure_code,
     hashlock: r.hashlock,
     srcChain: r.src_chain,
     srcAddress: r.src_address,
@@ -227,7 +230,7 @@ export class OrdersRepository {
     `);
     this.updateStatus = db.prepare(`
       UPDATE orders
-      SET status = :status, updated_at = CAST(strftime('%s','now') AS INTEGER)
+      SET status = :status, failure_code = :failureCode, updated_at = CAST(strftime('%s','now') AS INTEGER)
       WHERE public_id = :publicId
     `);
     this.updateSrcLock = db.prepare(`
@@ -383,10 +386,10 @@ export class OrdersRepository {
     });
   }
 
-  async setStatus(publicId: string, status: OrderStatus): Promise<void> {
+  async setStatus(publicId: string, status: OrderStatus, failureCode: string | null = null): Promise<void> {
     const order = await this.findByPublicId(publicId);
     if (!order) throw new Error("Unknown order");
-    await this.run(this.updateStatus, { publicId, status });
+    await this.run(this.updateStatus, { publicId, status, failureCode });
     await this.recordTransition(order.id, order.status, status, null, status);
   }
 
