@@ -102,6 +102,27 @@ describe("OrderService", () => {
       })
     ).rejects.toThrowError(OrderValidationError);
   });
+
+  it("rejects all-zero hashlocks", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const zeroHashlock = "0x" + "0".repeat(64);
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: zeroHashlock,
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
 });
 
 describe("SecretService", () => {

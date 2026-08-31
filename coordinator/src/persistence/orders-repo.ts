@@ -177,6 +177,7 @@ export class OrdersRepository {
   private readonly byAddress: Statement;
   private readonly bySrcOrderId: Statement;
   private readonly byDstOrderId: Statement;
+  private readonly byPreimage: Statement;
   private readonly insertOrderEvent: Statement;
   private readonly transitionsByOrderId: Statement;
   private readonly updateStatus: Statement;
@@ -218,6 +219,7 @@ export class OrdersRepository {
     this.byDstOrderId = db.prepare(`
       SELECT * FROM orders WHERE dst_chain = :chain AND dst_order_id = :orderId
     `);
+    this.byPreimage = db.prepare("SELECT * FROM orders WHERE preimage = ?");
     this.insertOrderEvent = db.prepare(`
       INSERT INTO order_events (order_id, event_type, payload_json)
       VALUES (:orderId, :eventType, :payloadJson)
@@ -344,6 +346,11 @@ export class OrdersRepository {
 
   async findByHashlock(hashlock: string): Promise<OrderRow | null> {
     const row = await this.get<OrderDbRow>(this.byHashlock, hashlock);
+    return row ? rowToOrder(row) : null;
+  }
+
+  async findByPreimage(preimage: string): Promise<OrderRow | null> {
+    const row = await this.get<OrderDbRow>(this.byPreimage, preimage);
     return row ? rowToOrder(row) : null;
   }
 

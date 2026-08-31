@@ -25,6 +25,9 @@ function assertValidSecretFormat(value: unknown, fieldName: string = "secret"): 
   if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
     throw new Error(`${fieldName} contains invalid hex characters`);
   }
+  if (/^0+$/.test(hexPart)) {
+    throw new Error(`${fieldName} must not be all zeros`);
+  }
   return value as `0x${string}`;
 }
 
@@ -69,6 +72,16 @@ export class SecretService {
       );
       throw new Error("preimage does not match order hashlock");
     }
+
+    const existing = await this.orders.findByPreimage(preimage);
+    if (existing && existing.publicId !== publicId) {
+      this.log.warn(
+        { publicId, reusedBy: existing.publicId },
+        "rejected reused preimage"
+      );
+      throw new Error("preimage already used in another order");
+    }
+
     await this.orders.recordSecret(publicId, preimage, txHash);
     return { ok: true };
   }

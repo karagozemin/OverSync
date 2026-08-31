@@ -55,6 +55,11 @@ describe("secrets", () => {
       expect(() => assertValidSecretFormat(invalid)).toThrow("secret contains invalid hex characters");
     });
 
+    it("rejects all-zero secrets", () => {
+      const zero = "0x" + "0".repeat(64);
+      expect(() => assertValidSecretFormat(zero)).toThrow("secret must not be all zeros");
+    });
+
     it("uses custom field name in errors", () => {
       expect(() => assertValidSecretFormat("invalid", "hashlock")).toThrow('hashlock must start with "0x"');
     });

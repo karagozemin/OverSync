@@ -20,12 +20,16 @@ import {
 } from "../utils/timelock-validator.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
+const ZERO_HASHLOCK = "0x" + "0".repeat(64);
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const STELLAR_ADDRESS = /^G[A-Z2-7]{55}$/;
 
 export const announceSchema = z.object({
   direction: z.enum(["eth_to_xlm", "xlm_to_eth"]),
-  hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars"),
+  hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars").refine(
+    (v) => v.toLowerCase() !== ZERO_HASHLOCK.toLowerCase(),
+    "hashlock must not be all zeros"
+  ),
   srcChain: z.enum(["ethereum", "stellar"]),
   srcAddress: z.string(),
   srcAsset: z.string().min(1),
@@ -174,6 +178,10 @@ export class OrderService {
 
   findByHashlock(hashlock: string): Promise<OrderRow | null> {
     return this.repo.findByHashlock(hashlock);
+  }
+
+  findByPreimage(preimage: string): Promise<OrderRow | null> {
+    return this.repo.findByPreimage(preimage);
   }
 
   async recordSrcLock(input: {
