@@ -21,6 +21,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { sepolia, mainnet } from "viem/chains";
 import { rpc, Keypair } from "@stellar/stellar-sdk";
 import { resolveEthereumRpcUrl } from "../ethereum-rpc-url.js";
+import { checkCoordinatorNetwork, redactUrl } from "../network-agreement.js";
 
 // Load .env from CWD. dotenv is a no-op if the file is missing, so this is
 // safe for tests and prod. Existing env vars take precedence over .env.
@@ -280,6 +281,19 @@ export async function assessReadiness(): Promise<ReadinessResult> {
     status: rawCoordUrl ? "ok" : "warn",
     detail: coordUrlDisplay
   });
+
+  // When an upstream coordinator is explicitly configured, verify that both
+  // services target the same Ethereum chain and Stellar network. The
+  // coordinator returns only a passphrase fingerprint, never the passphrase.
+  if (rawCoordUrl) {
+    const agreement = await checkCoordinatorNetwork(rawCoordUrl, network, evmPing.chainId);
+    checks.push({
+      id: "coordinator-network",
+      label: "Coordinator and resolver network agreement",
+      status: agreement.status,
+      detail: agreement.detail
+    });
+  }
 
   checks.push({
     id: "dry-run-mode",

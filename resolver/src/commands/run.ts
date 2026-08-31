@@ -5,6 +5,7 @@ import { SorobanListener } from "../listeners/soroban.js";
 import { checkPreflight } from "./check.js";
 import { buildPlan } from "../planner/index.js";
 import { observedFromEthereumEvent } from "../planner/index.js";
+import { checkCoordinatorNetwork } from "../network-agreement.js";
 
 export interface RunOptions {
   dryRun?: boolean;
@@ -15,6 +16,21 @@ export async function runCommand(opts: RunOptions = {}): Promise<void> {
   const cfg = loadConfig();
   const log = getLogger(cfg.logLevel);
   log.info({ network: cfg.network, dryRun }, "OverSync resolver starting");
+
+  // Refuse to start when the configured coordinator targets a different
+  // chain. Unreachable coordinators remain a warning so observation mode can
+  // still be used during local setup.
+  const networkAgreement = await checkCoordinatorNetwork(
+    cfg.coordinatorUrl,
+    cfg.network,
+    cfg.ethereum.chainId
+  );
+  if (networkAgreement.status === "fail") {
+    throw new Error(`Coordinator/resolver network mismatch: ${networkAgreement.detail}`);
+  }
+  if (networkAgreement.status === "warn") {
+    log.warn({ reason: networkAgreement.detail }, "Could not verify coordinator network agreement");
+  }
 
   // Run preflight check in warning mode
   const preflightResults = await checkPreflight();
