@@ -7,6 +7,37 @@ vi.mock('./config/networks', () => ({
   isMainnetEnabled: vi.fn(() => false),
   isTestnet: vi.fn(() => true),
   resolveNetworkMode: vi.fn((requested: string) => requested),
+  getCurrentNetwork: vi.fn(() => ({
+    ethereum: {
+      id: 11155111,
+      name: 'sepolia',
+      displayName: 'Sepolia Testnet',
+      rpcUrl: 'https://sepolia.example.com',
+      explorerUrl: 'https://sepolia.etherscan.io',
+      escrowFactory: '0x3f344ACDd17a0c4D21096da895152820f595dc8A',
+      nativeCurrency: { name: 'Sepolia Ether', symbol: 'SEP', decimals: 18 },
+      testnet: true,
+    },
+    stellar: {
+      name: 'testnet',
+      displayName: 'Stellar Testnet',
+      horizonUrl: 'https://horizon-testnet.stellar.org',
+      networkPassphrase: 'Test SDF Network ; September 2015',
+      explorerUrl: 'https://testnet.stellarchain.io',
+      testnet: true,
+    },
+  })),
+  getContractAddresses: vi.fn(() => ({
+    ethereum: {
+      htlcBridge: '0x3f344ACDd17a0c4D21096da895152820f595dc8A',
+      escrowFactory: '0x6c3818E074d891F1FBB3A75913e4BDe87BcF1123',
+      testToken: '0x677afcB4A57a938A74a1A76a93913dE4Db3e5C63',
+    },
+    stellar: {
+      bridgeAccount: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      escrowAccount: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  })),
 }));
 
 vi.mock('./lib/useNetworkMode', () => ({

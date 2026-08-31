@@ -96,11 +96,6 @@ jobs:
         with:
           targets: wasm32-unknown-unknown,wasm32v1-none
 
-      - name: Install Stellar CLI
-        run: |
-          cargo install --locked stellar-cli --version 22.8.1 || true
-          stellar --version
-
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -110,12 +105,14 @@ jobs:
             soroban/target
           key: soroban-${{ runner.os }}-${{ hashFiles('soroban/Cargo.toml', 'soroban/contracts/**/Cargo.toml') }}
 
-      - name: Build WASM
-        run: stellar contract build
+      - name: Build Soroban contracts
+        run: cargo build --release --target wasm32-unknown-unknown
 
       - name: Run unit tests
         run: cargo test --release
 
+      - name: Verify deployment metadata script
+        run: node scripts/print-deployments.mjs testnet
       - name: Generate CI evidence summary (Soroban)
         env:
           JOB_STATUS: ${{ job.status }}
