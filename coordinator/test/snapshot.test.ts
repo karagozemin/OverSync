@@ -65,14 +65,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "0",
       txHash: "0xsrctx",
       blockNumber: 100,
-      timelock: 200
+      timelock: 1000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "0",
       txHash: "0xdsttx",
       blockNumber: 200,
-      timelock: 300,
+      timelock: 200,
       resolver: null
     });
     await orders.recordSecret(order.publicId, "0x" + "a".repeat(64), "0xsecretx");
@@ -136,7 +136,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "2",
       txHash: "0xsrcrtx",
       blockNumber: 50,
-      timelock: 150
+      timelock: 1000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
@@ -187,28 +187,6 @@ describe("OrderService.getSnapshots", () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
 
-    const completed1 = await orders.announce({
-      ...ETH_TO_XLM_ANNOUNCE,
-      hashlock: "0x" + "e".repeat(64)
-    });
-    await orders.recordSrcLock({
-      publicId: completed1.publicId,
-      orderId: "c1",
-      txHash: "0xc1src",
-      blockNumber: 1,
-      timelock: 0
-    });
-    await orders.recordDstLock({
-      publicId: completed1.publicId,
-      orderId: "c1",
-      txHash: "0xc1dst",
-      blockNumber: 2,
-      timelock: 0,
-      resolver: null
-    });
-    await orders.recordSecret(completed1.publicId, "secret-c1", "0xc1secret");
-    await orders.markStatus(completed1.publicId, "completed");
-
     const refunded1 = await orders.announce({
       ...ETH_TO_XLM_ANNOUNCE,
       hashlock: "0x" + "f".repeat(64)
@@ -221,6 +199,28 @@ describe("OrderService.getSnapshots", () => {
       timelock: 0
     });
     await orders.markStatus(refunded1.publicId, "refunded");
+
+    const completed1 = await orders.announce({
+      ...ETH_TO_XLM_ANNOUNCE,
+      hashlock: "0x" + "e".repeat(64)
+    });
+    await orders.recordSrcLock({
+      publicId: completed1.publicId,
+      orderId: "c1",
+      txHash: "0xc1src",
+      blockNumber: 1,
+      timelock: 1000
+    });
+    await orders.recordDstLock({
+      publicId: completed1.publicId,
+      orderId: "c1",
+      txHash: "0xc1dst",
+      blockNumber: 2,
+      timelock: 200,
+      resolver: null
+    });
+    await orders.recordSecret(completed1.publicId, "secret-c1", "0xc1secret");
+    await orders.markStatus(completed1.publicId, "completed");
 
     const snapshots = await orders.getSnapshots();
     expect(snapshots).toHaveLength(2);
