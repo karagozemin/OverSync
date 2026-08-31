@@ -563,10 +563,15 @@ export function buildSnapshot(order: OrderRow): OrderSnapshot {
     order.dstLockTx,
     order.secretRevealedTx
   ].filter((tx): tx is string => tx !== null);
-  const outcomeSummary = order.status === "completed" ? "Order completed successfully" :
-                         order.status === "refunded" ? "Order refunded" :
-                         order.status === "failed" ? "Order failed" :
-                         "Order expired";
+
+  let outcomeSummary = "Order expired";
+  if (order.status === "completed") {
+    outcomeSummary = "Order completed successfully";
+  } else if (order.status === "refunded") {
+    outcomeSummary = "Order refunded";
+  } else if (order.status === "failed") {
+    outcomeSummary = "Order failed";
+  }
 
   return {
     orderId: order.publicId,
@@ -594,25 +599,5 @@ function deriveTransitions(status: OrderStatus): string[] {
       return ["announced", "expired"];
     default:
       return [status];
-  }
-
-  async getMetrics(): Promise<OrderMetrics> {
-    const byStatus = await this.all<{ status: string; count: number }>(this.metricsByStatus);
-    const totalRow = await this.get<{ count: number }>(this.metricsTotal);
-    const lastUpdatedRow = await this.get<{ ts: number | null }>(this.metricsLastUpdated);
-
-    const statusMap: Record<string, number> = {};
-    for (const row of byStatus) {
-      statusMap[row.status] = Number(row.count);
-    }
-
-    return {
-      totalOrders: Number(totalRow?.count ?? 0),
-      byStatus: statusMap,
-      completedOrders: statusMap["completed"] ?? 0,
-      refundedOrders: statusMap["refunded"] ?? 0,
-      staleExpiredOrders: (statusMap["expired"] ?? 0) + (statusMap["failed"] ?? 0),
-      lastUpdatedTimestamp: lastUpdatedRow?.ts != null ? Number(lastUpdatedRow.ts) : null
-    };
   }
 }

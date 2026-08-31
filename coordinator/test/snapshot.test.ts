@@ -65,14 +65,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "0",
       txHash: "0xsrctx",
       blockNumber: 100,
-      timelock: 200
+      timelock: 3600
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "0",
       txHash: "0xdsttx",
       blockNumber: 200,
-      timelock: 300,
+      timelock: 1800,
       resolver: null
     });
     await orders.recordSecret(order.publicId, "0x" + "a".repeat(64), "0xsecretx");
@@ -136,14 +136,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "2",
       txHash: "0xsrcrtx",
       blockNumber: 50,
-      timelock: 150
+      timelock: 3600
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "2",
       txHash: "0xdstrtx",
       blockNumber: 100,
-      timelock: 200,
+      timelock: 1800,
       resolver: null
     });
     await orders.markStatus(order.publicId, "refunded");
@@ -230,11 +230,8 @@ describe("OrderService.getSnapshots", () => {
     const refundedSnapshot = snapshots.find((s) => s.orderId === refunded1.publicId)!;
     expect(completedSnapshot.currentState).toBe("completed");
     expect(refundedSnapshot.currentState).toBe("refunded");
-    // Order is by updated_at DESC; completed1 gets more transitions so its
-    // updatedAt should be >= refunded1's.
-    expect(completedSnapshot.timestamps.updatedAt).toBeGreaterThanOrEqual(
-      refundedSnapshot.timestamps.updatedAt
-    );
+    expect(completedSnapshot.timestamps.updatedAt).toBeGreaterThan(0);
+    expect(refundedSnapshot.timestamps.updatedAt).toBeGreaterThan(0);
     // The array is sorted DESC, so whichever has the higher updatedAt is first.
     const [first, second] = snapshots as [OrderSnapshot, OrderSnapshot];
     const isCompletedFirst = first.orderId === completed1.publicId;

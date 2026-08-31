@@ -245,7 +245,7 @@ describe('BridgeForm network mismatch guardrails', () => {
       hasAnyMismatch: true,
     };
 
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     render(
       <BridgeForm

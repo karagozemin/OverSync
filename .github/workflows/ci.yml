@@ -97,9 +97,9 @@ jobs:
           targets: wasm32-unknown-unknown,wasm32v1-none
 
       - name: Install Stellar CLI
-        run: |
-          cargo install --locked stellar-cli --version 22.8.1 || true
-          stellar --version
+        uses: stellar/stellar-cli@v22.8.1
+        with:
+          version: 22.8.1
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -109,6 +109,12 @@ jobs:
             ~/.cargo/git
             soroban/target
           key: soroban-${{ runner.os }}-${{ hashFiles('soroban/Cargo.toml', 'soroban/contracts/**/Cargo.toml') }}
+
+      - name: Pin ed25519-dalek to 2.1.1
+        run: |
+          cargo update -p ed25519-dalek@3.0.0 --precise 2.1.1 || true
+          cargo update -p ed25519-dalek@2.2.0 --precise 2.1.1 || true
+          cargo update -p ed25519-dalek --precise 2.1.1 || true
 
       - name: Build WASM
         run: stellar contract build
