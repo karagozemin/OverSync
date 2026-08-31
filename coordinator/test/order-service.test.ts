@@ -198,3 +198,122 @@ describe("PostgresStatement", () => {
     );
   });
 });
+
+describe("OrderService timelock ordering", () => {
+  const MIN_GAP = 600;
+
+  async function announcedOrder(db: Awaited<ReturnType<typeof freshDb>>) {
+    const orders = new OrderService(new OrdersRepository(db), log, undefined, {
+      timelockSafetyGapSeconds: MIN_GAP
+    } as ReturnType<typeof import("../src/config.js").loadConfig>);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    return { orders, order };
+  }
+
+  it("rejects reversed timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 5_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 6_000,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "TIMELOCKS_REVERSED" });
+  });
+
+  it("rejects equal timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 10_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 10_000,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "TIMELOCKS_REVERSED" });
+  });
+
+  it("rejects gap-too-small timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 10_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 9_500,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "GAP_TOO_SMALL" });
+  });
+
+  it("accepts dst lock when gap is exactly minGap", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    const srcTimelock = 10_000;
+    const dstTimelock = srcTimelock - MIN_GAP;
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: srcTimelock
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: dstTimelock,
+        resolver: null
+      })
+    ).resolves.toBeUndefined();
+  });
+});
+
