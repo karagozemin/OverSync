@@ -123,6 +123,59 @@ describe("OrderService", () => {
       })
     ).rejects.toThrowError(OrderValidationError);
   });
+
+  it("normalizes uppercase hashlocks to lowercase before storage", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const uppercaseHashlock = "0x" + "A".repeat(64);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: uppercaseHashlock,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    expect(order.hashlock).toBe("0x" + "a".repeat(64));
+  });
+
+  it("detects duplicate hashlocks across different casings", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: "0x" + "A".repeat(64),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: "0x" + "a".repeat(64),
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
 });
 
 describe("SecretService", () => {

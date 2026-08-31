@@ -131,6 +131,8 @@ export class OrderService {
       throw new OrderValidationError("hashlock must not be all zeros");
     }
 
+    const hashlock = input.hashlock.toLowerCase() as `0x${string}`;
+
     // --- Quote freshness gate -------------------------------------------
     if (input.quoteId) {
       if (!this.quoteService) {
@@ -150,16 +152,16 @@ export class OrderService {
     }
     // -------------------------------------------------------------------
 
-    const existing = await this.repo.findByHashlock(input.hashlock);
+    const existing = await this.repo.findByHashlock(hashlock);
     if (existing) {
       throw new OrderValidationError(
-        `An order with hashlock ${input.hashlock} already exists (publicId=${existing.publicId})`
+        `An order with hashlock ${hashlock} already exists (publicId=${existing.publicId})`
       );
     }
 
     // Strip quoteId — it's not a persisted column, just a freshness gate.
     const { quoteId: _q, ...repoInput } = input;
-    const order = await this.repo.announce(repoInput as AnnounceOrderInput);
+    const order = await this.repo.announce({ ...repoInput, hashlock } as AnnounceOrderInput);
     this.log.info(
       { publicId: order.publicId, direction: order.direction, quoteId: input.quoteId ?? null },
       "order announced"
