@@ -39,6 +39,18 @@ const configSchema = z.object({
     },
     z.boolean().default(false)
   ),
+  // Mainnet requires explicit audit confirmation to prevent accidental enablement
+  mainnetAuditConfirmed: z.preprocess(
+    (v) => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "string") {
+        const s = v.trim().toLowerCase();
+        return s === "true" || s === "1" || s === "yes" || s === "on";
+      }
+      return false;
+    },
+    z.boolean().default(false)
+  ),
   ethereum: z.object({
     rpcUrl: z.string().url(),
     chainId: z.number().int(),
@@ -71,6 +83,18 @@ export function loadConfig(): CoordinatorConfig {
   const network = (process.env.NETWORK_MODE ?? "testnet") as Network;
   const isMainnet = network === "mainnet";
 
+  // Mainnet requires explicit audit confirmation
+  if (isMainnet) {
+    const auditConfirmed = process.env.MAINNET_AUDIT_CONFIRMED === "true";
+    if (!auditConfirmed) {
+      throw new Error(
+        "MAINNET DEPLOYMENT BLOCKED: Set MAINNET_AUDIT_CONFIRMED=true only after " +
+        "completing the mainnet readiness checklist in docs/DEPLOYMENT.md. " +
+        "This includes audit completion, multisig ownership, and bug bounty."
+      );
+    }
+  }
+
   const raw = {
     network,
     port: process.env.COORDINATOR_PORT ?? process.env.RELAYER_PORT ?? "3001",
@@ -86,6 +110,7 @@ export function loadConfig(): CoordinatorConfig {
     // when the env var is unset; previously this branch substituted
     // "false" and z.coerce.boolean() turned it into true.
     demoFixtures: process.env.COORDINATOR_DEMO_FIXTURES,
+    mainnetAuditConfirmed: process.env.MAINNET_AUDIT_CONFIRMED,
     ethereum: {
       rpcUrl: resolveEthereumRpcUrl(isMainnet ? "mainnet" : "testnet"),
       chainId: isMainnet ? 1 : 11_155_111,
@@ -106,5 +131,32 @@ export function loadConfig(): CoordinatorConfig {
     timelockSafetyGapSeconds: 600
   };
 
-  return configSchema.parse(raw);
+  const result = configSchema.parse(raw);
+
+  // Additional validation: testnet requires contract addresses
+  if (!isMainnet) {
+    const missingTestnetContracts = [];
+    if (!result.ethereum.htlcEscrow) {
+      missingTestnetContracts.push("ETH_HTLC_ESCROW_TESTNET");
+    }
+    if (!result.ethereum.resolverRegistry) {
+      missingTestnetContracts.push("ETH_RESOLVER_REGISTRY_TESTNET");
+    }
+    if (!result.soroban.htlcContract) {
+      missingTestnetContracts.push("SOROBAN_HTLC_TESTNET");
+    }
+    if (!result.soroban.resolverRegistry) {
+      missingTestnetContracts.push("SOROBAN_RESOLVER_REGISTRY_TESTNET");
+    }
+
+    if (missingTestnetContracts.length > 0) {
+      throw new Error(
+        `TESTNET DEPLOYMENT INCOMPLETE: Missing required testnet contract addresses: ` +
+        missingTestnetContracts.join(", ") +
+        ". Deploy contracts first (see docs/DEPLOYMENT.md) or check env.example for variable names."
+      );
+    }
+  }
+
+  return result;
 }

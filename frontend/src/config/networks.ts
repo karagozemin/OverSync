@@ -23,6 +23,118 @@ export const resolveNetworkMode = (requested: AppNetworkMode): AppNetworkMode =>
   return requested;
 };
 
+/**
+ * Validates frontend environment variables at build time.
+ * Throws descriptive errors for missing or misconfigured testnet/mainnet settings.
+ */
+export function validateFrontendEnv(): void {
+  const env = (import.meta as any).env || {};
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Detect network mode
+  const networkMode = env.VITE_NETWORK_MODE || env.VITE_NETWORK || 'testnet';
+  const isMainnet = networkMode === 'mainnet';
+
+  // Mainnet requires explicit audit confirmation
+  if (isMainnet) {
+    const mainnetEnabled = env.VITE_MAINNET_ENABLED === 'true';
+    const auditConfirmed = env.VITE_MAINNET_AUDIT_CONFIRMED === 'true';
+
+    if (!mainnetEnabled) {
+      errors.push(
+        "MAINNET BLOCKED: VITE_MAINNET_ENABLED must be 'true' to use mainnet. " +
+        "Keep it 'false' until post-audit mainnet launch."
+      );
+    }
+
+    if (!auditConfirmed) {
+      errors.push(
+        "MAINNET DEPLOYMENT BLOCKED: Set VITE_MAINNET_AUDIT_CONFIRMED=true only after " +
+        "completing the mainnet readiness checklist in docs/DEPLOYMENT.md. " +
+        "This includes audit completion, multisig ownership, and bug bounty."
+      );
+    }
+  }
+
+  // Validate testnet contract addresses
+  if (!isMainnet) {
+    const testnetContracts = {
+      'VITE_ETH_HTLC_ESCROW_TESTNET': env.VITE_ETH_HTLC_ESCROW_TESTNET,
+      'VITE_ETH_RESOLVER_REGISTRY_TESTNET': env.VITE_ETH_RESOLVER_REGISTRY_TESTNET,
+    };
+
+    const missingContracts = Object.entries(testnetContracts)
+      .filter(([, value]) => !value || value.includes('YOUR_') || value.includes('0x000000'))
+      .map(([key]) => key);
+
+    if (missingContracts.length > 0) {
+      errors.push(
+        `TESTNET CONFIG INCOMPLETE: Missing or placeholder testnet contract addresses: ` +
+        missingContracts.join(', ') +
+        ". Deploy contracts first (see docs/DEPLOYMENT.md) or check env.example."
+      );
+    }
+  }
+
+  // Validate mainnet contract addresses if mainnet is enabled
+  if (isMainnet && env.VITE_MAINNET_ENABLED === 'true') {
+    const mainnetContracts = {
+      'VITE_ETH_HTLC_ESCROW_MAINNET': env.VITE_ETH_HTLC_ESCROW_MAINNET,
+      'VITE_ETH_RESOLVER_REGISTRY_MAINNET': env.VITE_ETH_RESOLVER_REGISTRY_MAINNET,
+    };
+
+    const missingContracts = Object.entries(mainnetContracts)
+      .filter(([, value]) => !value || value.includes('YOUR_') || value.includes('0x000000'))
+      .map(([key]) => key);
+
+    if (missingContracts.length > 0) {
+      errors.push(
+        `MAINNET CONFIG INCOMPLETE: Missing or placeholder mainnet contract addresses: ` +
+        missingContracts.join(', ') +
+        ". Deploy mainnet contracts and set addresses in Vercel environment variables."
+      );
+    }
+  }
+
+  // Validate API base URL
+  const apiBaseUrl = env.VITE_API_BASE_URL;
+  if (!apiBaseUrl || apiBaseUrl.includes('YOUR_')) {
+    warnings.push("VITE_API_BASE_URL not configured or using placeholder. Frontend will not be able to reach the coordinator API.");
+  }
+
+  // Validate RPC URLs
+  const sepoliaRpcUrl = env.VITE_SEPOLIA_RPC_URL;
+  const mainnetRpcUrl = env.VITE_MAINNET_RPC_URL;
+
+  if (!isMainnet && (!sepoliaRpcUrl || sepoliaRpcUrl.includes('YOUR_'))) {
+    warnings.push("VITE_SEPOLIA_RPC_URL not configured. Testnet users may experience connection issues.");
+  }
+
+  if (isMainnet && (!mainnetRpcUrl || mainnetRpcUrl.includes('YOUR_'))) {
+    warnings.push("VITE_MAINNET_RPC_URL not configured. Mainnet users may experience connection issues.");
+  }
+
+  // Report errors (fail build)
+  if (errors.length > 0) {
+    console.error('❌ FRONTEND ENVIRONMENT VALIDATION FAILED:');
+    errors.forEach(err => console.error(`   - ${err}`));
+    console.error('\nFrontend build blocked. Fix the above errors and rebuild.');
+    throw new Error(`Frontend environment validation failed:\n${errors.join('\n')}`);
+  }
+
+  // Report warnings (don't fail build)
+  if (warnings.length > 0) {
+    console.warn('⚠️  Frontend environment warnings:');
+    warnings.forEach(warn => console.warn(`   - ${warn}`));
+  }
+
+  console.log('✅ Frontend environment validation passed');
+}
+
+// Run validation at module load time (build time for Vite)
+validateFrontendEnv();
+
 function readNetworkNameFromEnvOrUrl(): AppNetworkMode {
   let networkName: AppNetworkMode = 'testnet';
 

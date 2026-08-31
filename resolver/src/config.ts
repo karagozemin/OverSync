@@ -1,6 +1,8 @@
 import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
+import { z } from "zod";
 import { getLogger } from "./logger.js"; // Import the updated logger framework
+import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
 
 dotenvConfig({ path: resolve(process.cwd(), ".env") });
 
@@ -32,7 +34,56 @@ export interface ResolverConfig {
   soroban: SorobanConfig;
 }
 
-import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
+const configSchema = z.object({
+  network: z.enum(["testnet", "mainnet"]).default("testnet"),
+  pollIntervalMs: z.coerce.number().int().positive().default(15_000),
+  coordinatorUrl: z.string().url().default("http://localhost:3001"),
+  logLevel: z.enum(["trace", "debug", "info", "warn", "error"]).default("info"),
+  // Mainnet requires explicit audit confirmation to prevent accidental enablement
+  mainnetAuditConfirmed: z.preprocess(
+    (v) => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "string") {
+        const s = v.trim().toLowerCase();
+        return s === "true" || s === "1" || s === "yes" || s === "on";
+      }
+      return false;
+    },
+    z.boolean().default(false)
+  ),
+  ethereum: z.object({
+    rpcUrl: z.string().url(),
+    chainId: z.number().int(),
+    htlcEscrow: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? (v as `0x${string}`) : null)),
+    resolverRegistry: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? (v as `0x${string}`) : null)),
+    resolverPrivateKey: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? (v as `0x${string}`) : null))
+  }),
+  soroban: z.object({
+    rpcUrl: z.string().url(),
+    horizonUrl: z.string().url(),
+    networkPassphrase: z.string(),
+    htlc: z.string().optional().transform((v) => v ?? null),
+    resolverRegistry: z.string().optional().transform((v) => v ?? null),
+    resolverSecret: z.string().optional().transform((v) => v ?? null)
+  })
+});
+
+export type ResolverConfigValidated = z.infer<typeof configSchema>;
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -59,20 +110,32 @@ export function loadConfig(): ResolverConfig {
 
   const isMainnet = network === "mainnet";
 
-  const config: ResolverConfig = {
+  // Mainnet requires explicit audit confirmation
+  if (isMainnet) {
+    const auditConfirmed = process.env.MAINNET_AUDIT_CONFIRMED === "true";
+    if (!auditConfirmed) {
+      throw new Error(
+        "MAINNET DEPLOYMENT BLOCKED: Set MAINNET_AUDIT_CONFIRMED=true only after " +
+        "completing the mainnet readiness checklist in docs/DEPLOYMENT.md. " +
+        "This includes audit completion, multisig ownership, and bug bounty."
+      );
+    }
+  }
+
+  const raw = {
     network,
-    pollIntervalMs: Number(process.env.RESOLVER_POLL_INTERVAL_MS ?? 15_000),
+    pollIntervalMs: process.env.RESOLVER_POLL_INTERVAL_MS ?? "15000",
     coordinatorUrl: process.env.COORDINATOR_URL ?? "http://localhost:3001",
-    logLevel: (process.env.LOG_LEVEL as ResolverConfig["logLevel"]) ?? "info",
+    logLevel: process.env.LOG_LEVEL ?? "info",
+    mainnetAuditConfirmed: process.env.MAINNET_AUDIT_CONFIRMED,
     ethereum: {
       rpcUrl: resolveEthereumRpcUrl(isMainnet ? "mainnet" : "testnet"),
       chainId: isMainnet ? 1 : 11_155_111,
-      htlcEscrow: optionalAddress(isMainnet ? "ETH_HTLC_ESCROW_MAINNET" : "ETH_HTLC_ESCROW_TESTNET"),
-      resolverRegistry: optionalAddress(
-        isMainnet ? "ETH_RESOLVER_REGISTRY_MAINNET" : "ETH_RESOLVER_REGISTRY_TESTNET"
-      ),
+      htlcEscrow: process.env[isMainnet ? "ETH_HTLC_ESCROW_MAINNET" : "ETH_HTLC_ESCROW_TESTNET"] ?? "",
+      resolverRegistry:
+        process.env[isMainnet ? "ETH_RESOLVER_REGISTRY_MAINNET" : "ETH_RESOLVER_REGISTRY_TESTNET"] ?? "",
       resolverPrivateKey:
-        (process.env.RESOLVER_ETH_PRIVATE_KEY as `0x${string}` | undefined) ?? null
+        (process.env.RESOLVER_ETH_PRIVATE_KEY as `0x${string}` | undefined) ?? ""
     },
     soroban: {
       rpcUrl:
@@ -84,12 +147,62 @@ export function loadConfig(): ResolverConfig {
       networkPassphrase: isMainnet
         ? "Public Global Stellar Network ; September 2015"
         : "Test SDF Network ; September 2015",
-      htlc: process.env[isMainnet ? "SOROBAN_HTLC_MAINNET" : "SOROBAN_HTLC_TESTNET"] ?? null,
+      htlc: process.env[isMainnet ? "SOROBAN_HTLC_MAINNET" : "SOROBAN_HTLC_TESTNET"] ?? "",
       resolverRegistry:
         process.env[
           isMainnet ? "SOROBAN_RESOLVER_REGISTRY_MAINNET" : "SOROBAN_RESOLVER_REGISTRY_TESTNET"
-        ] ?? null,
-      resolverSecret: process.env.RESOLVER_STELLAR_SECRET ?? null
+        ] ?? "",
+      resolverSecret: process.env.RESOLVER_STELLAR_SECRET ?? ""
+    }
+  };
+
+  const result = configSchema.parse(raw);
+
+  // Additional validation: testnet requires contract addresses
+  if (!isMainnet) {
+    const missingTestnetContracts = [];
+    if (!result.ethereum.htlcEscrow) {
+      missingTestnetContracts.push("ETH_HTLC_ESCROW_TESTNET");
+    }
+    if (!result.ethereum.resolverRegistry) {
+      missingTestnetContracts.push("ETH_RESOLVER_REGISTRY_TESTNET");
+    }
+    if (!result.soroban.htlc) {
+      missingTestnetContracts.push("SOROBAN_HTLC_TESTNET");
+    }
+    if (!result.soroban.resolverRegistry) {
+      missingTestnetContracts.push("SOROBAN_RESOLVER_REGISTRY_TESTNET");
+    }
+
+    if (missingTestnetContracts.length > 0) {
+      throw new Error(
+        `TESTNET DEPLOYMENT INCOMPLETE: Missing required testnet contract addresses: ` +
+        missingTestnetContracts.join(", ") +
+        ". Deploy contracts first (see docs/DEPLOYMENT.md) or check env.example for variable names."
+      );
+    }
+  }
+
+  // Convert to legacy ResolverConfig format for backward compatibility
+  const config: ResolverConfig = {
+    network: result.network,
+    pollIntervalMs: result.pollIntervalMs,
+    coordinatorUrl: result.coordinatorUrl,
+    logLevel: result.logLevel,
+    ethereum: {
+      rpcUrl: result.ethereum.rpcUrl,
+      chainId: result.ethereum.chainId,
+      htlcEscrow: result.ethereum.htlcEscrow,
+      resolverRegistry: result.ethereum.resolverRegistry,
+      resolverPrivateKey: result.ethereum.resolverPrivateKey
+    },
+    soroban: {
+      rpcUrl: result.soroban.rpcUrl,
+      networkPassphrase: result.soroban.networkPassphrase,
+      horizonUrl: result.soroban.horizonUrl,
+      htlc: result.soroban.htlc,
+      resolverRegistry: result.soroban.resolverRegistry,
+      resolverSecret: result.soroban.resolverSecret
     }
   };
 
