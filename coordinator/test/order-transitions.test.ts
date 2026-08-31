@@ -55,14 +55,14 @@ describe("OrderService transition summaries", () => {
       orderId: "src-1",
       txHash: "0xsrc",
       blockNumber: 1,
-      timelock: 1000
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "dst-1",
       txHash: "0xdst",
       blockNumber: 2,
-      timelock: 2000,
+      timelock: 9_000,
       resolver: null
     });
     await orders.recordSecret(order.publicId, PREIMAGE, "0xsecret");
@@ -144,14 +144,14 @@ describe("GET /api/orders/:id/transitions", () => {
       orderId: "src-3",
       txHash: "0xsrc3",
       blockNumber: 4,
-      timelock: 4000
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "dst-3",
       txHash: "0xdst3",
       blockNumber: 5,
-      timelock: 5000,
+      timelock: 9_000,
       resolver: null
     });
     await orders.recordSecret(order.publicId, PREIMAGE, "0xsecret3");
