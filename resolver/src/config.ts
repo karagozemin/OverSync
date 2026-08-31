@@ -33,6 +33,7 @@ export interface ResolverConfig {
 }
 
 import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
+import { redactUrl } from "./network-agreement.js";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -99,7 +100,7 @@ export function loadConfig(): ResolverConfig {
   // Print startup configuration indicators safely
   logger.info("Initializing OverSync Resolver engine instance configurations...");
   logger.info(`Network operating target: ${config.network}`);
-  logger.info(`Coordinator upstream mapping endpoint: ${config.coordinatorUrl}`);
+  logger.info(`Coordinator upstream mapping endpoint: ${redactUrl(config.coordinatorUrl)}`);
   logger.info(`Polling cycle state intervals: ${config.pollIntervalMs}ms`);
 
   // Emits complete settings object topology (The deep hook in logger.ts strips secret keys instantly)
