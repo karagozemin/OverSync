@@ -40,6 +40,7 @@
     "frontend:build:prod": "NODE_ENV=production pnpm --filter frontend build",
     "frontend:preview": "pnpm --filter frontend preview",
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
+    "check:env-docs": "node scripts/check-env-docs.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
     "verify:addresses": "node scripts/verify-addresses.mjs",
