@@ -88,7 +88,6 @@ export class SorobanHTLCClient {
     input: SorobanCreateOrderInput,
     signer: SorobanSigner
   ): Promise<string> {
-    assertValidSecretFormat(input.hashlockHex, "hashlockHex");
     const op = this.contract.call(
       "create_order",
       new SorobanAddress(input.sender).toScVal(),
@@ -109,7 +108,6 @@ export class SorobanHTLCClient {
     preimageHex: `0x${string}`,
     signer: SorobanSigner
   ): Promise<string> {
-    assertValidSecretFormat(preimageHex, "preimageHex");
     const clean = preimageHex.startsWith("0x") ? preimageHex.slice(2) : preimageHex;
     const op = this.contract.call(
       "claim_order",
