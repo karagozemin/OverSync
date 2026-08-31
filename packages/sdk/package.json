@@ -22,6 +22,10 @@
       "import": "./dist/secrets/index.js",
       "types": "./dist/secrets/index.d.ts"
     },
+    "./logging": {
+      "import": "./dist/logging/index.js",
+      "types": "./dist/logging/index.d.ts"
+    },
     "./state-machine": {
       "import": "./dist/state-machine/index.js",
       "types": "./dist/state-machine/index.d.ts"

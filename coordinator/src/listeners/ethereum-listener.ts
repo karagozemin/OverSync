@@ -1,6 +1,7 @@
 import { createPublicClient, http, parseAbiItem, type PublicClient } from "viem";
 import { sepolia, mainnet } from "viem/chains";
 import type { Logger } from "pino";
+import { redactLogValue } from "@oversync/sdk/logging";
 import type { CoordinatorConfig } from "../config.js";
 import type { OrderService } from "../services/order-service.js";
 import { listenerLastBlock } from "../metrics.js";
@@ -86,7 +87,7 @@ export class EthereumListener {
               listenerLastBlock.set({ chain: "ethereum" }, Number(log.blockNumber));
             }
             this.log.info(
-              { orderId: log.args.orderId!.toString(), preimage: log.args.preimage },
+              redactLogValue({ orderId: log.args.orderId!.toString(), preimage: log.args.preimage }),
               "ETH order claimed"
             );
             // Secret reveal is recorded by SecretService when a client posts
