@@ -140,6 +140,29 @@ describe("assessReadiness", () => {
     expect(findCheck(result, "soroban-rpc").status).toBe("ok");
   });
 
+  it("redacts credentials from successful RPC diagnostics while preserving hosts and network data", async () => {
+    const evmSecrets = ["evm-user", "evm-password", "evm-path-key", "evm-query-key"];
+    const sorobanSecrets = ["soroban-user", "soroban-password", "soroban-path-key", "soroban-query-key"];
+    setEnv({
+      ...FULL_ENV,
+      SEPOLIA_RPC_URL:
+        "https://evm-user:evm-password@eth.example.test/v3/evm-path-key?apiKey=evm-query-key&network=sepolia",
+      SOROBAN_RPC_URL:
+        "https://soroban-user:soroban-password@soroban.example.test/rpc/soroban-path-key?token=soroban-query-key&network=testnet"
+    });
+
+    const result = await assessReadiness();
+    const evmDetail = findCheck(result, "evm-rpc").detail;
+    const sorobanDetail = findCheck(result, "soroban-rpc").detail;
+    const diagnostics = `${evmDetail}\n${sorobanDetail}`;
+
+    expect(evmDetail).toBe("URL=https://eth.example.test chainId=11155111");
+    expect(sorobanDetail).toBe("URL=https://soroban.example.test latestLedger=12345");
+    for (const secret of [...evmSecrets, ...sorobanSecrets]) {
+      expect(diagnostics).not.toContain(secret);
+    }
+  });
+
   it("fails network-mode check when NETWORK_MODE is invalid", async () => {
     setEnv({ ...FULL_ENV, NETWORK_MODE: "stagenet" });
     const result = await assessReadiness();
@@ -277,6 +300,20 @@ describe("assessReadiness", () => {
     expect(findCheck(result, "coordinator-url").detail).toBe("https://coord.example.test");
   });
 
+  it("redacts credentials from the coordinator URL diagnostic", async () => {
+    setEnv({
+      ...FULL_ENV,
+      COORDINATOR_URL: "https://coord-user:coord-password@coord.example.test/api?token=coord-query-key"
+    });
+    const result = await assessReadiness();
+    const detail = findCheck(result, "coordinator-url").detail;
+
+    expect(detail).toBe("https://coord.example.test");
+    expect(detail).not.toContain("coord-user");
+    expect(detail).not.toContain("coord-password");
+    expect(detail).not.toContain("coord-query-key");
+  });
+
   it("always emits the dry-run assertion check", async () => {
     setEnv(FULL_ENV);
     const result = await assessReadiness();
@@ -362,5 +399,36 @@ describe("readinessCommand", () => {
     const output = log.calls.map((args) => args.map(String).join(" ")).join("\n");
     expect(output).not.toContain(TEST_ENV_KEY);
     expect(output).not.toContain(TEST_ENV_STELLAR_SECRET);
+  });
+
+  it("redacts credential-bearing RPC URLs echoed by connection errors", async () => {
+    const evmUrl =
+      "https://error-user:error-password@eth-error.example.test/v3/error-path-key?access_token=error-query-key";
+    const sorobanUrl =
+      "https://stellar-user:stellar-password@soroban-error.example.test/rpc/stellar-path-key?auth=stellar-query-key";
+    setEnv({ ...FULL_ENV, SEPOLIA_RPC_URL: evmUrl, SOROBAN_RPC_URL: sorobanUrl });
+    mockGetChainId.mockRejectedValue(new Error(`Request failed for ${evmUrl}`));
+    mockGetLatestLedger.mockRejectedValue(new Error(`Request failed for ${sorobanUrl}`));
+
+    const log = captureLog();
+    const code = await readinessCommand();
+    log.restore();
+    const output = log.calls.map((args) => args.map(String).join(" ")).join("\n");
+
+    expect(code).toBe(1);
+    expect(output).toContain("https://eth-error.example.test");
+    expect(output).toContain("https://soroban-error.example.test");
+    for (const secret of [
+      "error-user",
+      "error-password",
+      "error-path-key",
+      "error-query-key",
+      "stellar-user",
+      "stellar-password",
+      "stellar-path-key",
+      "stellar-query-key"
+    ]) {
+      expect(output).not.toContain(secret);
+    }
   });
 });

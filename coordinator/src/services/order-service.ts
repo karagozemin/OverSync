@@ -14,7 +14,10 @@ import { canTransition } from "../state-machine/order-machine.js";
 import { ordersTotal } from "../metrics.js";
 import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
 import { loadConfig } from "../config.js";
-import { validateTimelockOrdering } from "../utils/timelock-validator.js";
+import {
+  validateTimelocksAtCreation,
+  type TimelockValidationError
+} from "../utils/timelock-validator.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -44,9 +47,27 @@ export const announceSchema = z.object({
 export type AnnounceInput = z.infer<typeof announceSchema>;
 
 export class OrderValidationError extends Error {
-  constructor(message: string) {
+  readonly code?: TimelockValidationError;
+
+  constructor(message: string, code?: TimelockValidationError) {
     super(message);
     this.name = "OrderValidationError";
+    this.code = code;
+  }
+}
+
+function assertTimelocksAtCreation(
+  srcTimelock: number,
+  dstTimelock: number,
+  minGapSeconds: number
+): void {
+  const validation = validateTimelocksAtCreation(srcTimelock, dstTimelock, minGapSeconds);
+  if (!validation.isValid && validation.error) {
+    const message =
+      validation.error === "TIMELOCKS_REVERSED"
+        ? "Destination timelock must be strictly before source timelock"
+        : "Timelock gap between source and destination is below the minimum safety gap";
+    throw new OrderValidationError(message, validation.error);
   }
 }
 
@@ -167,6 +188,11 @@ export class OrderService {
     if (!canTransition(order.status, "src_locked") && order.status !== "src_locked") {
       throw new OrderValidationError(`cannot record src lock from status ${order.status}`);
     }
+
+    if (order.dstTimelock != null) {
+      assertTimelocksAtCreation(input.timelock, order.dstTimelock, this.minGapSeconds);
+    }
+
     await this.repo.recordSrcLock(input);
     this.log.info({ publicId: input.publicId, srcOrderId: input.orderId }, "src lock recorded");
     ordersTotal.inc({ status: "src_locked" });
@@ -186,17 +212,8 @@ export class OrderService {
       throw new OrderValidationError(`cannot record dst lock from status ${order.status}`);
     }
 
-    if (order.srcTimelock) {
-      const validation = validateTimelockOrdering(
-        order.srcTimelock,
-        input.timelock,
-        this.minGapSeconds
-      );
-      if (!validation.isValid) {
-        throw new OrderValidationError(
-          `Invalid destination timelock: ${validation.error === 'TIMELOCKS_REVERSED' ? 'reversed or equal to source timelock' : 'gap too small'}`
-        );
-      }
+    if (order.srcTimelock != null) {
+      assertTimelocksAtCreation(order.srcTimelock, input.timelock, this.minGapSeconds);
     }
 
     await this.repo.recordDstLock(input);
