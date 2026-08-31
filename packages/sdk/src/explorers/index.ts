@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // OverSync SDK — Explorer URL helpers
 //
-// Build public block-explorer links for Ethereum and Stellar transactions
-// and addresses / contracts. Future mainnet variants are gated by the
-// `network` argument; invalid combinations return `null`.
+// Build public block-explorer links for Ethereum and Stellar transactions,
+// addresses, Stellar accounts, and Soroban contracts. Future mainnet/public
+// network variants are gated by the `network` argument; invalid network or
+// missing/empty inputs return `null`.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------
@@ -31,6 +32,14 @@ const STELLAR_BASE_URLS: Record<StellarNetwork, string> = {
 };
 
 // ---------------------------------------------------------------
+// Validation helper
+// ---------------------------------------------------------------
+
+function isValidInput(input: unknown): input is string {
+  return typeof input === "string" && input.trim().length > 0;
+}
+
+// ---------------------------------------------------------------
 // URL builders
 // ---------------------------------------------------------------
 
@@ -40,16 +49,16 @@ const STELLAR_BASE_URLS: Record<StellarNetwork, string> = {
  * @param network - Target network (`"sepolia"` or `"mainnet"`).
  * @param txHash  - 0x-prefixed transaction hash.
  * @returns The full explorer URL, or `null` if the network is
- *          unrecognised (provides type safety at compile time, guards
- *          against unexpected values at runtime).
+ *          unrecognised or input is empty/invalid.
  */
 export function ethereumTxUrl(
   network: EthereumNetwork,
   txHash: string,
 ): string | null {
+  if (!isValidInput(txHash)) return null;
   const base = ETHEREUM_BASE_URLS[network];
   if (!base) return null;
-  return `${base}/tx/${txHash}`;
+  return `${base}/tx/${txHash.trim()}`;
 }
 
 /**
@@ -58,49 +67,69 @@ export function ethereumTxUrl(
  * @param network - Target network (`"sepolia"` or `"mainnet"`).
  * @param address - 0x-prefixed address.
  * @returns The full explorer URL, or `null` if the network is
- *          unrecognised.
+ *          unrecognised or input is empty/invalid.
  */
 export function ethereumAddressUrl(
   network: EthereumNetwork,
   address: string,
 ): string | null {
+  if (!isValidInput(address)) return null;
   const base = ETHEREUM_BASE_URLS[network];
   if (!base) return null;
-  return `${base}/address/${address}`;
+  return `${base}/address/${address.trim()}`;
 }
 
 /**
  * Build a Stellar Expert transaction URL for the given Stellar network.
  *
  * @param network - Target network (`"testnet"` or `"public"`).
- * @param txHash  - Stellar transaction hash (base-64 or hex, as returned
- *                  by the Horizon API).
+ * @param txHash  - Stellar transaction hash.
  * @returns The full explorer URL, or `null` if the network is
- *          unrecognised.
+ *          unrecognised or input is empty/invalid.
  */
 export function stellarTxUrl(
   network: StellarNetwork,
   txHash: string,
 ): string | null {
+  if (!isValidInput(txHash)) return null;
   const base = STELLAR_BASE_URLS[network];
   if (!base) return null;
-  return `${base}/tx/${txHash}`;
+  return `${base}/tx/${txHash.trim()}`;
 }
 
 /**
- * Build a Stellar Expert contract / account URL for the given Stellar
+ * Build a Stellar Expert account URL for the given Stellar network.
+ *
+ * @param network   - Target network (`"testnet"` or `"public"`).
+ * @param accountId - Stellar account ID (G...).
+ * @returns The full explorer URL, or `null` if the network is
+ *          unrecognised or input is empty/invalid.
+ */
+export function stellarAccountUrl(
+  network: StellarNetwork,
+  accountId: string,
+): string | null {
+  if (!isValidInput(accountId)) return null;
+  const base = STELLAR_BASE_URLS[network];
+  if (!base) return null;
+  return `${base}/account/${accountId.trim()}`;
+}
+
+/**
+ * Build a Stellar Expert contract / Soroban contract URL for the given Stellar
  * network.
  *
  * @param network    - Target network (`"testnet"` or `"public"`).
- * @param contractId - Stellar contract or account ID.
+ * @param contractId - Soroban contract ID (C...).
  * @returns The full explorer URL, or `null` if the network is
- *          unrecognised.
+ *          unrecognised or input is empty/invalid.
  */
 export function stellarContractUrl(
   network: StellarNetwork,
   contractId: string,
 ): string | null {
+  if (!isValidInput(contractId)) return null;
   const base = STELLAR_BASE_URLS[network];
   if (!base) return null;
-  return `${base}/contract/${contractId}`;
+  return `${base}/contract/${contractId.trim()}`;
 }
