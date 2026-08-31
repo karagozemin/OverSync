@@ -58,11 +58,12 @@ export class SecretService {
    */
   async reveal(publicId: string, preimage: string, txHash: string): Promise<{ ok: true }> {
     assertValidSecretFormat(preimage, "preimage");
+    const canonical = preimage.toLowerCase() as `0x${string}`;
     const order = await this.orders.get(publicId);
     if (!order) {
       throw new Error(`unknown order ${publicId}`);
     }
-    const buf = bufferFromHex(preimage);
+    const buf = bufferFromHex(canonical);
     const shaHash = sha256Hex(buf);
     const kekHash = keccak256Hex(buf);
     if (shaHash !== order.hashlock && kekHash !== order.hashlock) {
@@ -73,7 +74,7 @@ export class SecretService {
       throw new Error("preimage does not match order hashlock");
     }
 
-    const existing = await this.orders.findByPreimage(preimage);
+    const existing = await this.orders.findByPreimage(canonical);
     if (existing && existing.publicId !== publicId) {
       this.log.warn(
         { publicId, reusedBy: existing.publicId },
@@ -82,7 +83,7 @@ export class SecretService {
       throw new Error("preimage already used in another order");
     }
 
-    await this.orders.recordSecret(publicId, preimage, txHash);
+    await this.orders.recordSecret(publicId, canonical, txHash);
     return { ok: true };
   }
 

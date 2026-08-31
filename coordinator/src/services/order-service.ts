@@ -127,6 +127,10 @@ export class OrderService {
     validateChainAddress(input.dstChain, input.dstAddress);
     validateDirectionAgainstChains(input);
 
+    if (input.hashlock.toLowerCase() === ZERO_HASHLOCK.toLowerCase()) {
+      throw new OrderValidationError("hashlock must not be all zeros");
+    }
+
     // --- Quote freshness gate -------------------------------------------
     if (input.quoteId) {
       if (!this.quoteService) {

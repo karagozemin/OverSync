@@ -151,6 +151,61 @@ describe("SecretService – reused preimage rejection", () => {
       secrets.reveal(order.publicId, preimage, "0xtx2")
     ).resolves.toEqual({ ok: true });
   });
+
+  it("detects reuse across different casings of the same preimage", async () => {
+    const db = await freshDb();
+    const repo = new OrdersRepository(db);
+    const orders = new OrderService(repo, log);
+    const secrets = new SecretService(orders, log);
+
+    const mixedCase = "0x" + "aBcD".repeat(16);
+    const lowerCase = mixedCase.toLowerCase();
+    const hashlock = computeHashlock(lowerCase);
+
+    // First order — reveal with mixed case
+    const order1 = await orders.announce(makeAnnounceInput(hashlock));
+    await orders.recordSrcLock({
+      publicId: order1.publicId,
+      orderId: "1",
+      txHash: "0xdead",
+      blockNumber: 1,
+      timelock: 0
+    });
+    await secrets.reveal(order1.publicId, mixedCase, "0xtx1");
+
+    // Second order with same hashlock — try lowercase version
+    await repo.insertOrder({
+      publicId: "order-lc",
+      direction: "xlm_to_eth",
+      status: "src_locked",
+      hashlock,
+      srcChain: "stellar",
+      srcAddress: VALID_STELLAR_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      srcOrderId: "2",
+      srcLockTx: "0xdead2",
+      srcLockBlock: 2,
+      srcTimelock: 0,
+      dstChain: "ethereum",
+      dstAddress: VALID_ETH_ADDR,
+      dstAsset: "native",
+      dstAmount: "1",
+      dstOrderId: null,
+      dstLockTx: null,
+      dstLockBlock: null,
+      dstTimelock: null,
+      preimage: null,
+      secretRevealedTx: null,
+      resolverAddress: null,
+      fixture: false
+    });
+
+    await expect(
+      secrets.reveal("order-lc", lowerCase, "0xtx2")
+    ).rejects.toThrow("preimage already used in another order");
+  });
 });
 
 describe("SecretService – valid secret acceptance", () => {
