@@ -9,6 +9,7 @@ const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const STELLAR_ACCOUNT_ID = /^G[A-Z2-7]{55}$/;
 const SOROBAN_CONTRACT_ID = /^C[A-Z2-7]{55}$/;
 const HEX_64 = /^[a-fA-F0-9]{64}$/;
+const CODE_HASH = /^(?:0x)?[a-fA-F0-9]{64}$/;
 
 function valueType(value) {
   if (Array.isArray(value)) return "array";
@@ -119,6 +120,7 @@ function validateEthereum(v, ethereum, network) {
     EVM_ADDRESS,
     "EVM address"
   );
+  validateCodeHashes(v, ethereum.codeHashes, Object.keys(ethereum.contracts), "$.ethereum.codeHashes");
 }
 
 function validateStellar(v, stellar, network) {
@@ -144,6 +146,7 @@ function validateStellar(v, stellar, network) {
     SOROBAN_CONTRACT_ID,
     "Soroban contract ID"
   );
+  validateCodeHashes(v, stellar.codeHashes, Object.keys(stellar.contracts), "$.stellar.codeHashes");
 
   if (stellar.deployTransactions != null && v.object(stellar.deployTransactions, "$.stellar.deployTransactions")) {
     for (const [key, txHash] of Object.entries(stellar.deployTransactions)) {
@@ -170,6 +173,16 @@ function validateStellar(v, stellar, network) {
     if (minStakeXLM != null && !/^[0-9]+(\.[0-9]+)?$/.test(minStakeXLM)) {
       v.fail("$.stellar.resolverRegistryConfig.minStakeXLM", "must be a decimal string");
     }
+  }
+}
+
+function validateCodeHashes(v, hashes, contractNames, path) {
+  if (hashes == null) return;
+  if (!v.object(hashes, path)) return;
+  for (const [name, value] of Object.entries(hashes)) {
+    if (!contractNames.includes(name)) v.fail(`${path}.${name}`, "must name a declared contract");
+    const hash = v.string(value, `${path}.${name}`);
+    if (hash != null && !CODE_HASH.test(hash)) v.fail(`${path}.${name}`, "must be a 32-byte code hash");
   }
 }
 

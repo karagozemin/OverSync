@@ -3,9 +3,9 @@ import request from "supertest";
 import express from "express";
 import { healthRoutes } from "../src/server/routes/health.js";
 
-function makeApp() {
+function makeApp(options?: { limit?: number; windowMs?: number; now?: () => number }) {
   const app = express();
-  app.use(healthRoutes());
+  app.use(healthRoutes(options));
   return app;
 }
 
@@ -147,5 +147,18 @@ describe("GET /readiness", () => {
     expect(res.body.orders).toBeUndefined();
     expect(res.body.secret).toBeUndefined();
     expect(res.body.hashlock).toBeUndefined();
+  });
+
+  it("returns a stable 429 response after the per-client diagnostic limit", async () => {
+    let timestamp = 1_000;
+    const app = makeApp({ limit: 2, windowMs: 10_000, now: () => timestamp });
+    await request(app).get("/readiness").expect(200);
+    await request(app).get("/readiness").expect(200);
+    const res = await request(app).get("/readiness").expect(429);
+    expect(res.body).toMatchObject({ error: "rate_limited", retryAfterSeconds: 10 });
+    expect(res.headers["retry-after"]).toBe("10");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("0");
+    timestamp += 10_000;
+    await request(app).get("/readiness").expect(200);
   });
 });

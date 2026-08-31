@@ -39,7 +39,9 @@ export function createApp(deps: AppDeps): Express {
     next();
   });
 
-  app.use(healthRoutes());
+  const readinessLimit = Number(process.env.COORDINATOR_READINESS_RATE_LIMIT ?? 30);
+  const readinessWindowMs = Number(process.env.COORDINATOR_READINESS_RATE_WINDOW_MS ?? 60_000);
+  app.use(healthRoutes({ limit: readinessLimit, windowMs: readinessWindowMs }));
   app.use(metricsRoutes());
   app.use("/api", ordersRoutes(deps.orders));
   app.use("/api", secretsRoutes(deps.secrets));
