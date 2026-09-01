@@ -117,5 +117,8 @@ export function assertValidSecretFormat(value: unknown, fieldName: string = "sec
   if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
     throw new Error(`${fieldName} contains invalid hex characters`);
   }
+  if (/^0+$/.test(hexPart)) {
+    throw new Error(`${fieldName} must not be all zeros`);
+  }
   return value as `0x${string}`;
 }

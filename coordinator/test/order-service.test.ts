@@ -103,6 +103,80 @@ describe("OrderService", () => {
     ).rejects.toThrowError(OrderValidationError);
   });
 
+  it("rejects all-zero hashlocks", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const zeroHashlock = "0x" + "0".repeat(64);
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: zeroHashlock,
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
+
+  it("normalizes uppercase hashlocks to lowercase before storage", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const uppercaseHashlock = "0x" + "A".repeat(64);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: uppercaseHashlock,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    expect(order.hashlock).toBe("0x" + "a".repeat(64));
+  });
+
+  it("detects duplicate hashlocks across different casings", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: "0x" + "A".repeat(64),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: "0x" + "a".repeat(64),
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
+
   it("ignores an exact duplicate lock event but rejects a conflicting one", async () => {
     const db = await freshDb();
     const orders = new OrderService(new OrdersRepository(db), log);
@@ -146,6 +220,7 @@ describe("OrderService", () => {
     await orders.recordDstLock({ publicId: order.publicId, orderId: "dst-1", txHash: "0xdst", blockNumber: 5, timelock: 2000, resolver: null });
     await expect(orders.recordSrcLock({ publicId: order.publicId, orderId: "src-old", txHash: "0xold", blockNumber: 3, timelock: 2000 })).rejects.toBeInstanceOf(StaleOrderEventError);
   });
+
 });
 
 describe("SecretService", () => {
@@ -316,4 +391,3 @@ describe("OrderService timelock ordering", () => {
     ).resolves.toBeUndefined();
   });
 });
-

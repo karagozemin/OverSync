@@ -20,12 +20,16 @@ import {
 } from "../utils/timelock-validator.js";
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
+const ZERO_HASHLOCK = "0x" + "0".repeat(64);
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const STELLAR_ADDRESS = /^G[A-Z2-7]{55}$/;
 
 export const announceSchema = z.object({
   direction: z.enum(["eth_to_xlm", "xlm_to_eth"]),
-  hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars"),
+  hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars").refine(
+    (v) => v.toLowerCase() !== ZERO_HASHLOCK.toLowerCase(),
+    "hashlock must not be all zeros"
+  ),
   srcChain: z.enum(["ethereum", "stellar"]),
   srcAddress: z.string(),
   srcAsset: z.string().min(1),
@@ -131,6 +135,12 @@ export class OrderService {
     validateChainAddress(input.dstChain, input.dstAddress);
     validateDirectionAgainstChains(input);
 
+    if (input.hashlock.toLowerCase() === ZERO_HASHLOCK.toLowerCase()) {
+      throw new OrderValidationError("hashlock must not be all zeros");
+    }
+
+    const hashlock = input.hashlock.toLowerCase() as `0x${string}`;
+
     // --- Quote freshness gate -------------------------------------------
     if (input.quoteId) {
       if (!this.quoteService) {
@@ -150,16 +160,16 @@ export class OrderService {
     }
     // -------------------------------------------------------------------
 
-    const existing = await this.repo.findByHashlock(input.hashlock);
+    const existing = await this.repo.findByHashlock(hashlock);
     if (existing) {
       throw new OrderValidationError(
-        `An order with hashlock ${input.hashlock} already exists (publicId=${existing.publicId})`
+        `An order with hashlock ${hashlock} already exists (publicId=${existing.publicId})`
       );
     }
 
     // Strip quoteId — it's not a persisted column, just a freshness gate.
     const { quoteId: _q, ...repoInput } = input;
-    const order = await this.repo.announce(repoInput as AnnounceOrderInput);
+    const order = await this.repo.announce({ ...repoInput, hashlock } as AnnounceOrderInput);
     this.log.info(
       { publicId: order.publicId, direction: order.direction, quoteId: input.quoteId ?? null },
       "order announced"
@@ -182,6 +192,10 @@ export class OrderService {
 
   findByHashlock(hashlock: string): Promise<OrderRow | null> {
     return this.repo.findByHashlock(hashlock);
+  }
+
+  findByPreimage(preimage: string): Promise<OrderRow | null> {
+    return this.repo.findByPreimage(preimage);
   }
 
   async recordSrcLock(input: {
