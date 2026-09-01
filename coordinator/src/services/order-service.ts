@@ -75,6 +75,14 @@ function assertTimelocksAtCreation(
   }
 }
 
+/** A chain event was validly shaped but older than the persisted state. */
+export class StaleOrderEventError extends OrderValidationError {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleOrderEventError";
+  }
+}
+
 function validateChainAddress(chain: Chain, addr: string): void {
   if (chain === "ethereum" && !HEX_ADDRESS.test(addr)) {
     throw new OrderValidationError(`${addr} is not a valid Ethereum address`);
@@ -199,8 +207,17 @@ export class OrderService {
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
-    if (!canTransition(order.status, "src_locked") && order.status !== "src_locked") {
-      throw new OrderValidationError(`cannot record src lock from status ${order.status}`);
+    if (order.status === "src_locked") {
+      const sameEvent =
+        order.srcOrderId === input.orderId &&
+        order.srcLockTx === input.txHash &&
+        order.srcLockBlock === input.blockNumber &&
+        order.srcTimelock === input.timelock;
+      if (sameEvent) return;
+      throw new StaleOrderEventError(`conflicting src lock event for ${input.publicId}`);
+    }
+    if (!canTransition(order.status, "src_locked")) {
+      throw new StaleOrderEventError(`stale src lock event for order in status ${order.status}`);
     }
 
     if (order.dstTimelock != null) {
@@ -222,8 +239,18 @@ export class OrderService {
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
-    if (!canTransition(order.status, "dst_locked") && order.status !== "dst_locked") {
-      throw new OrderValidationError(`cannot record dst lock from status ${order.status}`);
+    if (order.status === "dst_locked") {
+      const sameEvent =
+        order.dstOrderId === input.orderId &&
+        order.dstLockTx === input.txHash &&
+        order.dstLockBlock === input.blockNumber &&
+        order.dstTimelock === input.timelock &&
+        order.resolverAddress === input.resolver;
+      if (sameEvent) return;
+      throw new StaleOrderEventError(`conflicting dst lock event for ${input.publicId}`);
+    }
+    if (!canTransition(order.status, "dst_locked")) {
+      throw new StaleOrderEventError(`stale dst lock event for order in status ${order.status}`);
     }
 
     if (order.srcTimelock != null) {
@@ -238,8 +265,12 @@ export class OrderService {
   async recordSecret(publicId: string, preimage: string, txHash: string): Promise<void> {
     const order = await this.repo.findByPublicId(publicId);
     if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
-    if (!canTransition(order.status, "secret_revealed") && order.status !== "secret_revealed") {
-      throw new OrderValidationError(`cannot record secret from status ${order.status}`);
+    if (order.status === "secret_revealed") {
+      if (order.preimage === preimage && order.secretRevealedTx === txHash) return;
+      throw new StaleOrderEventError(`conflicting secret event for ${publicId}`);
+    }
+    if (!canTransition(order.status, "secret_revealed")) {
+      throw new StaleOrderEventError(`stale secret event for order in status ${order.status}`);
     }
     await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
     this.log.info({ publicId }, "secret recorded");

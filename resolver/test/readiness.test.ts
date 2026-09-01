@@ -60,6 +60,7 @@ vi.mock("dotenv", async (importOriginal) => {
 });
 
 import { assessReadiness, readinessCommand } from "../src/commands/readiness.js";
+import { networkPassphraseHash, NETWORK_PASSPHRASES } from "../src/network-agreement.js";
 
 const TEST_ENV_KEY = "0x" + "ab".repeat(32);
 const TEST_ENV_STELLAR_SECRET = "S" + "A".repeat(55); // S + 55 base32 chars = 56 chars total
@@ -118,10 +119,19 @@ describe("assessReadiness", () => {
     vi.clearAllMocks();
     mockGetChainId.mockResolvedValue(11_155_111);
     mockGetLatestLedger.mockResolvedValue({ sequence: 12345 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        networkMode: "testnet",
+        ethereum: { chainId: 11_155_111 },
+        stellar: { networkPassphraseHash: networkPassphraseHash(NETWORK_PASSPHRASES.testnet) }
+      })
+    }));
   });
 
   afterEach(() => {
     clearEnv();
+    vi.unstubAllGlobals();
   });
 
   it("returns ready=true when all required env is valid and both RPCs respond", async () => {
@@ -312,6 +322,25 @@ describe("assessReadiness", () => {
     expect(detail).not.toContain("coord-user");
     expect(detail).not.toContain("coord-password");
     expect(detail).not.toContain("coord-query-key");
+  });
+
+  it("fails when the coordinator targets a different chain", async () => {
+    setEnv({ ...FULL_ENV, COORDINATOR_URL: "https://coord.example.test" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        networkMode: "mainnet",
+        ethereum: { chainId: 1 },
+        stellar: { networkPassphraseHash: networkPassphraseHash(NETWORK_PASSPHRASES.mainnet) }
+      })
+    }));
+
+    const result = await assessReadiness();
+    const agreement = findCheck(result, "coordinator-network");
+    expect(agreement.status).toBe("fail");
+    expect(agreement.detail).toContain("Ethereum chain ID differs");
+    expect(agreement.detail).toContain("Stellar network passphrase differs");
+    expect(result.ready).toBe(false);
   });
 
   it("always emits the dry-run assertion check", async () => {

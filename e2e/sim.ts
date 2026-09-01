@@ -1,4 +1,5 @@
 import { keccak256, sha256 } from "viem";
+import { assertValidSecretFormat } from "@oversync/sdk/secrets";
 
 export type Hex = `0x${string}`;
 
@@ -117,6 +118,11 @@ export class EvmHtlcSim extends BaseHtlcSim implements HtlcSim {
     const o = this.getMutable(id);
     if (o.status !== "Funded") throw new SimError("OrderNotClaimable");
     if (this.now > o.timelockAbsolute) throw new SimError("Expired");
+    try {
+      assertValidSecretFormat(preimage, "preimage");
+    } catch {
+      throw new SimError("InvalidPreimage");
+    }
     const sha = sha256(preimage);
     const kek = keccak256(preimage);
     if (sha !== o.hashlock && kek !== o.hashlock) {
@@ -139,6 +145,11 @@ export class SorobanHtlcSim extends BaseHtlcSim implements HtlcSim {
     const o = this.getMutable(id);
     if (o.status !== "Funded") throw new SimError("OrderNotClaimable");
     if (this.now > o.timelockAbsolute) throw new SimError("Expired");
+    try {
+      assertValidSecretFormat(preimage, "preimage");
+    } catch {
+      throw new SimError("InvalidPreimage");
+    }
     const sha = sha256(preimage);
     if (sha !== o.hashlock) {
       throw new SimError("InvalidPreimage");

@@ -6,7 +6,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { openDatabase, PostgresStatement } from "../src/persistence/db.js";
 import { OrdersRepository } from "../src/persistence/orders-repo.js";
-import { OrderService, OrderValidationError } from "../src/services/order-service.js";
+import { OrderService, OrderValidationError, StaleOrderEventError } from "../src/services/order-service.js";
 import { SecretService } from "../src/services/secret-service.js";
 
 const log = pino({ level: "silent" });
@@ -176,6 +176,51 @@ describe("OrderService", () => {
       })
     ).rejects.toThrowError(OrderValidationError);
   });
+
+  it("ignores an exact duplicate lock event but rejects a conflicting one", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    const event = { publicId: order.publicId, orderId: "src-1", txHash: "0xsrc", blockNumber: 4, timelock: 1000 };
+    await orders.recordSrcLock(event);
+    await expect(orders.recordSrcLock(event)).resolves.toBeUndefined();
+    await expect(orders.recordSrcLock({ ...event, txHash: "0xother" })).rejects.toBeInstanceOf(StaleOrderEventError);
+    expect((await orders.getTransitions(order.publicId)).map((transition) => transition.to)).toEqual(["announced", "src_locked"]);
+  });
+
+  it("rejects delayed source events after the destination has advanced", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: "0x" + "e".repeat(64),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await orders.recordSrcLock({ publicId: order.publicId, orderId: "src-1", txHash: "0xsrc", blockNumber: 4, timelock: 3000 });
+    await orders.recordDstLock({ publicId: order.publicId, orderId: "dst-1", txHash: "0xdst", blockNumber: 5, timelock: 2000, resolver: null });
+    await expect(orders.recordSrcLock({ publicId: order.publicId, orderId: "src-old", txHash: "0xold", blockNumber: 3, timelock: 2000 })).rejects.toBeInstanceOf(StaleOrderEventError);
+  });
+
 });
 
 describe("SecretService", () => {
@@ -346,4 +391,3 @@ describe("OrderService timelock ordering", () => {
     ).resolves.toBeUndefined();
   });
 });
-
