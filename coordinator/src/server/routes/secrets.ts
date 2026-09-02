@@ -7,7 +7,7 @@ export function secretsRoutes(secrets: SecretService): Router {
 
   const revealSchema = z.object({
     publicId: z.string().min(1),
-    preimage: z.string().regex(/^0x[0-9a-fA-F]+$/),
+    preimage: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "preimage must be 0x + 64 hex chars"),
     txHash: z.string().min(1)
   });
 

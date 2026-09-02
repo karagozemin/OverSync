@@ -25,6 +25,9 @@ function assertValidSecretFormat(value: unknown, fieldName: string = "secret"): 
   if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
     throw new Error(`${fieldName} contains invalid hex characters`);
   }
+  if (/^0+$/.test(hexPart)) {
+    throw new Error(`${fieldName} must not be all zeros`);
+  }
   return value as `0x${string}`;
 }
 
@@ -55,11 +58,12 @@ export class SecretService {
    */
   async reveal(publicId: string, preimage: string, txHash: string): Promise<{ ok: true }> {
     assertValidSecretFormat(preimage, "preimage");
+    const canonical = preimage.toLowerCase() as `0x${string}`;
     const order = await this.orders.get(publicId);
     if (!order) {
       throw new Error(`unknown order ${publicId}`);
     }
-    const buf = bufferFromHex(preimage);
+    const buf = bufferFromHex(canonical);
     const shaHash = sha256Hex(buf);
     const kekHash = keccak256Hex(buf);
     if (shaHash !== order.hashlock && kekHash !== order.hashlock) {
@@ -69,7 +73,17 @@ export class SecretService {
       );
       throw new Error("preimage does not match order hashlock");
     }
-    await this.orders.recordSecret(publicId, preimage, txHash);
+
+    const existing = await this.orders.findByPreimage(canonical);
+    if (existing && existing.publicId !== publicId) {
+      this.log.warn(
+        { publicId, reusedBy: existing.publicId },
+        "rejected reused preimage"
+      );
+      throw new Error("preimage already used in another order");
+    }
+
+    await this.orders.recordSecret(publicId, canonical, txHash);
     return { ok: true };
   }
 

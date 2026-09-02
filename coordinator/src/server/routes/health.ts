@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { createHash } from "node:crypto";
+import { createReadinessRateLimiter, type ReadinessRateLimitOptions } from "../readiness-rate-limit.js";
 
 function getBuildEnv(): "testnet" | "mainnet" {
   const v = (process.env.NETWORK_MODE ?? "testnet").toLowerCase();
@@ -58,9 +60,25 @@ function stellarNetworkLabel(passphrase: string | undefined): string {
   return "unknown";
 }
 
-export function healthRoutes(): Router {
+function networkPassphraseHash(passphrase: string | undefined): string | null {
+  const value = (passphrase ?? "").trim();
+  if (!value) return null;
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function configuredStellarPassphrase(): string {
+  return (
+    process.env.STELLAR_NETWORK_PASSPHRASE ??
+    (getBuildEnv() === "mainnet"
+      ? "Public Global Stellar Network ; September 2015"
+      : "Test SDF Network ; September 2015")
+  );
+}
+
+export function healthRoutes(rateLimit?: ReadinessRateLimitOptions): Router {
   const router = Router();
   const startedAt = Date.now();
+  router.use(createReadinessRateLimiter(rateLimit));
 
   // ── GET /health — existing contract, unchanged ───────────────────────────
   router.get("/health", (_req, res) => {
@@ -137,7 +155,7 @@ export function healthRoutes(): Router {
         : 11_155_111; // default to Sepolia for testnet mode
 
     const sorobanRpcUrl = process.env.SOROBAN_RPC_URL ?? undefined;
-    const sorobanPassphrase = process.env.STELLAR_NETWORK_PASSPHRASE ?? undefined;
+    const sorobanPassphrase = configuredStellarPassphrase();
 
     const databaseMode = inferDatabaseMode(process.env.DATABASE_URL);
     // We only report reachability, never the connection string itself.
@@ -157,6 +175,8 @@ export function healthRoutes(): Router {
       },
       stellar: {
         network: stellarNetworkLabel(sorobanPassphrase),
+        // Expose a comparison-safe fingerprint rather than the passphrase.
+        networkPassphraseHash: networkPassphraseHash(sorobanPassphrase),
         rpcConfigured: Boolean(sorobanRpcUrl),
       },
       database: {

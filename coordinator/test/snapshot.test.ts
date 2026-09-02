@@ -65,14 +65,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "0",
       txHash: "0xsrctx",
       blockNumber: 100,
-      timelock: 900
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "0",
       txHash: "0xdsttx",
       blockNumber: 200,
-      timelock: 300,
+      timelock: 9_000,
       resolver: null
     });
     await orders.recordSecret(order.publicId, "0x" + "a".repeat(64), "0xsecretx");
@@ -104,14 +104,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "1",
       txHash: "0xsrc",
       blockNumber: 1,
-      timelock: 600
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "1",
       txHash: "0xdst",
       blockNumber: 2,
-      timelock: 0,
+      timelock: 9_000,
       resolver: "0xresolver"
     });
     await orders.recordSecret(order.publicId, "secret-value-leaked", "0xsecret");
@@ -136,14 +136,14 @@ describe("OrderService.getSnapshots", () => {
       orderId: "2",
       txHash: "0xsrcrtx",
       blockNumber: 50,
-      timelock: 800
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: order.publicId,
       orderId: "2",
       txHash: "0xdstrtx",
       blockNumber: 100,
-      timelock: 200,
+      timelock: 9_000,
       resolver: null
     });
     await orders.markStatus(order.publicId, "refunded");
@@ -197,13 +197,14 @@ describe("OrderService.getSnapshots", () => {
       txHash: "0xc1src",
       blockNumber: 1,
       timelock: 600
+      timelock: 10_000
     });
     await orders.recordDstLock({
       publicId: completed1.publicId,
       orderId: "c1",
       txHash: "0xc1dst",
       blockNumber: 2,
-      timelock: 0,
+      timelock: 9_000,
       resolver: null
     });
     await orders.recordSecret(completed1.publicId, "secret-c1", "0xc1secret");

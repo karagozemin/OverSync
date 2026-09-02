@@ -15,6 +15,8 @@ export interface Secret {
   keccak256: `0x${string}`;
 }
 
+export type SecretHashAlgorithm = "sha256" | "keccak256";
+
 function isCryptoEnvAvailable(): boolean {
   return typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function";
 }
@@ -70,11 +72,31 @@ export function hashSecret(preimage: `0x${string}` | Uint8Array): Secret {
 export function verifyPreimage(
   preimage: `0x${string}`,
   expected: `0x${string}`
-): "sha256" | "keccak256" | null {
+): SecretHashAlgorithm | null {
+  assertValidSecretFormat(preimage, "preimage");
+  assertValidSecretFormat(expected, "hashlock");
   const s = hashSecret(preimage);
   if (s.sha256 === expected) return "sha256";
   if (s.keccak256 === expected) return "keccak256";
   return null;
+}
+
+/**
+ * Validate both sides of an HTLC commitment before any chain call. Returning
+ * the matched algorithm makes the proof explicit to callers and avoids
+ * silently accepting a correctly sized but unrelated preimage.
+ */
+export function assertPreimageMatchesHashlock(
+  preimage: unknown,
+  hashlock: unknown
+): SecretHashAlgorithm {
+  const checkedPreimage = assertValidSecretFormat(preimage, "preimage");
+  const checkedHashlock = assertValidSecretFormat(hashlock, "hashlock");
+  const algorithm = verifyPreimage(checkedPreimage, checkedHashlock);
+  if (!algorithm) {
+    throw new Error("preimage does not match hashlock");
+  }
+  return algorithm;
 }
 
 /**
@@ -94,6 +116,9 @@ export function assertValidSecretFormat(value: unknown, fieldName: string = "sec
   }
   if (!/^[0-9a-fA-F]+$/.test(hexPart)) {
     throw new Error(`${fieldName} contains invalid hex characters`);
+  }
+  if (/^0+$/.test(hexPart)) {
+    throw new Error(`${fieldName} must not be all zeros`);
   }
   return value as `0x${string}`;
 }
