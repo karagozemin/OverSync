@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 import { encodeCursor, decodeCursor } from "./cursor-utils.js";
+import { computeRefundEligibility } from "@oversync/sdk";
 
 function orderValidationResponse(err: OrderValidationError): { status: number; body: Record<string, unknown> } {
   if (err.code === "TIMELOCKS_REVERSED" || err.code === "GAP_TOO_SMALL") {
@@ -18,6 +19,11 @@ function serialiseOrder(order: OrderRow | null) {
     direction: order.direction,
     status: order.status,
     hashlock: order.hashlock,
+    refundEligibility: computeRefundEligibility({
+      status: order.status,
+      timelock: order.srcTimelock,
+      direction: order.direction,
+    }),
     src: {
       chain: order.srcChain,
       address: order.srcAddress,
@@ -153,6 +159,20 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  router.get("/orders/:id/refund-eligibility", async (req, res, next) => {
+    const id = req.params.id;
+    try {
+      const eligibility = await orders.getRefundEligibility(id);
+      if (eligibility.reasonCode === "unknown_order") {
+        res.status(404).json({ error: "not_found", refundEligibility: eligibility });
+        return;
+      }
+      res.json({ id, refundEligibility: eligibility });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // Parameterized routes come AFTER specific routes
   router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
@@ -163,15 +183,6 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       res.json(serialiseOrder(order));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get("/orders/:id/transitions", async (req, res, next) => {
-    try {
-      const transitions = await orders.getTransitions(req.params.id);
-      res.json({ transitions });
     } catch (err) {
       next(err);
     }
