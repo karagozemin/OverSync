@@ -47,7 +47,7 @@ export default function TokenSelector({
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png',
         balance: '500',
         chain: 'ethereum',
-        address: '0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b',
+        address: '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238',
         decimals: 6
       },
       {

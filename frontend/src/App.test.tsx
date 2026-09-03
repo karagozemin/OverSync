@@ -3,11 +3,16 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
-vi.mock('./config/networks', () => ({
-  isMainnetEnabled: vi.fn(() => false),
-  isTestnet: vi.fn(() => true),
-  resolveNetworkMode: vi.fn((requested: string) => requested),
-}));
+vi.mock('./config/networks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./config/networks')>();
+  return {
+    ...actual,
+    // Only the mainnet flag is stubbed so the safety-gate tests can toggle it;
+    // the real getCurrentNetwork / getContractAddresses / isTestnet helpers are
+    // kept so components that render them don't hit a missing-export mock.
+    isMainnetEnabled: vi.fn(() => false),
+  };
+});
 
 vi.mock('./lib/useNetworkMode', () => ({
   useNetworkMode: vi.fn(() => ({

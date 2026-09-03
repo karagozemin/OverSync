@@ -8,12 +8,12 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@oversync/sdk": "^0.1.0",
+    "@oversync/sdk": "workspace:*",
     "@stellar/stellar-sdk": "^11.2.0",
     "axios": "^1.6.0",
     "js-sha3": "^0.9.3"

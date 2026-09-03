@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import pino from "pino";
 import { createApp } from "../src/server/app.js";
-import type { OrderService } from "../src/services/order-service.js";
+import { OrderValidationError, type OrderService } from "../src/services/order-service.js";
 import type { SecretService } from "../src/services/secret-service.js";
 import type { QuoteService } from "../src/services/quote-service.js";
 
@@ -310,6 +310,19 @@ describe("GET /api/orders/history (cursor pagination)", () => {
     const res = await request(app).get("/api/orders/history");
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("address_required");
+  });
+
+  it("returns 400 invalid_address when the service rejects a malformed address", async () => {
+    const { app, orders } = buildApp();
+    (orders.history as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new OrderValidationError("address must be a Stellar account ID (G + 55 base32 characters)")
+    );
+    const res = await request(app)
+      .get("/api/orders/history")
+      .query({ address: "g" + "a".repeat(55) }); // lowercase → not a valid Stellar ID
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("invalid_address");
+    expect(res.body.message).toBeDefined();
   });
 
   it("returns 400 for invalid limit (non-integer)", async () => {

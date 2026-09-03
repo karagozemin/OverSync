@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import { z } from "zod";
+import { normalizeChainAddress, normalizeAddress } from "@oversync/sdk";
 import {
   OrdersRepository,
   type OrderRow,
@@ -21,8 +22,6 @@ import {
 
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const ZERO_HASHLOCK = "0x" + "0".repeat(64);
-const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const STELLAR_ADDRESS = /^G[A-Z2-7]{55}$/;
 
 export const announceSchema = z.object({
   direction: z.enum(["eth_to_xlm", "xlm_to_eth"]),
@@ -83,12 +82,37 @@ export class StaleOrderEventError extends OrderValidationError {
   }
 }
 
-function validateChainAddress(chain: Chain, addr: string): void {
-  if (chain === "ethereum" && !HEX_ADDRESS.test(addr)) {
-    throw new OrderValidationError(`${addr} is not a valid Ethereum address`);
+function toOrderError(err: unknown): OrderValidationError {
+  if (err instanceof OrderValidationError) return err;
+  const message =
+    err instanceof Error ? err.message : `invalid address: ${String(err)}`;
+  return new OrderValidationError(message);
+}
+
+/**
+ * Canonicalize a chain address before it is stored or compared.
+ *
+ * Ethereum addresses are lowercased (case-insensitive hex; mixed-case
+ * input must carry a valid EIP-55 checksum) and Stellar accounts are
+ * case-sensitive, so their canonical form is the trimmed value itself.
+ * Malformed addresses — wrong length, bad characters, whitespace, or a
+ * broken EIP-55 checksum — are rejected immediately instead of being
+ * persisted under a distinct string that would never match again.
+ */
+function canonicalizeChainAddress(chain: Chain, addr: string, field: string): string {
+  try {
+    return normalizeChainAddress(chain, addr, field);
+  } catch (err) {
+    throw toOrderError(err);
   }
-  if (chain === "stellar" && !STELLAR_ADDRESS.test(addr)) {
-    throw new OrderValidationError(`${addr} is not a valid Stellar account`);
+}
+
+/** Canonicalize an address whose chain is inferred from its format. */
+function canonicalizeAnyAddress(addr: string, field = "address"): string {
+  try {
+    return normalizeAddress(addr, field);
+  } catch (err) {
+    throw toOrderError(err);
   }
 }
 
@@ -131,8 +155,20 @@ export class OrderService {
    * attempted.
    */
   async announce(input: AnnounceInput): Promise<OrderRow> {
-    validateChainAddress(input.srcChain, input.srcAddress);
-    validateChainAddress(input.dstChain, input.dstAddress);
+    // Canonicalize both addresses up front so the persisted value is
+    // format-independent: ETH is stored lowercase (checksummed or not),
+    // Stellar is stored case-exact, and anything else is rejected here
+    // before it can ever create a duplicate row that never matches.
+    const srcAddress = canonicalizeChainAddress(
+      input.srcChain,
+      input.srcAddress,
+      "srcAddress"
+    );
+    const dstAddress = canonicalizeChainAddress(
+      input.dstChain,
+      input.dstAddress,
+      "dstAddress"
+    );
     validateDirectionAgainstChains(input);
 
     if (input.hashlock.toLowerCase() === ZERO_HASHLOCK.toLowerCase()) {
@@ -169,7 +205,14 @@ export class OrderService {
 
     // Strip quoteId — it's not a persisted column, just a freshness gate.
     const { quoteId: _q, ...repoInput } = input;
-    const order = await this.repo.announce({ ...repoInput, hashlock } as AnnounceOrderInput);
+    const order = await this.repo.announce(
+      {
+        ...repoInput,
+        hashlock,
+        srcAddress,
+        dstAddress
+      } as AnnounceOrderInput
+    );
     this.log.info(
       { publicId: order.publicId, direction: order.direction, quoteId: input.quoteId ?? null },
       "order announced"
@@ -186,8 +229,13 @@ export class OrderService {
     return this.repo.getTransitions(publicId);
   }
 
-  history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
-    return this.repo.findByAddress(address, limit, offset);
+  async history(address: string, limit?: number, offset?: number): Promise<OrderRow[]> {
+    // Canonicalize the lookup key the same way rows are stored, so a
+    // mixed-case or whitespace-padded query matches instead of silently
+    // returning an empty list — and malformed queries are rejected
+    // early instead of being executed against the DB.
+    const canonical = canonicalizeAnyAddress(address, "address");
+    return this.repo.findByAddress(canonical, limit, offset);
   }
 
   findByHashlock(hashlock: string): Promise<OrderRow | null> {
@@ -239,13 +287,23 @@ export class OrderService {
   }): Promise<void> {
     const order = await this.repo.findByPublicId(input.publicId);
     if (!order) throw new OrderValidationError(`unknown order ${input.publicId}`);
+
+    // The resolver is the account (on the order's DESTINATION chain) that
+    // locked the destination funds — canonicalize it so the sameEvent
+    // comparison below and any later lookup match on format, not on the
+    // exact bytes a caller happened to send.
+    const resolver =
+      input.resolver != null && input.resolver.trim() !== ""
+        ? canonicalizeChainAddress(order.dstChain, input.resolver, "resolver")
+        : null;
+
     if (order.status === "dst_locked") {
       const sameEvent =
         order.dstOrderId === input.orderId &&
         order.dstLockTx === input.txHash &&
         order.dstLockBlock === input.blockNumber &&
         order.dstTimelock === input.timelock &&
-        order.resolverAddress === input.resolver;
+        order.resolverAddress === resolver;
       if (sameEvent) return;
       throw new StaleOrderEventError(`conflicting dst lock event for ${input.publicId}`);
     }
@@ -257,7 +315,7 @@ export class OrderService {
       assertTimelocksAtCreation(order.srcTimelock, input.timelock, this.minGapSeconds);
     }
 
-    await this.repo.recordDstLock(input);
+    await this.repo.recordDstLock({ ...input, resolver });
     this.log.info({ publicId: input.publicId, dstOrderId: input.orderId }, "dst lock recorded");
     ordersTotal.inc({ status: "dst_locked" });
   }
@@ -265,14 +323,24 @@ export class OrderService {
   async recordSecret(publicId: string, preimage: string, txHash: string): Promise<void> {
     const order = await this.repo.findByPublicId(publicId);
     if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
+    // Preimages are 32-byte hex values: compare and store the canonical
+    // lowercase form so a mixed-case re-submission matches instead of
+    // being misread as a conflicting (different) secret.
+    const canonicalPreimage = preimage.toLowerCase();
     if (order.status === "secret_revealed") {
-      if (order.preimage === preimage && order.secretRevealedTx === txHash) return;
-      throw new StaleOrderEventError(`conflicting secret event for ${publicId}`);
+      if (order.preimage?.toLowerCase() !== canonicalPreimage) {
+        throw new StaleOrderEventError(`conflicting secret event for ${publicId}`);
+      }
+      // The same secret was already revealed for this order — whether the
+      // re-submission carries the same or a different reveal tx (e.g. the
+      // secret is being revealed on both chains). That is idempotent, not
+      // a conflict.
+      return;
     }
     if (!canTransition(order.status, "secret_revealed")) {
       throw new StaleOrderEventError(`stale secret event for order in status ${order.status}`);
     }
-    await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
+    await this.repo.recordSecretRevealed({ publicId, preimage: canonicalPreimage, txHash });
     this.log.info({ publicId }, "secret recorded");
     ordersTotal.inc({ status: "secret_revealed" });
   }

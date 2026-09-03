@@ -1,3 +1,8 @@
+import {
+  normalizeEthereumAddress,
+  normalizeStellarAddress
+} from "../addresses/index.js";
+
 export type AssetMappingNetwork = "testnet" | "mainnet";
 
 export interface CanonicalStellarAsset {
@@ -10,7 +15,7 @@ export const NATIVE_STELLAR_ASSET: CanonicalStellarAsset = { code: "XLM" };
 
 const TESTNET_ETH_TO_STELLAR: Record<string, CanonicalStellarAsset> = {
   [NATIVE_ETH_ADDRESS]: NATIVE_STELLAR_ASSET,
-  "0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b": {
+  "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238": {
     code: "USDC",
     issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
   },
@@ -19,7 +24,7 @@ const TESTNET_ETH_TO_STELLAR: Record<string, CanonicalStellarAsset> = {
 const TESTNET_STELLAR_TO_ETH: Record<string, string> = {
   XLM: NATIVE_ETH_ADDRESS,
   "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5":
-    "0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b",
+    "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
 };
 
 const MAINNET_ETH_TO_STELLAR: Record<string, CanonicalStellarAsset> = {
@@ -44,23 +49,40 @@ const MAPPINGS: Record<AssetMappingNetwork, {
   },
 };
 
-function normalizeEthereumAddress(address: string): string {
-  return address.trim().toLowerCase();
-}
-
 function stellarAssetKey(asset: string | CanonicalStellarAsset): string {
   if (typeof asset === "string") {
-    return asset.trim();
+    const trimmed = asset.trim();
+    // "CODE" or "CODE:ISSUER"
+    const separator = trimmed.indexOf(":");
+    if (separator === -1) {
+      return trimmed;
+    }
+    const code = trimmed.slice(0, separator).trim();
+    const issuer = normalizeStellarAddress(
+      trimmed.slice(separator + 1),
+      "Stellar asset issuer"
+    );
+    return `${code}:${issuer}`;
   }
 
-  return asset.issuer ? `${asset.code}:${asset.issuer}` : asset.code;
+  const code = asset.code.trim();
+  const issuer = asset.issuer
+    ? normalizeStellarAddress(asset.issuer, "Stellar asset issuer")
+    : undefined;
+  return issuer ? `${code}:${issuer}` : code;
 }
 
 export function resolveStellarAsset(
   ethereumTokenAddress: string,
   network: AssetMappingNetwork = "testnet"
 ): CanonicalStellarAsset {
-  const normalized = normalizeEthereumAddress(ethereumTokenAddress);
+  // Strict canonicalization: a malformed Ethereum token address is
+  // rejected immediately instead of silently mapping to XLM (a false
+  // match that would route the wrong asset across the bridge).
+  const normalized = normalizeEthereumAddress(
+    ethereumTokenAddress,
+    "Ethereum token address"
+  );
   const mapping = MAPPINGS[network]?.ethToStellar || MAPPINGS.testnet.ethToStellar;
   return mapping[normalized] ?? NATIVE_STELLAR_ASSET;
 }

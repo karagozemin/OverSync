@@ -65,14 +65,40 @@ function decodeCustomError(abi: unknown[], data: string | undefined): string | n
   return null;
 }
 
+/**
+ * Kill the shell spawned by startEvmFixture() together with its hardhat
+ * node grandchild, so the JSON-RPC port is released for the next run.
+ */
+function killProcessTree(node: ChildProcess): void {
+  const pid = node.pid;
+  if (pid != null && process.platform !== "win32") {
+    try {
+      process.kill(-pid, "SIGTERM");
+      return;
+    } catch {
+      // Fall through to the plain kill if the group is already gone.
+    }
+  }
+  try {
+    node.kill();
+  } catch {
+    // Process already exited.
+  }
+}
+
 /** Spawn a Hardhat node and wait until it is ready to accept connections. */
 async function spawnHardhatNode(): Promise<ChildProcess> {
   const contractsDir = join(__dirname, "../contracts");
 
+  // detached: true makes the shell (and its hardhat node grandchild) a
+  // process-group leader so stop() can kill the whole tree — with
+  // shell: true alone, killing the shell would orphan the node and leave
+  // port 8545 bound for the next run.
   const node = spawn("pnpm", ["hardhat", "node"], {
     cwd: contractsDir,
     stdio: ["ignore", "pipe", "pipe"],
     shell: true,
+    detached: process.platform !== "win32",
   });
 
   // Wait until the node prints its ready message
@@ -194,7 +220,7 @@ export async function startEvmFixture(): Promise<RealEvmHtlcFixture> {
 
     async stop(): Promise<void> {
       await provider.destroy();
-      nodeProcess.kill();
+      killProcessTree(nodeProcess);
       // Give the process a moment to clean up the port
       await new Promise((r) => setTimeout(r, 500));
     },
