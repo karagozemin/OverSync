@@ -391,3 +391,361 @@ describe("OrderService timelock ordering", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("OrderService address canonicalization", () => {
+  // Sepolia USDC: valid EIP-55 mixed-case form, lowercase canonical form,
+  // and a mixed-case form with a deliberately broken EIP-55 checksum.
+  const ETH_CHECKSUMMED = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const ETH_LOWER = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
+  const ETH_BAD_CHECKSUM = "0x1c7d4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const ETH_MALFORMED_39 = "0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b";
+
+  let hashlockCounter = 0;
+  function nextHashlock(): string {
+    hashlockCounter += 1;
+    return ("0x" + hashlockCounter.toString(16).padStart(2, "0") + "b".repeat(62)) as string;
+  }
+
+  async function freshOrders(db: Awaited<ReturnType<typeof freshDb>>) {
+    const orders = new OrderService(new OrdersRepository(db), log);
+    return orders;
+  }
+
+  it("stores an EIP-55 checksummed Ethereum address in lowercase canonical form", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: ETH_CHECKSUMMED,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+
+    expect(order.srcAddress).toBe(ETH_LOWER);
+    const stored = await orders.get(order.publicId);
+    expect(stored!.srcAddress).toBe(ETH_LOWER);
+  });
+
+  it("stores a whitespace-padded Ethereum address trimmed", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: `  ${ETH_CHECKSUMMED}\t`,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+
+    expect(order.srcAddress).toBe(ETH_LOWER);
+  });
+
+  it("stores a whitespace-padded Stellar address trimmed", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: ` ${VALID_STELLAR_ADDR} `,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+
+    expect(order.dstAddress).toBe(VALID_STELLAR_ADDR);
+  });
+
+  it("finds orders by address regardless of query casing or padding", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: ETH_CHECKSUMMED,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+
+    // Before canonicalization, the same order announced in checksummed form
+    // could never be found by a lowercase query (and vice versa).
+    expect((await orders.history(ETH_LOWER)).length).toBe(1);
+    expect((await orders.history(ETH_CHECKSUMMED)).length).toBe(1);
+    expect((await orders.history(`  ${ETH_LOWER} `)).length).toBe(1);
+    expect((await orders.history(VALID_STELLAR_ADDR)).length).toBe(1);
+  });
+
+  it("rejects a 39-hex-digit Ethereum address", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    // Regression: the old testnet USDC constant was 39 hex digits and was
+    // accepted and persisted, never matching a real 40-digit token address.
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: nextHashlock(),
+        srcChain: "ethereum",
+        srcAddress: ETH_MALFORMED_39,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrow(OrderValidationError);
+    await expect(orders.history(ETH_MALFORMED_39)).rejects.toThrow(
+      OrderValidationError
+    );
+  });
+
+  it("rejects a mixed-case Ethereum address with an invalid EIP-55 checksum", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: nextHashlock(),
+        srcChain: "ethereum",
+        srcAddress: ETH_BAD_CHECKSUM,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrow(/EIP-55 checksum/);
+  });
+
+  it("rejects lowercase and internal-whitespace Ethereum addresses", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const announceWith = (srcAddress: string) =>
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: nextHashlock(),
+        srcChain: "ethereum",
+        srcAddress,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      });
+
+    await expect(announceWith("no-prefix")).rejects.toThrow(OrderValidationError);
+    await expect(
+      announceWith("0x1c7d4b196cb0c7b 01d743fbc6116a902379c7238")
+    ).rejects.toThrow(OrderValidationError);
+    await expect(orders.history("not-an-address")).rejects.toThrow(
+      OrderValidationError
+    );
+  });
+
+  it("rejects a lowercase Stellar address (Stellar IDs are case-sensitive)", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    await expect(
+      orders.announce({
+        direction: "xlm_to_eth",
+        hashlock: nextHashlock(),
+        srcChain: "stellar",
+        srcAddress: VALID_STELLAR_ADDR.toLowerCase(),
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "ethereum",
+        dstAddress: VALID_ETH_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrow(OrderValidationError);
+    await expect(
+      orders.history(VALID_STELLAR_ADDR.toLowerCase())
+    ).rejects.toThrow(OrderValidationError);
+  });
+
+  it("rejects an Ethereum address used as a Stellar address and vice versa", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    await expect(
+      orders.announce({
+        direction: "xlm_to_eth",
+        hashlock: nextHashlock(),
+        srcChain: "stellar",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "ethereum",
+        dstAddress: VALID_ETH_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrow(OrderValidationError);
+  });
+
+  it("canonicalizes the resolver on recordDstLock and rejects malformed resolvers", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 10_000
+    });
+
+    // Padded resolver is stored trimmed (and the sameEvent guard compares
+    // canonical forms, so a padded re-submission is idempotent).
+    await orders.recordDstLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xdst",
+      blockNumber: 2,
+      timelock: 9_000,
+      resolver: ` ${VALID_STELLAR_ADDR} `
+    });
+    const stored = await orders.get(order.publicId);
+    expect(stored!.resolverAddress).toBe(VALID_STELLAR_ADDR);
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 9_000,
+        resolver: VALID_STELLAR_ADDR
+      })
+    ).resolves.toBeUndefined();
+
+    // A malformed resolver is rejected instead of being persisted.
+    const order2 = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: nextHashlock(),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await orders.recordSrcLock({
+      publicId: order2.publicId,
+      orderId: "2",
+      txHash: "0xsrc2",
+      blockNumber: 3,
+      timelock: 10_000
+    });
+    await expect(
+      orders.recordDstLock({
+        publicId: order2.publicId,
+        orderId: "2",
+        txHash: "0xdst2",
+        blockNumber: 4,
+        timelock: 9_000,
+        resolver: "G" + "0".repeat(55)
+      })
+    ).rejects.toThrow(OrderValidationError);
+  });
+
+  it("validates the dst-chain resolver for xlm_to_eth orders as an Ethereum address", async () => {
+    const db = await freshDb();
+    const orders = await freshOrders(db);
+
+    const order = await orders.announce({
+      direction: "xlm_to_eth",
+      hashlock: nextHashlock(),
+      srcChain: "stellar",
+      srcAddress: VALID_STELLAR_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "ethereum",
+      dstAddress: ETH_CHECKSUMMED,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    expect(order.dstAddress).toBe(ETH_LOWER);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "3",
+      txHash: "0xsrc3",
+      blockNumber: 5,
+      timelock: 10_000
+    });
+    await orders.recordDstLock({
+      publicId: order.publicId,
+      orderId: "3",
+      txHash: "0xdst3",
+      blockNumber: 6,
+      timelock: 9_000,
+      resolver: VALID_ETH_ADDR
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "3",
+        txHash: "0xdst3x",
+        blockNumber: 7,
+        timelock: 9_000,
+        resolver: "not-an-address"
+      })
+    ).rejects.toThrow(OrderValidationError);
+  });
+});

@@ -139,7 +139,7 @@ export const CONTRACT_ADDRESSES = {
     sepolia: {
       htlcBridge: '0x3f344ACDd17a0c4D21096da895152820f595dc8A',
       escrowFactory: '0x6c3818E074d891F1FBB3A75913e4BDe87BcF1123',
-      testToken: '0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b',
+      testToken: '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238',
     },
   },
   stellar: {

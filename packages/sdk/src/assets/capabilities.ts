@@ -35,7 +35,7 @@ export function getCapabilityMatrix(): CapabilityMatrix {
           {
             fromAsset: 'USDC (ERC-20)',
             toAsset: 'USDC (Stellar)',
-            testnetAddressOrCode: '0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b'
+            testnetAddressOrCode: '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238'
           }
         ],
         mainnetStatus: 'gated_until_audit',

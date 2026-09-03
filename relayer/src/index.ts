@@ -1115,7 +1115,7 @@ async function initializeRelayer() {
           amount: (parseFloat(amount) * 1e18).toString(),
           hashLock,
           timelock: Math.floor(Date.now() / 1000) + 7201, // 2+ hours,
-          stellarTimelock: Math.floor(Date.now() / 1000) + (1 * 60 * 60) // 1 hour (dst expires before src)
+          stellarTimelock: Math.floor(Date.now() / 1000) + (1 * 60 * 60), // 1 hour (dst expires before src)
           feeRate: 100, // 1%
           beneficiary: stellarAddress,
           refundAddress: normalizedEthAddress,

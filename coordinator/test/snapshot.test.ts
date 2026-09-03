@@ -112,7 +112,7 @@ describe("OrderService.getSnapshots", () => {
       txHash: "0xdst",
       blockNumber: 2,
       timelock: 9_000,
-      resolver: "0xresolver"
+      resolver: "0x9999999999999999999999999999999999999999"
     });
     await orders.recordSecret(order.publicId, "secret-value-leaked", "0xsecret");
     await orders.markStatus(order.publicId, "completed");
@@ -122,7 +122,7 @@ describe("OrderService.getSnapshots", () => {
     expect(serialised).not.toContain("secret-value-leaked");
     expect(serialised).not.toContain("preimage");
     expect(serialised).not.toContain("resolver");
-    expect(serialised).not.toContain("0xresolver");
+    expect(serialised).not.toContain("0x9999999999999999999999999999999999999999");
     expect(serialised).not.toContain("hashlock");
   });
 

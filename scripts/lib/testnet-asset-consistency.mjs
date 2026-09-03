@@ -5,7 +5,7 @@
 
 export const CANONICAL_TESTNET = Object.freeze({
   nativeEth: "0x0000000000000000000000000000000000000000",
-  sepoliaUsdc: "0xa0b86a33e6417c4fd30ad9d05d6b9b7cd6dd11b",
+  sepoliaUsdc: "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
   stellarUsdcCode: "USDC",
   stellarUsdcIssuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
   stellarNetworkPassphrase: "Test SDF Network ; September 2015",
@@ -33,7 +33,9 @@ const RE_TOKEN_SELECTOR_STELLAR_USDC = new RegExp(
 function normalizeEthAddress(value) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{39,40}$/.test(trimmed)) return null;
+  // Exactly 40 hex digits — a 39- or 41-digit "address" is malformed and
+  // must never be treated as a match.
+  if (!/^0x[0-9a-f]{40}$/.test(trimmed)) return null;
   return trimmed;
 }
 

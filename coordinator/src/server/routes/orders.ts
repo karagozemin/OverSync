@@ -125,6 +125,10 @@ export function ordersRoutes(orders: OrderService): Router {
         }
       });
     } catch (err) {
+      if (err instanceof OrderValidationError) {
+        res.status(400).json({ error: "invalid_address", message: err.message });
+        return;
+      }
       next(err);
     }
   });

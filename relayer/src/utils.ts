@@ -4,7 +4,76 @@
  */
 
 import { createHash, randomBytes } from 'crypto';
+import { getAddress as ethersGetAddress } from 'ethers';
 import { QuoteRequest, OrderInput, TimeLocks } from './types.js';
+
+const STELLAR_ACCOUNT_RE = /^G[A-Z2-7]{55}$/;
+const ETH_HEX_RE = /^[0-9a-fA-F]+$/;
+
+function assertNonEmptyString(value: unknown, fieldName: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${fieldName} must not be empty`);
+  }
+  return trimmed;
+}
+
+/**
+ * Canonicalize an Ethereum address: trims surrounding whitespace,
+ * requires 0x + exactly 40 hex digits, enforces the EIP-55 checksum for
+ * mixed-case input, and returns the lowercase canonical form.
+ * Throws on any malformed input.
+ */
+export function normalizeEthereumAddress(value: unknown, fieldName = 'Ethereum address'): string {
+  const raw = assertNonEmptyString(value, fieldName);
+
+  if (!raw.startsWith('0x')) {
+    throw new Error(`${fieldName} must start with "0x"`);
+  }
+  const hex = raw.slice(2);
+  if (hex.length !== 40) {
+    throw new Error(`${fieldName} must be 40 hex digits after 0x (got ${hex.length})`);
+  }
+  if (!ETH_HEX_RE.test(hex)) {
+    throw new Error(`${fieldName} contains invalid hex characters`);
+  }
+  try {
+    // EIP-55: all-lowercase / all-uppercase are accepted, mixed-case must
+    // carry a valid checksum.
+    ethersGetAddress(raw);
+  } catch {
+    throw new Error(`${fieldName} has an invalid EIP-55 checksum`);
+  }
+  return raw.toLowerCase();
+}
+
+/**
+ * Canonicalize a Stellar account address (G + 55 base32 chars). Stellar
+ * IDs are case-sensitive, so the canonical form is the trimmed value
+ * itself; anything else is rejected.
+ */
+export function normalizeStellarAddress(value: unknown, fieldName = 'Stellar address'): string {
+  const raw = assertNonEmptyString(value, fieldName);
+  if (!STELLAR_ACCOUNT_RE.test(raw)) {
+    throw new Error(`${fieldName} must be a Stellar account ID (G + 55 base32 characters)`);
+  }
+  return raw;
+}
+
+/**
+ * Canonicalize an address whose chain is inferred from its shape:
+ * `0x…` → Ethereum, `G…` → Stellar, anything else rejected.
+ */
+export function normalizeAddress(value: unknown, fieldName = 'address'): string {
+  const raw = assertNonEmptyString(value, fieldName);
+  if (raw.startsWith('0x')) {
+    return normalizeEthereumAddress(raw, fieldName);
+  }
+  return normalizeStellarAddress(raw, fieldName);
+}
 
 /**
  * Generate a unique quote ID
@@ -75,51 +144,69 @@ export function validateQuoteRequest(params: QuoteRequest): { valid: boolean; er
 }
 
 /**
- * Validate token address format (can be symbol or address)
+ * Validate token address format (can be symbol or address).
+ * Surrounding whitespace is tolerated (canonicalized away) but every
+ * other deviation from a well-formed address is rejected.
  */
 export function isValidTokenAddress(address: string): boolean {
   if (!address || typeof address !== 'string') return false;
-  
+  const trimmed = address.trim();
+  if (trimmed.length === 0) return false;
+
   // Common token symbols
   const tokenSymbols = ['ETH', 'USDC', 'USDT', 'DAI', 'WETH', 'BTC', 'XLM', 'MATIC', 'BNB'];
-  if (tokenSymbols.includes(address.toUpperCase())) {
+  if (tokenSymbols.includes(trimmed.toUpperCase())) {
     return true;
   }
-  
-  // Ethereum contract address
-  if (address.startsWith('0x') && address.length === 42) {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+
+  // Ethereum contract address (0x + exactly 40 hex digits, EIP-55 checked)
+  if (trimmed.startsWith('0x')) {
+    try {
+      normalizeEthereumAddress(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
   }
-  
+
   // Stellar asset code (max 12 chars)
-  if (address.length <= 12 && /^[A-Za-z0-9]+$/.test(address)) {
+  if (trimmed.length <= 12 && /^[A-Za-z0-9]+$/.test(trimmed)) {
     return true;
   }
-  
+
   return false;
 }
 
 /**
- * Validate wallet address format
+ * Validate wallet address format (Ethereum or Stellar).
+ * Surrounding whitespace is tolerated (canonicalized away) but every
+ * other deviation from a well-formed address is rejected.
  */
 export function isValidWalletAddress(address: string): boolean {
   if (!address || typeof address !== 'string') return false;
-  
-  // Ethereum address validation (0x + 40 hex chars)
-  if (address.startsWith('0x') && address.length === 42) {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  const trimmed = address.trim();
+  if (trimmed.length === 0) return false;
+
+  // Ethereum address validation (0x + 40 hex chars, EIP-55 checked)
+  if (trimmed.startsWith('0x')) {
+    try {
+      normalizeEthereumAddress(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
   }
-  
-  // Stellar address validation (G + 55 chars)
-  if (address.startsWith('G') && address.length === 56) {
-    return /^G[A-Z2-7]{55}$/.test(address);
+
+  // Stellar address validation (G + 55 base32 chars, case-sensitive)
+  if (trimmed.startsWith('G') && trimmed.length === 56) {
+    return STELLAR_ACCOUNT_RE.test(trimmed);
   }
-  
-  // More flexible Stellar address validation
-  if (address.length === 56 && /^[A-Z2-7]+$/.test(address)) {
+
+  // More flexible Stellar address validation (ledger / non-G prefixes)
+  if (trimmed.length === 56 && /^[A-Z2-7]+$/.test(trimmed)) {
     return true;
   }
-  
+
   return false;
 }
 
