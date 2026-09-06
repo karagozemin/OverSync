@@ -35,7 +35,7 @@ state in which user funds are stranded under operator control.
 
 > **SCF reviewers and investors.** A consolidated diligence package — contracts,
 > explorer links, CI status, security checklist, roadmap, and budget — is at
-> [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md). Readable in ≤ 10 minutes.
+> [`docs/MAINNET_READINESS_SCORECARD.md`](docs/MAINNET_READINESS_SCORECARD.md). Readable in ≤ 10 minutes.
 
 ---
 
@@ -264,7 +264,7 @@ threat model.
 
 | Document | What it covers |
 |---|---|
-| [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md) | **SCF reviewer data room** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
+| [`docs/MAINNET_READINESS_SCORECARD.md`](docs/MAINNET_READINESS_SCORECARD.md) | **Mainnet readiness scorecard** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, pull request expectations, and the [contributor proof checklist](.github/pull_request_template.md) |
 | [`ROADMAP.md`](ROADMAP.md) | Milestone-by-milestone delivery plan with verifiable artefacts; testnet v2 live, mainnet UI gated until audit |
@@ -274,6 +274,7 @@ threat model.
 | [`docs/METRICS_SCHEMA.md`](docs/METRICS_SCHEMA.md) | Public metrics schema: definitions, units, sources, cadence, and privacy boundaries |
 | [`docs/UNIT_ECONOMICS.md`](docs/UNIT_ECONOMICS.md) | Resolver cost model, bootstrap incentives, break-even ranges, and metrics needed before stronger claims |
 | [`docs/RESOLVERS.md`](docs/RESOLVERS.md) | How to run your own resolver |
+| [`docs/RISK_REGISTER.md`](docs/RISK_REGISTER.md) | **Investor-grade risk register** — 16 concrete risks with likelihood, impact, mitigations, evidence links, and next actions |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |

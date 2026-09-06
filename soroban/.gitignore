@@ -1,3 +1,10 @@
 target/
-Cargo.lock
 .stellar/
+
+# Cargo.lock is committed on purpose. soroban-env-host 22.x declares
+# ed25519-dalek with an unbounded `>=2.0.0` requirement, so without a
+# lockfile cargo resolves ed25519-dalek 3.x which breaks the env-host
+# testutils build (`ChaCha20Rng: ed25519_dalek::rand_core::CryptoRng`).
+# The committed lockfile pins ed25519-dalek 2.2.0 and keeps CI builds
+# deterministic. See the CI workflow (ci.yml -> Soroban contracts).
+!Cargo.lock

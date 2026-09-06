@@ -7,6 +7,15 @@ vi.mock('./config/networks', () => ({
   isMainnetEnabled: vi.fn(() => false),
   isTestnet: vi.fn(() => true),
   resolveNetworkMode: vi.fn((requested: string) => requested),
+  getCurrentNetwork: vi.fn(() => ({
+    ethereum: { name: 'sepolia', rpcUrl: 'http://localhost:8545', testnet: true },
+    stellar: { name: 'testnet', horizonUrl: 'http://localhost:8000', testnet: true },
+  })),
+  getContractAddresses: vi.fn(() => ({
+    ethereum: { htlcBridge: '0x0', escrowFactory: '0x0', testToken: '0x0' },
+    stellar: { bridgeAccount: 'G0', escrowAccount: 'G0' },
+  })),
+  getFaucets: vi.fn(() => ({ ethereum: [], stellar: [] })),
 }));
 
 vi.mock('./lib/useNetworkMode', () => ({

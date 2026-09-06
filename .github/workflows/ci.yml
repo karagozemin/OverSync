@@ -94,8 +94,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the Rust toolchain: newer stable (1.97+) fails to compile
+      # `cargo install --locked stellar-cli --version 22.8.1` (ethnum 1.5.0
+      # transmute error). 1.96.1 is the last known-good version for the
+      # pinned soroban-sdk 22.x stack and keeps builds reproducible.
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.96.1
         with:
           targets: wasm32-unknown-unknown,wasm32v1-none
 

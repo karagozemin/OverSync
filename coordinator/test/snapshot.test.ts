@@ -196,6 +196,7 @@ describe("OrderService.getSnapshots", () => {
       orderId: "c1",
       txHash: "0xc1src",
       blockNumber: 1,
+      timelock: 600
       timelock: 10_000
     });
     await orders.recordDstLock({
@@ -230,11 +231,16 @@ describe("OrderService.getSnapshots", () => {
     const refundedSnapshot = snapshots.find((s) => s.orderId === refunded1.publicId)!;
     expect(completedSnapshot.currentState).toBe("completed");
     expect(refundedSnapshot.currentState).toBe("refunded");
-    // Order is by updated_at DESC; completed1 gets more transitions so its
-    // updatedAt should be >= refunded1's.
-    expect(completedSnapshot.timestamps.updatedAt).toBeGreaterThanOrEqual(
-      refundedSnapshot.timestamps.updatedAt
-    );
+    // updated_at is second-granularity (strftime('%s','now')), and the two
+    // orders can straddle a second boundary, so assert the sort invariant
+    // directly instead of comparing the two orders' timestamps against each
+    // other (which flakes whenever the boundary falls mid-test).
+    const updatedAts = snapshots.map((s) => s.timestamps.updatedAt);
+    for (let i = 1; i < updatedAts.length; i++) {
+      const prev = updatedAts[i - 1]!;
+      const curr = updatedAts[i]!;
+      expect(prev).toBeGreaterThanOrEqual(curr);
+    }
     // The array is sorted DESC, so whichever has the higher updatedAt is first.
     const [first, second] = snapshots as [OrderSnapshot, OrderSnapshot];
     const isCompletedFirst = first.orderId === completed1.publicId;
