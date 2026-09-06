@@ -20,7 +20,7 @@ readiness across four participant types. The pilot produces:
 
 - a quantitative record of swap success rates, latency, and resolver
   uptime against the thresholds defined in
-  [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md)
+  [`docs/METRICS_SCHEMA.md`](METRICS_SCHEMA.md)
 - a resolver onboarding record aligned with SCF Tranche 2 acceptance
   criteria in [`docs/SCF_TRANCHE_ACCEPTANCE.md`](SCF_TRANCHE_ACCEPTANCE.md)
 - a public post-pilot report that SCF reviewers and investors can use
@@ -229,7 +229,7 @@ plus the following pilot-specific items:
 ## 5. Success Metrics and Failure Thresholds
 
 Thresholds are inherited directly from
-[`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md) and applied to
+[`docs/METRICS_SCHEMA.md`](METRICS_SCHEMA.md) and applied to
 the testnet pilot context. All metrics are measured on the
 `network: testnet` network designation only.
 
@@ -552,7 +552,7 @@ the open action item.
 ## 10. Next Steps
 
 - [ ] Open issues for any unresolved P1/P2 findings
-- [ ] Update [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md)
+- [ ] Update [`docs/METRICS_SCHEMA.md`](METRICS_SCHEMA.md)
       thresholds if empirical data warrants revision
 - [ ] Share resolver evidence with SCF as Tranche 2 artefact
 - [ ] Proceed to / defer mainnet audit gate per

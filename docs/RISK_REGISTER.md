@@ -33,7 +33,7 @@
 | **Mitigation** | Mainnet is hard-gated on two independent audit reports (EVM + Soroban). Pre-audit hardening is underway (Foundry fuzz, Slither CI gate, differential test harness). All contracts are immutable with no admin escape hatch — an audit finding post-deploy would require a new deployment, not a silent patch. |
 | **Current evidence** | Audit preparation checklist: 9 of 12 items complete. See [`docs/SECURITY.md`](SECURITY.md#audit-preparation-checklist). |
 | **Owner / action** | Core team — engage two audit firms in Q4 2026 per [`ROADMAP.md`](../ROADMAP.md#q4-2026----independent-audits). |
-| **Next action** | Complete remaining pre-audit items: differential test harness (Q3 2026). Tracked in [`ROADMAP.md`](../ROADMAP.md#q3-2026----audit-preparation). |
+| **Next action** | Complete remaining pre-audit items: differential test harness (Q3 2026). Tracked in [`ROADMAP.md`](../ROADMAP.md#q3-2026--audit-preparation-and-launch-hardening). |
 
 ### R-002 — Undiscovered smart contract bug survives static analysis
 
@@ -57,9 +57,9 @@
 | **Likelihood** | **Present** (scheduled for Q3 2026) |
 | **Impact** | **Medium** — stuck orders requiring timelock expiry and refund |
 | **Mitigation** | Each chain has independent unit tests (10 Soroban, 15 EVM) covering the hashlock flow. SDK provides a shared `computeHashlock` function used by both test suites. Cross-chain differential test harness is a planned Q3 2026 milestone. No user funds at risk — stuck orders always refund to the user after timelock. |
-| **Current evidence** | 10 Soroban unit tests, 15 EVM Hardhat tests, 8 SDK tests. See [`docs/DILIGENCE_DATA_ROOM.md#5-ci-status-and-testing`](DILIGENCE_DATA_ROOM.md#5-ci-status-and-testing). |
+| **Current evidence** | 10 Soroban unit tests, 15 EVM Hardhat tests, 8 SDK tests. See [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md#12-status-table) for the full implementation status table. |
 | **Owner / action** | Core team — implement `e2e/cross-chain.test.ts` that drives in-memory simulators of both chains. |
-| **Next action** | Tracked in [`ROADMAP.md § Q3 2026`](../ROADMAP.md#q3-2026----audit-preparation). File issue: *Implement cross-chain differential test harness*. |
+| **Next action** | Tracked in [`ROADMAP.md § Q3 2026`](../ROADMAP.md#q3-2026--audit-preparation-and-launch-hardening). File issue: *Implement cross-chain differential test harness*. |
 
 ---
 
@@ -76,7 +76,7 @@
 | **Mitigation** | Bootstrap grant pool of $9,000 in Tranche 2 for first 3 community resolvers. Open resolver protocol (anyone can stake and run the open-source runner). Team-operated reference resolver to ensure baseline liveness during initial weeks. Resolver onboarding documentation at [`docs/RESOLVERS.md`](RESOLVERS.md). |
 | **Current evidence** | Open-source resolver runner + Docker image at [`resolver/`](../resolver/). Onboarding packet at [`docs/RESOLVER_ONBOARDING_PACKET.md`](RESOLVER_ONBOARDING_PACKET.md). |
 | **Owner / action** | Core team — recruit 3 community resolvers before mainnet. |
-| **Next action** | Tracked in [`ROADMAP.md § Q1 2027`](../ROADMAP.md#q1-2027----mainnet-launch). File issue: *Resolver recruitment programme and grant terms*. |
+| **Next action** | Tracked in [`ROADMAP.md § Q1 2027`](../ROADMAP.md#q1-2027--mainnet-launch-and-not-isolated-composability). File issue: *Resolver recruitment programme and grant terms*. |
 
 ### R-005 — Resolver collusion to ignore orders
 
@@ -99,8 +99,8 @@
 | **Risk** | The `ResolverRegistry` owner on EVM (deployer EOA) and admin on Soroban (deployer account) can unilaterally slash any resolver's stake or change the slash beneficiary. A compromised key could destroy resolver capital. |
 | **Likelihood** | **Low** (testnet only; mitigated before mainnet) |
 | **Impact** | **High** — resolver stakes could be stolen if replicated to mainnet |
-| **Mitigation** | Migration to 2-of-3 Safe (EVM) and 2-of-3 Stellar multisig (Soroban) is scheduled for Q4 2026, before audit reports are published. User HTLC funds are unaffected — slashing only affects resolver stakes. Full plan at [`docs/GOVERNANCE_PATH.md`](GOVERNANCE_PATH.md). |
-| **Current evidence** | Governance path document at [`docs/GOVERNANCE_PATH.md#5-testnet-multisig-step-2-of-3`](GOVERNANCE_PATH.md#5-testnet-multisig-step-2-of-3). |
+| **Mitigation** | Migration to 2-of-3 Safe (EVM) and 2-of-3 Stellar multisig (Soroban) is scheduled for Q4 2026, before audit reports are published. User HTLC funds are unaffected — slashing only affects resolver stakes. Full plan at [`docs/TRUST_MODEL.md`](TRUST_MODEL.md). |
+| **Current evidence** | See [`docs/TRUST_MODEL.md`](TRUST_MODEL.md) for the per-actor threat analysis and multisig migration plan. |
 | **Owner / action** | Core team — execute multisig migration in Q4 2026. |
 | **Next action** | Tracked in [`ROADMAP.md § Q4 2026`](../ROADMAP.md#q4-2026----independent-audits). File issue: *Create Safe deployment and ownership transfer scripts*. |
 
@@ -132,7 +132,7 @@
 | **Mitigation** | Cloudflare + rate-limiting in front of the coordinator. Even with coordinator entirely offline, users can: (1) refund directly from the HTLC contracts after timelock, (2) interact with contracts via block explorers, (3) run their own coordinator instance from source. The coordinator holds no keys that can move user funds. |
 | **Current evidence** | Runbook at [`docs/INCIDENT_RESPONSE_RUNBOOK.md#coordinator-outage`](INCIDENT_RESPONSE_RUNBOOK.md#coordinator-outage). Coordinator architecture at [`coordinator/README.md`](../coordinator/README.md). |
 | **Owner / action** | Core team — implement coordinator health dashboard and publish SLA metrics. |
-| **Next action** | Tracked in [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md). |
+| **Next action** | Tracked in [`docs/METRICS_SCHEMA.md`](METRICS_SCHEMA.md). |
 
 ---
 
@@ -177,7 +177,7 @@
 | **Likelihood** | **Possible** |
 | **Impact** | **Low** — funds are safe on testnet; mainnet delay is a timeline risk, not a fund-safety risk |
 | **Mitigation** | No hard pre-announced mainnet date. Mainnet is gated on verifiable criteria (audit reports public, all medium+ findings remediated, bug bounty open 14+ days with no critical reports, multisig live, ≥3 resolvers). Team has runway through 2027 (see [`docs/RUNWAY_AND_HIRING_PLAN.md`](RUNWAY_AND_HIRING_PLAN.md)). |
-| **Current evidence** | Exit criteria in [`docs/DILIGENCE_DATA_ROOM.md#6-roadmap-and-milestones`](DILIGENCE_DATA_ROOM.md#6-roadmap-and-milestones). |
+| **Current evidence** | Exit criteria in [`ROADMAP.md`](../ROADMAP.md#q1-2027--mainnet-launch-and-not-isolated-composability). |
 | **Owner / action** | Core team — reserve budget for one remediation + re-audit cycle. |
 | **Next action** | Tracked in [`ROADMAP.md`](../ROADMAP.md). |
 
@@ -250,9 +250,9 @@
 | **Likelihood** | **Low** (admin is controlled by the team; multisig migration scheduled before mainnet) |
 | **Impact** | **Medium** — resolver stakes could be slashed or registry binding changed instantly |
 | **Mitigation** | Multisig migration (2-of-3) before mainnet removes single-key risk. Future DAO + TimelockController (48-hour delay) planned for Q2–Q3 2027. User HTLC funds are never affected — admin actions only touch resolver stakes and registry configuration. |
-| **Current evidence** | Governance path at [`docs/GOVERNANCE_PATH.md#4-what-remains-centralised-before-mainnet`](GOVERNANCE_PATH.md#4-what-remains-centralised-before-mainnet). |
+| **Current evidence** | Governance path at [`docs/TRUST_MODEL.md`](TRUST_MODEL.md). |
 | **Owner / action** | Core team — deploy TimelockController + Governor as part of v2.1 roadmap. |
-| **Next action** | Tracked in [`ROADMAP.md § Q2–Q3 2027`](../ROADMAP.md#q2q3-2027----v21). File issue: *Design TimelockController integration for EVM ResolverRegistry*. |
+| **Next action** | Tracked in [`ROADMAP.md § Q2–Q3 2027`](../ROADMAP.md#q2q3-2027--v21-deepening). File issue: *Design TimelockController integration for EVM ResolverRegistry*. |
 
 ---
 
@@ -311,7 +311,7 @@ Each risk's next action will be filed as a GitHub issue with label `risk-registe
 | R-005 | Issue: *Define resolver performance metrics and potential slashing conditions* |
 | R-006 | Issue: *Create Safe deployment and ownership transfer scripts* |
 | R-007 | Issue: *RPC health monitoring dashboard and automatic failover metrics* |
-| R-008 | [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md) |
+| R-008 | [`docs/METRICS_SCHEMA.md`](METRICS_SCHEMA.md) |
 | R-009 | Issue: *CCTP v2 adapter dependency tracking and decoupling plan* |
 | R-010 | Issue: *Soroban version compatibility test matrix in CI* |
 | R-011 | [`ROADMAP.md`](../ROADMAP.md) (budget for remediation cycle) |
@@ -330,10 +330,10 @@ Each risk's next action will be filed as a GitHub issue with label `risk-registe
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md) | Failure mode catalogue (§9), security boundaries (§10), trust model summary (§11) |
 | [`docs/SECURITY.md`](SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty plan |
 | [`docs/TRUST_MODEL.md`](TRUST_MODEL.md) | Per-actor threat analysis, what each component can and cannot do |
-| [`docs/GOVERNANCE_PATH.md`](GOVERNANCE_PATH.md) | Centralisation risks, multisig migration plan, DAO path |
+| [`docs/TRUST_MODEL.md`](TRUST_MODEL.md) | Per-actor threat analysis, centralisation risks, multisig migration plan |
 | [`docs/COMPLIANCE_BOUNDARY.md`](COMPLIANCE_BOUNDARY.md) | Legal/regulatory boundary analysis, open counsel questions |
 | [`docs/INCIDENT_RESPONSE_RUNBOOK.md`](INCIDENT_RESPONSE_RUNBOOK.md) | SEV definitions, response procedures, postmortem template |
-| [`docs/DILIGENCE_DATA_ROOM.md`](DILIGENCE_DATA_ROOM.md) | SCF reviewer data room with risk summary (§10) |
+| [`docs/MAINNET_READINESS_SCORECARD.md`](MAINNET_READINESS_SCORECARD.md) | Mainnet readiness scorecard with implementation status |
 | [`ROADMAP.md`](../ROADMAP.md) | Delivery timeline, exit criteria, open dependencies |
 
 ---
