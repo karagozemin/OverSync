@@ -21,6 +21,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { sepolia, mainnet } from "viem/chains";
 import { rpc, Keypair } from "@stellar/stellar-sdk";
 import { resolveEthereumRpcUrl } from "../ethereum-rpc-url.js";
+import { checkCoordinatorNetwork, redactUrl } from "../network-agreement.js";
 
 // Load .env from CWD. dotenv is a no-op if the file is missing, so this is
 // safe for tests and prod. Existing env vars take precedence over .env.
@@ -50,6 +51,21 @@ const SOROBAN_CONTRACT_RE = /^C[A-Z2-7]{55}$/;
 
 const RPC_TIMEOUT_MS = 4000;
 
+function redactRpcUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return "[REDACTED RPC URL]";
+  }
+}
+
+function rpcErrorDetail(error: unknown): string {
+  const err = error as { shortMessage?: string; message?: string };
+  const message = err?.shortMessage ?? err?.message ?? String(error);
+  return message.replace(/\b[a-z][a-z\d+.-]*:\/\/[^\s]+/gi, (url) => redactRpcUrl(url));
+}
+
 function checkNetwork(): { network: "testnet" | "mainnet"; check: ReadinessCheck } {
   const raw = process.env.NETWORK_MODE ?? "testnet";
   if (raw === "testnet" || raw === "mainnet") {
@@ -71,11 +87,11 @@ function checkNetwork(): { network: "testnet" | "mainnet"; check: ReadinessCheck
 
 async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
   ok: boolean;
-  url: string;
   chainId: number | null;
   detail: string;
 }> {
   const url = resolveEthereumRpcUrl(network);
+  const displayUrl = redactRpcUrl(url);
   const chain = network === "mainnet" ? mainnet : sepolia;
   const expectedChainId = network === "mainnet" ? 1 : 11_155_111;
   try {
@@ -87,35 +103,32 @@ async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
     if (cid === expectedChainId) {
       return {
         ok: true,
-        url,
         chainId: cid,
-        detail: `URL=${url} chainId=${cid}`
+        detail: `URL=${displayUrl} chainId=${cid}`
       };
     }
     return {
       ok: false,
-      url,
       chainId: cid,
-      detail: `URL=${url} — RPC reported chainId=${cid}, expected ${expectedChainId}`
+      detail: `URL=${displayUrl} — RPC reported chainId=${cid}, expected ${expectedChainId}`
     };
   } catch (err: any) {
     return {
       ok: false,
-      url,
       chainId: null,
-      detail: `URL=${url} — error: ${err?.shortMessage ?? err?.message ?? String(err)}`
+      detail: `URL=${displayUrl} — error: ${rpcErrorDetail(err)}`
     };
   }
 }
 
 async function pingSorobanRpc(network: "testnet" | "mainnet"): Promise<{
   ok: boolean;
-  url: string;
   detail: string;
 }> {
   const url =
     process.env.SOROBAN_RPC_URL?.trim() ||
     (network === "mainnet" ? "https://mainnet.sorobanrpc.com" : "https://soroban-testnet.stellar.org");
+  const displayUrl = redactRpcUrl(url);
   try {
     const server = new rpc.Server(url, {
       allowHttp: url.startsWith("http://"),
@@ -125,14 +138,12 @@ async function pingSorobanRpc(network: "testnet" | "mainnet"): Promise<{
     const seq = latest?.sequence;
     return {
       ok: seq !== undefined && seq !== null,
-      url,
-      detail: `URL=${url} latestLedger=${seq}`
+      detail: `URL=${displayUrl} latestLedger=${seq}`
     };
   } catch (err: any) {
     return {
       ok: false,
-      url,
-      detail: `URL=${url} — error: ${err?.message ?? String(err)}`
+      detail: `URL=${displayUrl} — error: ${rpcErrorDetail(err)}`
     };
   }
 }
@@ -263,13 +274,26 @@ export async function assessReadiness(): Promise<ReadinessResult> {
 
   // ===== Informational / dry-run assertion =====
   const rawCoordUrl = process.env.COORDINATOR_URL?.trim();
-  const coordUrlDisplay = rawCoordUrl || "(default http://localhost:3001)";
+  const coordUrlDisplay = rawCoordUrl ? redactRpcUrl(rawCoordUrl) : "(default http://localhost:3001)";
   checks.push({
     id: "coordinator-url",
     label: "COORDINATOR_URL",
     status: rawCoordUrl ? "ok" : "warn",
     detail: coordUrlDisplay
   });
+
+  // When an upstream coordinator is explicitly configured, verify that both
+  // services target the same Ethereum chain and Stellar network. The
+  // coordinator returns only a passphrase fingerprint, never the passphrase.
+  if (rawCoordUrl) {
+    const agreement = await checkCoordinatorNetwork(rawCoordUrl, network, evmPing.chainId);
+    checks.push({
+      id: "coordinator-network",
+      label: "Coordinator and resolver network agreement",
+      status: agreement.status,
+      detail: agreement.detail
+    });
+  }
 
   checks.push({
     id: "dry-run-mode",

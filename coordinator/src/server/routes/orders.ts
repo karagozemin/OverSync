@@ -4,6 +4,13 @@ import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 import { encodeCursor, decodeCursor } from "./cursor-utils.js";
 
+function orderValidationResponse(err: OrderValidationError): { status: number; body: Record<string, unknown> } {
+  if (err.code === "TIMELOCKS_REVERSED" || err.code === "GAP_TOO_SMALL") {
+    return { status: 400, body: { error: "timelock_ordering_invalid", code: err.code } };
+  }
+  return { status: 400, body: { error: "order_validation_error", message: err.message } };
+}
+
 function serialiseOrder(order: OrderRow | null) {
   if (!order) return null;
   return {
@@ -57,7 +64,8 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        const { status, body } = orderValidationResponse(err);
+        res.status(status).json(body);
         return;
       }
       next(err);
@@ -130,7 +138,6 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
-  // Parameterized sub-resource routes come BEFORE /orders/:id
   router.get("/orders/:id/transitions", async (req, res, next) => {
     const id = req.params.id;
     try {
@@ -146,6 +153,7 @@ export function ordersRoutes(orders: OrderService): Router {
     }
   });
 
+  // Parameterized routes come AFTER specific routes
   router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
     try {
@@ -155,6 +163,15 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       res.json(serialiseOrder(order));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/orders/:id/transitions", async (req, res, next) => {
+    try {
+      const transitions = await orders.getTransitions(req.params.id);
+      res.json({ transitions });
     } catch (err) {
       next(err);
     }
@@ -178,7 +195,8 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        const { status, body } = orderValidationResponse(err);
+        res.status(status).json(body);
         return;
       }
       next(err);
@@ -203,7 +221,8 @@ export function ordersRoutes(orders: OrderService): Router {
         return;
       }
       if (err instanceof OrderValidationError) {
-        res.status(400).json({ error: "order_validation_error", message: err.message });
+        const { status, body } = orderValidationResponse(err);
+        res.status(status).json(body);
         return;
       }
       next(err);

@@ -21,3 +21,15 @@ export function validateTimelockOrdering(
   }
   return { isValid: true };
 }
+
+/**
+ * Validates source/destination timelock ordering at order-creation time.
+ * Alias for {@link validateTimelockOrdering} used by the coordinator service layer.
+ */
+export function validateTimelocksAtCreation(
+  srcTimelock: number,
+  dstTimelock: number,
+  minGapSeconds: number
+): { isValid: boolean; error?: TimelockValidationError } {
+  return validateTimelockOrdering(srcTimelock, dstTimelock, minGapSeconds);
+}

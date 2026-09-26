@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateSecret, hashSecret, verifyPreimage, assertValidSecretFormat } from "../src/secrets/index.js";
+import { generateSecret, hashSecret, verifyPreimage, assertValidSecretFormat, assertPreimageMatchesHashlock } from "../src/secrets/index.js";
 
 describe("secrets", () => {
   it("generates a 32-byte secret with both digests", () => {
@@ -23,6 +23,15 @@ describe("secrets", () => {
     expect(verifyPreimage(s.preimage, s.keccak256)).toBe("keccak256");
     const other = generateSecret();
     expect(verifyPreimage(s.preimage, other.sha256)).toBeNull();
+  });
+
+  it("validates the complete preimage/hashlock pair", () => {
+    const secret = generateSecret();
+    expect(assertPreimageMatchesHashlock(secret.preimage, secret.sha256)).toBe("sha256");
+    expect(assertPreimageMatchesHashlock(secret.preimage, secret.keccak256)).toBe("keccak256");
+    expect(() => assertPreimageMatchesHashlock("0x" + "b".repeat(64), secret.sha256)).toThrow("does not match");
+    expect(() => assertPreimageMatchesHashlock("0x12", secret.sha256)).toThrow("preimage must be exactly 32 bytes");
+    expect(() => assertPreimageMatchesHashlock(secret.preimage, "0x12")).toThrow("hashlock must be exactly 32 bytes");
   });
 
   describe("assertValidSecretFormat", () => {
@@ -53,6 +62,11 @@ describe("secrets", () => {
     it("rejects strings with non-hex characters", () => {
       const invalid = "0x" + "g".repeat(64); // 'g' is not valid hex
       expect(() => assertValidSecretFormat(invalid)).toThrow("secret contains invalid hex characters");
+    });
+
+    it("rejects all-zero secrets", () => {
+      const zero = "0x" + "0".repeat(64);
+      expect(() => assertValidSecretFormat(zero)).toThrow("secret must not be all zeros");
     });
 
     it("uses custom field name in errors", () => {

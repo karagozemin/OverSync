@@ -30,6 +30,22 @@ const TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   expired: ["refunded", "failed"]
 };
 
+/**
+ * Lifecycle rank used when chain listeners deliver events out of order.
+ * Terminal outcomes intentionally rank after the happy-path states so a
+ * delayed lock/reveal can never move an order backwards.
+ */
+const STATUS_RANK: Record<OrderStatus, number> = {
+  announced: 0,
+  src_locked: 1,
+  dst_locked: 2,
+  secret_revealed: 3,
+  completed: 4,
+  refunded: 4,
+  failed: 4,
+  expired: 4
+};
+
 export class InvalidTransitionError extends Error {
   constructor(public readonly from: OrderStatus, public readonly to: OrderStatus) {
     super(`Invalid order transition: ${from} -> ${to}`);
@@ -38,6 +54,18 @@ export class InvalidTransitionError extends Error {
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return TRANSITIONS[from].includes(to);
+}
+
+/** True when `to` is an older lifecycle state than `from`. */
+export function isStaleTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return STATUS_RANK[to] < STATUS_RANK[from];
+}
+
+/** Compare two statuses without allowing terminal states to regress. */
+export function compareStatus(a: OrderStatus, b: OrderStatus): -1 | 0 | 1 {
+  const left = STATUS_RANK[a];
+  const right = STATUS_RANK[b];
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 export function requireTransition(from: OrderStatus, to: OrderStatus): void {

@@ -9,38 +9,13 @@ import { classifyOrderFreshness } from '../lib/orderFreshness';
 import { buildHtlcReceipt } from '../lib/parseHtlcReceipt';
 import type { Address } from 'viem';
 import HtlcTimeline from './HtlcTimeline';
-
-interface Transaction {
-  id: string;
-  txHash: string;
-  fromNetwork: string;
-  toNetwork: string;
-  fromToken: string;
-  toToken: string;
-  amount: string;
-  estimatedAmount: string;
-  status: 'pending' | 'completed' | 'cancelled' | 'failed';
-  timestamp: number;
-  ethTxHash?: string;
-  stellarTxHash?: string;
-  ethAddress?: string;
-  stellarAddress?: string;
-  direction: 'eth-to-xlm' | 'xlm-to-eth';
-  // Refund support
-  // ETH-side refund metadata (eth-to-xlm; populated when ETH is locked on-chain)
-  onChainOrderId?: string;       // bytes32 hex (v1) or uint256 string (v2)
-  htlcContractAddress?: string;  // contract holding the locked ETH
-  htlcContractMode?: 'v1-mainnet-htlc' | 'v2-escrow';
-  timelockUnixSeconds?: number;
-  amountWei?: string;
-  // Generic refund tracking (works for both directions)
-  refundTxHash?: string;
-  refundNetwork?: 'ethereum' | 'stellar';  // which chain the refund lives on
-  refundedAt?: number;
-  autoRefundFailed?: boolean;
-  autoRefundError?: string;
-  networkMode?: 'mainnet' | 'testnet';
-}
+import {
+  fetchCoordinatorOrders,
+  isRealHash,
+  isRealTransaction,
+  mergeTransactions,
+  type Transaction,
+} from '../lib/orderRecovery';
 
 interface TransactionHistoryProps {
   ethAddress?: string;
@@ -53,89 +28,9 @@ const API_BASE_URL = import.meta.env.PROD
   ? ''
   : (import.meta as any).env?.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL;
 
-// Hash patterns that indicate fabricated/demo data, used to filter out legacy entries
-// persisted by older builds. New entries can never match these because v2 only stores
-// real on-chain hashes returned from the coordinator.
-const KNOWN_FAKE_HASHES = new Set([
-  '0x1234567890abcdef1234567890abcdef12345678',
-  '0xabcdef1234567890abcdef1234567890abcdef12',
-  '0x9876543210fedcba9876543210fedcba98765432',
-  '0x0000000000000000000000000000000000000000000000000000000000000000',
-  '0x0000000000000000000000000000000000000000',
-]);
-
-function isRealHash(hash?: string): boolean {
-  if (!hash) return true;
-  if (KNOWN_FAKE_HASHES.has(hash)) return false;
-  if (hash.startsWith('mock_')) return false;
-  if (hash.startsWith('placeholder')) return false;
-  if (/^0x0+$/.test(hash)) return false;
-  return true;
-}
-
-function isRealTransaction(tx: Transaction): boolean {
-  return isRealHash(tx.txHash) && isRealHash(tx.ethTxHash) && isRealHash(tx.stellarTxHash);
-}
-
 const isTestnetTx = (tx: Transaction): boolean => {
   return tx.networkMode === 'testnet' || (tx.networkMode === undefined && isTestnet());
 };
-
-function mapCoordinatorOrderToTransaction(order: any): Transaction {
-  if (order.fromToken || order.fromNetwork) {
-    return order as Transaction;
-  }
-
-  const isEthToXlm = order.direction === 'eth_to_xlm' || order.direction === 'eth-to-xlm';
-  const isTestnetMode = isTestnet();
-
-  let status: Transaction['status'] = 'pending';
-  if (order.status === 'completed') {
-    status = 'completed';
-  } else if (order.status === 'failed' || order.status === 'expired') {
-    status = 'failed';
-  } else if (order.status === 'refunded') {
-    status = 'cancelled';
-  }
-
-  const srcAmount = order.src?.amount
-    ? (isEthToXlm ? parseFloat(order.src.amount) / 1e18 : parseFloat(order.src.amount) / 1e7).toString()
-    : '0';
-  const dstAmount = order.dst?.amount
-    ? (isEthToXlm ? parseFloat(order.dst.amount) / 1e7 : parseFloat(order.dst.amount) / 1e18).toString()
-    : '0';
-
-  return {
-    id: order.id,
-    txHash: order.src?.lockTx || order.id,
-    fromNetwork: isEthToXlm
-      ? (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet')
-      : (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet'),
-    toNetwork: isEthToXlm
-      ? (isTestnetMode ? 'Stellar Testnet' : 'Stellar Mainnet')
-      : (isTestnetMode ? 'ETH Sepolia' : 'ETH Mainnet'),
-    fromToken: isEthToXlm ? 'ETH' : 'XLM',
-    toToken: isEthToXlm ? 'XLM' : 'ETH',
-    amount: srcAmount,
-    estimatedAmount: dstAmount,
-    status,
-    timestamp: order.createdAt ? order.createdAt * 1000 : Date.now(),
-    ethTxHash: isEthToXlm ? order.src?.lockTx : order.dst?.lockTx,
-    stellarTxHash: isEthToXlm ? order.dst?.lockTx : order.src?.lockTx,
-    ethAddress: isEthToXlm ? order.src?.address : order.dst?.address,
-    stellarAddress: isEthToXlm ? order.dst?.address : order.src?.address,
-    direction: isEthToXlm ? 'eth-to-xlm' : 'xlm-to-eth',
-    onChainOrderId: order.src?.orderId,
-    htlcContractAddress: order.src?.chain === 'ethereum' ? order.resolver : undefined,
-    htlcContractMode: order.src?.safetyDeposit ? 'v2-escrow' : 'v1-mainnet-htlc',
-    timelockUnixSeconds: order.src?.timelock,
-    amountWei: order.src?.amount,
-    refundTxHash: order.status === 'refunded' ? order.secret?.revealedTx : undefined,
-    refundNetwork: isEthToXlm ? 'ethereum' : 'stellar',
-    refundedAt: order.status === 'refunded' ? order.updatedAt * 1000 : undefined,
-    networkMode: isTestnetMode ? 'testnet' : 'mainnet'
-  };
-}
 
 export default function TransactionHistory({ ethAddress, stellarAddress }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -190,32 +85,20 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
   }, []);
 
   const refreshFromCoordinator = useCallback(async () => {
-    const apiBase = API_BASE_URL;
+    const local = loadFromStorage();
     if (!ethAddress && !stellarAddress) {
-      setTransactions(loadFromStorage());
+      setTransactions(local);
       return;
     }
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (ethAddress) params.set('eth', ethAddress);
-      if (stellarAddress) params.set('stellar', stellarAddress);
-      const res = await fetch(`${apiBase}/api/orders/history?${params.toString()}`);
-      if (!res.ok) throw new Error(`Coordinator returned ${res.status}`);
-      const body = await res.json();
-      const remote: Transaction[] = Array.isArray(body?.transactions)
-        ? body.transactions.map(mapCoordinatorOrderToTransaction).filter(isRealTransaction)
-        : [];
-      const local = loadFromStorage();
-      const byId = new Map<string, Transaction>();
-      for (const tx of local) byId.set(tx.id, tx);
-      for (const tx of remote) byId.set(tx.id, tx);
-      const merged = Array.from(byId.values()).sort((a, b) => b.timestamp - a.timestamp);
+      const remote = await fetchCoordinatorOrders(API_BASE_URL, { ethAddress, stellarAddress });
+      const merged = mergeTransactions(local, remote);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       setTransactions(merged);
     } catch (err) {
       console.warn('Coordinator history unavailable, falling back to local cache:', err);
-      setTransactions(loadFromStorage());
+      setTransactions(local);
     } finally {
       setIsLoading(false);
     }

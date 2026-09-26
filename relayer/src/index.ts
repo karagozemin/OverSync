@@ -1114,7 +1114,8 @@ async function initializeRelayer() {
           token: '0x0000000000000000000000000000000000000000', // ETH
           amount: (parseFloat(amount) * 1e18).toString(),
           hashLock,
-          timelock: Math.floor(Date.now() / 1000) + 7201, // 2+ hours
+          timelock: Math.floor(Date.now() / 1000) + 7201, // 2+ hours,
+          stellarTimelock: Math.floor(Date.now() / 1000) + (1 * 60 * 60) // 1 hour (dst expires before src)
           feeRate: 100, // 1%
           beneficiary: stellarAddress,
           refundAddress: normalizedEthAddress,
@@ -1127,6 +1128,15 @@ async function initializeRelayer() {
           created: new Date().toISOString(),
           status: 'pending_direct_escrow'
         };
+
+        const testnetTimelockValidation = validateTimelockOrdering(
+          orderData.timelock,
+          orderData.stellarTimelock,
+          RELAYER_CONFIG.security.timelockSafetyGapSeconds
+        );
+        if (!testnetTimelockValidation.isValid) {
+          throw new Error(`Invalid timelock ordering for ETH→XLM testnet: ${testnetTimelockValidation.error}`);
+        }
 
         // Store order
         await storeActiveOrder(orderId, {

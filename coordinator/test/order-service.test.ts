@@ -6,7 +6,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { openDatabase, PostgresStatement } from "../src/persistence/db.js";
 import { OrdersRepository } from "../src/persistence/orders-repo.js";
-import { OrderService, OrderValidationError } from "../src/services/order-service.js";
+import { OrderService, OrderValidationError, StaleOrderEventError } from "../src/services/order-service.js";
 import { SecretService } from "../src/services/secret-service.js";
 
 const log = pino({ level: "silent" });
@@ -102,6 +102,125 @@ describe("OrderService", () => {
       })
     ).rejects.toThrowError(OrderValidationError);
   });
+
+  it("rejects all-zero hashlocks", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const zeroHashlock = "0x" + "0".repeat(64);
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: zeroHashlock,
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
+
+  it("normalizes uppercase hashlocks to lowercase before storage", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const uppercaseHashlock = "0x" + "A".repeat(64);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: uppercaseHashlock,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    expect(order.hashlock).toBe("0x" + "a".repeat(64));
+  });
+
+  it("detects duplicate hashlocks across different casings", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: "0x" + "A".repeat(64),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await expect(
+      orders.announce({
+        direction: "eth_to_xlm",
+        hashlock: "0x" + "a".repeat(64),
+        srcChain: "ethereum",
+        srcAddress: VALID_ETH_ADDR,
+        srcAsset: "native",
+        srcAmount: "1",
+        srcSafetyDeposit: "1",
+        dstChain: "stellar",
+        dstAddress: VALID_STELLAR_ADDR,
+        dstAsset: "native",
+        dstAmount: "1"
+      })
+    ).rejects.toThrowError(OrderValidationError);
+  });
+
+  it("ignores an exact duplicate lock event but rejects a conflicting one", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    const event = { publicId: order.publicId, orderId: "src-1", txHash: "0xsrc", blockNumber: 4, timelock: 1000 };
+    await orders.recordSrcLock(event);
+    await expect(orders.recordSrcLock(event)).resolves.toBeUndefined();
+    await expect(orders.recordSrcLock({ ...event, txHash: "0xother" })).rejects.toBeInstanceOf(StaleOrderEventError);
+    expect((await orders.getTransitions(order.publicId)).map((transition) => transition.to)).toEqual(["announced", "src_locked"]);
+  });
+
+  it("rejects delayed source events after the destination has advanced", async () => {
+    const db = await freshDb();
+    const orders = new OrderService(new OrdersRepository(db), log);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: "0x" + "e".repeat(64),
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    await orders.recordSrcLock({ publicId: order.publicId, orderId: "src-1", txHash: "0xsrc", blockNumber: 4, timelock: 3000 });
+    await orders.recordDstLock({ publicId: order.publicId, orderId: "dst-1", txHash: "0xdst", blockNumber: 5, timelock: 2000, resolver: null });
+    await expect(orders.recordSrcLock({ publicId: order.publicId, orderId: "src-old", txHash: "0xold", blockNumber: 3, timelock: 2000 })).rejects.toBeInstanceOf(StaleOrderEventError);
+  });
+
 });
 
 describe("SecretService", () => {
@@ -152,5 +271,123 @@ describe("PostgresStatement", () => {
       expect.stringContaining("CAST(EXTRACT(EPOCH FROM NOW()) AS INTEGER)"),
       ["order-1"]
     );
+  });
+});
+
+describe("OrderService timelock ordering", () => {
+  const MIN_GAP = 600;
+
+  async function announcedOrder(db: Awaited<ReturnType<typeof freshDb>>) {
+    const orders = new OrderService(new OrdersRepository(db), log, undefined, {
+      timelockSafetyGapSeconds: MIN_GAP
+    } as ReturnType<typeof import("../src/config.js").loadConfig>);
+    const order = await orders.announce({
+      direction: "eth_to_xlm",
+      hashlock: VALID_HASHLOCK,
+      srcChain: "ethereum",
+      srcAddress: VALID_ETH_ADDR,
+      srcAsset: "native",
+      srcAmount: "1",
+      srcSafetyDeposit: "1",
+      dstChain: "stellar",
+      dstAddress: VALID_STELLAR_ADDR,
+      dstAsset: "native",
+      dstAmount: "1"
+    });
+    return { orders, order };
+  }
+
+  it("rejects reversed timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 5_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 6_000,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "TIMELOCKS_REVERSED" });
+  });
+
+  it("rejects equal timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 10_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 10_000,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "TIMELOCKS_REVERSED" });
+  });
+
+  it("rejects gap-too-small timelocks when recording dst lock", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: 10_000
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: 9_500,
+        resolver: null
+      })
+    ).rejects.toMatchObject({ code: "GAP_TOO_SMALL" });
+  });
+
+  it("accepts dst lock when gap is exactly minGap", async () => {
+    const db = await freshDb();
+    const { orders, order } = await announcedOrder(db);
+    const srcTimelock = 10_000;
+    const dstTimelock = srcTimelock - MIN_GAP;
+    await orders.recordSrcLock({
+      publicId: order.publicId,
+      orderId: "1",
+      txHash: "0xsrc",
+      blockNumber: 1,
+      timelock: srcTimelock
+    });
+
+    await expect(
+      orders.recordDstLock({
+        publicId: order.publicId,
+        orderId: "1",
+        txHash: "0xdst",
+        blockNumber: 2,
+        timelock: dstTimelock,
+        resolver: null
+      })
+    ).resolves.toBeUndefined();
   });
 });

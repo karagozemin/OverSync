@@ -70,6 +70,12 @@ describe("GET /readiness", () => {
     expect(res.body.stellar.network).toBe("testnet");
   });
 
+  it("reports a passphrase fingerprint without exposing the passphrase", async () => {
+    const res = await request(makeApp()).get("/readiness").expect(200);
+    expect(res.body.stellar.networkPassphraseHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(res.body)).not.toContain("Test SDF Network ; September 2015");
+  });
+
   it("reports Stellar network label as mainnet from passphrase", async () => {
     process.env.STELLAR_NETWORK_PASSPHRASE =
       "Public Global Stellar Network ; September 2015";
