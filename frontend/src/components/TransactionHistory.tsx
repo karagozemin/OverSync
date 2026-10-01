@@ -622,7 +622,15 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
               />
 
               {isTestnetTx(tx) && isTxExpanded(tx) && (
-                <HtlcTimeline tx={tx} />
+                <HtlcTimeline
+                  tx={tx}
+                  order={{
+                    orderId: tx.onChainOrderId,
+                    hashlock: tx.hashlock,
+                    amountWei: tx.amountWei,
+                    token: '0x0000000000000000000000000000000000000000',
+                  }}
+                />
               )}
               {receiptOpenIds.has(tx.id) && (
                 <HtlcReceiptCard

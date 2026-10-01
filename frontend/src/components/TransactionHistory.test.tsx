@@ -321,3 +321,48 @@ describe('TransactionHistory invalid cursor', () => {
     expect(within(alert).getByText(/coordinator is down/i)).toBeInTheDocument();
   });
 });
+
+describe('TransactionHistory claim gating (issue #274)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  test('keeps the Claimed step unverified when the claim belongs to another order', async () => {
+    // The coordinator order below carries a mismatching on-chain order id
+    // for the destination leg, so the timeline must not render Claimed.
+    const order = coordinatorOrder({
+      dst: {
+        chain: 'stellar',
+        address: 'GSTELLARADDRESS',
+        asset: 'XLM',
+        amount: '10000000',
+        orderId: '999', // different swap
+        lockTx: '0xrecovereddstlocktx',
+        lockBlock: 2,
+        timelock: 9999999999,
+      },
+    });
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ transactions: [order] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TransactionHistory ethAddress="0xEthAddress" stellarAddress="GSTELLARADDRESS" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('ETH Sepolia')).toBeInTheDocument();
+    });
+
+    // A pending testnet order renders its timeline expanded by default.
+    await waitFor(() => {
+      expect(screen.getByTestId('htlc-timeline')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('htlc-step-claimed')).toHaveAttribute('data-step-status', 'unverified');
+  });
+});

@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, XCircle, Loader2, ExternalLink, Shield } from 'lucide-react';
 import { isTestnet } from '../config/networks';
+import { receiptMatchesOrder, preimageMatchesHashlock, type HtlcOrderMatchField } from '../lib/parseHtlcReceipt';
 
 export interface HtlcTimelineProps {
   tx: {
@@ -23,7 +24,27 @@ export interface HtlcTimelineProps {
     autoRefundFailed?: boolean;
     autoRefundError?: string;
     networkMode?: 'mainnet' | 'testnet';
+    /** Claim receipt verification data (issue #274). */
+    claimReceipt?: {
+      /** On-chain order id decoded from the claim log. */
+      orderId?: string | null;
+      /** sha256/keccak256 hashlock the order's funds are locked under. */
+      hashlock?: string | null;
+      /** Integer amount (wei/stroop) locked for this leg. */
+      amountWei?: string | null;
+      /** Asset contract address, or the native placeholder. */
+      token?: string | null;
+      /** Preimage revealed by the claim, when the log carries one. */
+      preimage?: string | null;
+    } | null;
   };
+  /** Coordinator order data the claim receipt must match (issue #274). */
+  order?: {
+    orderId?: string | null;
+    hashlock?: string | null;
+    amountWei?: string | null;
+    token?: string | null;
+  } | null;
   currentStellarAddress?: string;
 }
 
@@ -31,9 +52,11 @@ interface TimelineStep {
   key: string;
   label: string;
   description: string;
-  status: 'completed' | 'active' | 'pending' | 'unavailable' | 'failed';
+  status: 'completed' | 'active' | 'pending' | 'unavailable' | 'failed' | 'unverified';
   txHash?: string;
   chain?: 'ethereum' | 'stellar';
+  /** Populated when a claim was withheld because verification failed. */
+  mismatchFields?: HtlcOrderMatchField[];
 }
 
 const KNOWN_FAKE_HASHES = new Set([
@@ -63,14 +86,85 @@ const getExplorerUrl = (txHash: string, chain: 'ethereum' | 'stellar'): string =
   }
 };
 
-export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
+/**
+ * Verify a claim receipt against the coordinator order before the
+ * timeline may advance to "Claimed" (issue #274).
+ *
+ * The claim is rendered only when ALL of the following hold:
+ *  1. The receipt's order id, hashlock, amount, and asset match the order.
+ *  2. The revealed preimage hashes to the order's hashlock (when a
+ *     preimage is available in the claim log).
+ *
+ * Missing verification data on either side means "unverified", never
+ * "claimed" — a receipt for a different swap must not stop the user
+ * from waiting on funds that are still locked.
+ */
+export function verifyClaimForTimeline(
+  tx: HtlcTimelineProps['tx'],
+  order: HtlcTimelineProps['order']
+): { claimed: boolean; mismatches: HtlcOrderMatchField[] } {
+  const claim = tx.claimReceipt;
+
+  if (!claim) {
+    return { claimed: false, mismatches: [] };
+  }
+
+  if (!order) {
+    // Without the coordinator order there is nothing to verify against.
+    return { claimed: false, mismatches: [] };
+  }
+
+  const match = receiptMatchesOrder({
+    receipt: {
+      orderId: claim.orderId,
+      hashlock: claim.hashlock,
+      amountWei: claim.amountWei,
+      token: claim.token,
+    },
+    order: {
+      orderId: order.orderId,
+      hashlock: order.hashlock,
+      amountWei: order.amountWei,
+      token: order.token,
+    },
+  });
+
+  if (!match.matched) {
+    return { claimed: false, mismatches: match.mismatches };
+  }
+
+  // Independent cryptographic check: the preimage revealed by the claim
+  // must hash to the order's hashlock. If the claim log carries a
+  // preimage, require it to verify; otherwise rely on the field match.
+  if (claim.preimage && !preimageMatchesHashlock(claim.preimage, order.hashlock)) {
+    return { claimed: false, mismatches: ['hashlock'] };
+  }
+
+  return { claimed: true, mismatches: [] };
+}
+
+const MISMATCH_LABELS: Record<HtlcOrderMatchField, string> = {
+  orderId: 'order id',
+  hashlock: 'hashlock',
+  amount: 'amount',
+  asset: 'asset',
+};
+
+export default function HtlcTimeline({ tx, order }: HtlcTimelineProps) {
   const isEthToXlm = tx.direction === 'eth-to-xlm';
   const status = tx.status;
 
   // Normalise status flags
-  const isCompleted = status === 'completed';
   const isFailedStatus = status === 'failed' || status === 'expired';
   const isRefundedStatus = status === 'refunded' || status === 'cancelled' || !!tx.refundTxHash || !!tx.refundedAt;
+
+  // Issue #274: the claimed step is rendered only when the claim receipt
+  // matches the coordinator order. A coordinator "completed" status alone
+  // no longer advances the timeline to Claimed.
+  const claimVerification = verifyClaimForTimeline(tx, order);
+  const isClaimVerified = claimVerification.claimed;
+
+  const isCompleted = status === 'completed' && isClaimVerified;
 
   // Check locks
   const hasSrcLock = isEthToXlm
@@ -148,10 +242,14 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
       status: claimableStatus
     });
 
-    // Step 5: Claimed
+    // Step 5: Claimed — gated on receipt↔order verification (issue #274)
     let claimedStatus: TimelineStep['status'] = 'pending';
     if (isCompleted) {
       claimedStatus = 'completed';
+    } else if (tx.claimReceipt && !isClaimVerified) {
+      // A claim receipt exists but does not match this order — show it as
+      // unverified instead of silently claiming, or throwing a raw dump.
+      claimedStatus = 'unverified';
     } else if (status === 'secret_revealed') {
       claimedStatus = 'active'; // Claim is settling
     }
@@ -159,7 +257,11 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
     steps.push({
       key: 'claimed',
       label: 'Claimed',
-      description: 'Funds successfully claimed from the HTLC contract by the receiver.',
+      description: claimedStatus === 'unverified'
+        ? `Claim receipt withheld: ${claimVerification.mismatches
+            .map((f) => MISMATCH_LABELS[f])
+            .join(', ')} does not match this order.`
+        : 'Funds successfully claimed from the HTLC contract by the receiver.',
       status: claimedStatus,
       txHash: isEthToXlm ? tx.stellarTxHash : tx.ethTxHash,
       chain: isEthToXlm ? 'stellar' : 'ethereum'
@@ -210,7 +312,7 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 font-sans text-sm glass-effect">
+    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 font-sans text-sm glass-effect" data-testid="htlc-timeline" data-tx-id={tx.id}>
       <div className="mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
         <Shield className="h-4 w-4 text-cyan-400" />
         <h4 className="font-semibold text-white">HTLC Swap Lifecycle Timeline</h4>
@@ -228,7 +330,7 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
           const showLink = isObserved && step.chain;
 
           return (
-            <div key={step.key} className="relative flex flex-col gap-1 transition-all duration-200">
+            <div key={step.key} className="relative flex flex-col gap-1 transition-all duration-200" data-testid={`htlc-step-${step.key}`} data-step-status={step.status}>
               {/* Step indicator node */}
               <div className="absolute -left-[20px] top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#0d1527]">
                 {step.status === 'completed' && (
@@ -242,6 +344,9 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
                 )}
                 {step.status === 'unavailable' && (
                   <Clock className="h-4 w-4 text-slate-700 opacity-60" />
+                )}
+                {step.status === 'unverified' && (
+                  <Shield className="h-4 w-4 text-amber-400" />
                 )}
                 {step.status === 'failed' && (
                   <XCircle className="h-5 w-5 text-red-400 fill-red-500/10" />
@@ -258,6 +363,7 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
                 <span className={`font-semibold ${
                   step.status === 'completed' ? 'text-white' :
                   step.status === 'active' ? 'text-cyan-300' :
+                  step.status === 'unverified' ? 'text-amber-300' :
                   step.status === 'failed' ? 'text-red-400' : 'text-slate-400'
                 }`}>
                   {step.label}
@@ -266,6 +372,11 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
                 {step.status === 'active' && (
                   <span className="animate-pulse rounded-full bg-cyan-400/15 px-1.5 py-0.5 text-3xs font-medium text-cyan-300">
                     Processing
+                  </span>
+                )}
+                {step.status === 'unverified' && (
+                  <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-3xs font-medium text-amber-300">
+                    Unverified
                   </span>
                 )}
                 {step.status === 'unavailable' && (
