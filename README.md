@@ -286,3 +286,8 @@ threat model.
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+
+
+## Contributing
+
+Please check [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and development workflow.
