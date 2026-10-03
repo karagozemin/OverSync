@@ -5,6 +5,32 @@ import type { PlannedOrder } from "./orders.js";
 import type { LoadTestConfig } from "./config.js";
 import type { OrderResult } from "./runner.js";
 
+const PREIMAGE_PATTERN = /0x[0-9a-fA-F]{64}/g;
+
+function redactUrlUserinfo(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.username || u.password) {
+      u.username = "***";
+      u.password = "***";
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function redactErrorMessage(message: string): string {
+  let redacted = message;
+  redacted = redacted.replace(PREIMAGE_PATTERN, "0x***REDACTED***");
+  redacted = redacted.replace(/https?:\/\/[^\s]+/g, (match) => redactUrlUserinfo(match));
+  return redacted;
+}
+
+export function redactUrl(url: string): string {
+  return redactUrlUserinfo(url);
+}
+
 // ---------------------------------------------------------------------------
 // Report shape
 // ---------------------------------------------------------------------------
@@ -115,7 +141,7 @@ export function buildReport(
       .map((r) => ({
         index: r.index,
         orderId: r.orderId,
-        error: r.errorMessage ?? "unknown",
+        error: redactErrorMessage(r.errorMessage ?? "unknown"),
       })),
   };
 }

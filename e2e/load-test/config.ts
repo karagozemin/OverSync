@@ -32,6 +32,79 @@ export interface LoadTestConfig {
   sorobanRpcUrl: string | null;
 }
 
+const MAINNET_ETH_RPC_PATTERNS = [
+  /mainnet\.infura\.io/i,
+  /eth\.mainnet/i,
+  /mainnet\.alchemyapi\.io/i,
+  /mainnet\.alchemy\.com/i,
+  /mainnet\.rpc\.gnosis\.io/i,
+  /mainnet\.rpc\.ankr\.com/i,
+  /cloudflare-eth\.com/i,
+  /rpc\.ankr\.com\/eth$/i,
+  /eth-mainnet\.public\.blastapi\.io/i,
+  /mainnet\.era\.zksync\.io/i,
+];
+
+const MAINNET_STELLAR_RPC_PATTERNS = [
+  /soroban-mainnet/i,
+  /mainnet\.stellar\.org/i,
+  /rpc\.mainnet\.stellar/i,
+  /mainnet\.sorobanrpc\.com/i,
+  /horizon\.stellar\.org/i,
+];
+
+const MAINNET_STELLAR_PASSPHRASES = [
+  "public global stellar network ; september 2015",
+];
+
+function isMainnetEthRpc(url: string): boolean {
+  return MAINNET_ETH_RPC_PATTERNS.some((pattern) => pattern.test(url));
+}
+
+function isMainnetStellarRpc(url: string): boolean {
+  return MAINNET_STELLAR_RPC_PATTERNS.some((pattern) => pattern.test(url));
+}
+
+function isMainnetStellarPassphrase(passphrase: string): boolean {
+  const normalized = passphrase.trim().toLowerCase();
+  return MAINNET_STELLAR_PASSPHRASES.includes(normalized);
+}
+
+function redactUrlUserinfo(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.username || u.password) {
+      u.username = "***";
+      u.password = "***";
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function validateNotMainnet(config: LoadTestConfig): void {
+  if (config.sepoliaRpcUrl && isMainnetEthRpc(config.sepoliaRpcUrl)) {
+    throw new Error(
+      `Refusing to run: SEPOLIA_RPC_URL points to an Ethereum mainnet endpoint (${redactUrlUserinfo(config.sepoliaRpcUrl)}). ` +
+        "Use a Sepolia/testnet RPC URL."
+    );
+  }
+  if (config.sorobanRpcUrl && isMainnetStellarRpc(config.sorobanRpcUrl)) {
+    throw new Error(
+      `Refusing to run: SOROBAN_RPC_URL points to a Stellar mainnet endpoint (${redactUrlUserinfo(config.sorobanRpcUrl)}). ` +
+        "Use a testnet/futurenet RPC URL."
+    );
+  }
+  const stellarPassphrase = process.env.STELLAR_NETWORK_PASSPHRASE;
+  if (stellarPassphrase && isMainnetStellarPassphrase(stellarPassphrase)) {
+    throw new Error(
+      "Refusing to run: STELLAR_NETWORK_PASSPHRASE is set to the mainnet passphrase. " +
+        "Use the testnet passphrase: 'Test SDF Network ; September 2015'."
+    );
+  }
+}
+
 function parsePositiveInt(name: string, defaultVal: number, max: number): number {
   const raw = process.env[name];
   if (!raw) return defaultVal;
@@ -101,7 +174,7 @@ export function loadConfig(): LoadTestConfig {
       ? `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`
       : null);
 
-  return {
+  const config: LoadTestConfig = {
     dryRun,
     seed: process.env.LOAD_TEST_SEED ?? "oversync-soak-2026",
     orders,
@@ -113,4 +186,8 @@ export function loadConfig(): LoadTestConfig {
     sorobanRpcUrl:
       process.env.SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org",
   };
+
+  validateNotMainnet(config);
+
+  return config;
 }

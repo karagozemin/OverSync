@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.js";
 import { generateOrders } from "./orders.js";
 import { runOrders } from "./runner.js";
-import { buildReport, writeReports } from "./report.js";
+import { buildReport, writeReports, redactErrorMessage, redactUrl } from "./report.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
     config = loadConfig();
   } catch (err) {
     process.stderr.write(
-      `\n[ERROR] Configuration failure:\n  ${err instanceof Error ? err.message : err}\n\n`
+      `\n[ERROR] Configuration failure:\n  ${redactErrorMessage(err instanceof Error ? err.message : String(err))}\n\n`
     );
     process.stderr.write(
       "Run without LOAD_TEST_LIVE to use dry-run mode (no keys required).\n\n"
@@ -60,8 +60,8 @@ async function main(): Promise<void> {
   process.stdout.write(`  Rate limit   : ${config.rateLimitPerSec} orders / sec\n`);
   process.stdout.write(`  Timelock     : ${config.timelockSeconds} s\n`);
   if (!config.dryRun) {
-    process.stdout.write(`  Sepolia RPC  : ${config.sepoliaRpcUrl}\n`);
-    process.stdout.write(`  Soroban RPC  : ${config.sorobanRpcUrl}\n`);
+    process.stdout.write(`  Sepolia RPC  : ${redactUrl(config.sepoliaRpcUrl ?? "")}\n`);
+    process.stdout.write(`  Soroban RPC  : ${redactUrl(config.sorobanRpcUrl ?? "")}\n`);
   }
   process.stdout.write(`${"─".repeat(56)}\n\n`);
 
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
       .slice(0, 3);
     process.stderr.write(`[WARN] ${failed} order(s) failed. First failures:\n`);
     for (const f of sample) {
-      process.stderr.write(`  #${f.index} ${f.orderId} — ${f.errorMessage}\n`);
+      process.stderr.write(`  #${f.index} ${f.orderId} — ${redactErrorMessage(f.errorMessage ?? "unknown")}\n`);
     }
     if (failed > 3) {
       process.stderr.write(`  …and ${failed - 3} more (see JSON report).\n`);
@@ -155,6 +155,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  process.stderr.write(`\n[FATAL] ${err instanceof Error ? err.stack : err}\n`);
+  process.stderr.write(`\n[FATAL] ${redactErrorMessage(err instanceof Error ? err.stack ?? err.message : String(err))}\n`);
   process.exit(1);
 });

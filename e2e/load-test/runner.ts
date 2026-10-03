@@ -12,6 +12,7 @@
 import type { PlannedOrder } from "./orders.js";
 import type { LoadTestConfig } from "./config.js";
 import { EvmHtlcSim, SorobanHtlcSim } from "../sim.js";
+import { redactErrorMessage } from "./report.js";
 
 export interface OrderResult {
   index: number;
@@ -83,7 +84,7 @@ function executeDryRun(order: PlannedOrder): OrderResult {
       direction: order.direction,
       resolverAction: order.resolverAction,
       status: "failed",
-      errorMessage: err instanceof Error ? err.message : String(err),
+      errorMessage: redactErrorMessage(err instanceof Error ? err.message : String(err)),
       durationMs: Date.now() - start,
     };
   }
@@ -104,9 +105,10 @@ function executeLive(order: PlannedOrder): OrderResult {
     direction: order.direction,
     resolverAction: order.resolverAction,
     status: "failed",
-    errorMessage:
+    errorMessage: redactErrorMessage(
       "Live RPC execution is not yet implemented. " +
-      "Wire up Sepolia/Soroban clients in runner.ts:executeLive() before scheduling the soak.",
+        "Wire up Sepolia/Soroban clients in runner.ts:executeLive() before scheduling the soak."
+    ),
     durationMs: 0,
   };
 }
