@@ -13,7 +13,7 @@ is a `sha256` preimage reveal, not a multisig attestation. If anything
 in the bridge fails — coordinator down, resolver malicious, RPC
 rate-limited, frontend offline — the locked funds either settle to
 the beneficiary or refund permissionlessly to the user. There is no
-state in which user funds are stranded under operator control.
+state in which user funds are stranded under operator control. 
 
 > **Status (May 2026).** v2 is the live design and is **deployed on
 > testnet** (Sepolia + Stellar testnet). The public frontend is
