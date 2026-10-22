@@ -1,6 +1,33 @@
-node_modules
+# Relayer build context: keep package.json, tsconfig.json, and src/ available.
+# Exclude local state and workspace files before Docker sends the context.
+**/node_modules
 dist
 event-history
-*.log
-.env
-.env.*
+**/logs
+**/*.log
+**/*.log.*
+**/.env
+**/.env.*
+**/secrets
+**/*.pem
+**/*.key
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.sqlite3-*
+relay-submissions.json
+relay-submissions.json.*.tmp
+**/.cache
+**/.pnpm-store
+coverage
+.nyc_output
+tmp
+temp
+test
+.git
+.github
+.vscode
+.idea
+.DS_Store

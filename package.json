@@ -26,7 +26,7 @@
     "load-test:live": "LOAD_TEST_LIVE=true pnpm --filter @oversync/e2e load-test",
     "scf:testnet-metrics": "node scripts/scf-testnet-metrics.mjs",
     "validate:deployments": "node scripts/validate-deployments.mjs",
-    "test:scripts": "node --test scripts/lib/*.test.mjs",
+    "test:scripts": "node --test scripts/lib/*.test.mjs scripts/*.test.mjs",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "contracts:compile": "pnpm --filter contracts compile",
@@ -40,6 +40,7 @@
     "frontend:build:prod": "NODE_ENV=production pnpm --filter frontend build",
     "frontend:preview": "pnpm --filter frontend preview",
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
+    "check:repo-malware": "node scripts/check-repo-malware.mjs",
     "check:env-docs": "node scripts/check-env-docs.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
@@ -59,7 +60,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/oversync.git"
+    "url": "https://github.com/karagozemin/OverSync.git"
   },
   "keywords": [
     "cross-chain",

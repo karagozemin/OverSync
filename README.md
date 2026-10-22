@@ -33,9 +33,9 @@ state in which user funds are stranded under operator control.
 > intentionally gated on fuzz/differential tests, multisig governance,
 > and external audit.
 
-> **SCF reviewers and investors.** A consolidated diligence package — contracts,
-> explorer links, CI status, security checklist, roadmap, and budget — is at
-> [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md). Readable in ≤ 10 minutes.
+> **SCF reviewers and investors.** The
+> [`post-demo evidence pack template`](docs/POST_DEMO_EVIDENCE_PACK.md) collects
+> demo details, live service status, and the contract addresses demonstrated.
 
 ---
 
@@ -264,7 +264,7 @@ threat model.
 
 | Document | What it covers |
 |---|---|
-| [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md) | **SCF reviewer data room** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
+| [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | **Post-demo evidence pack template** — demo details, live service status, and demonstrated contract addresses |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, pull request expectations, and the [contributor proof checklist](.github/pull_request_template.md) |
 | [`ROADMAP.md`](ROADMAP.md) | Milestone-by-milestone delivery plan with verifiable artefacts; testnet v2 live, mainnet UI gated until audit |

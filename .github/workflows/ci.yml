@@ -30,14 +30,24 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Check relayer Docker build context
+        run: node --test relayer/test/dockerignore.test.mjs
+
       - name: Install
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #355: each env key must appear exactly once in env.example, so
+      # operators cannot edit one copy while deployment reads another.
+      - name: Check env.example for duplicate keys
+        run: node --test scripts/lib/env-keys.test.mjs
+
       - name: Validate deployment JSON
         run: pnpm validate:deployments
+      - name: Check environment variable documentation
+        run: pnpm check:env-docs
 
       - name: Build SDK
         run: pnpm --filter @oversync/sdk build
@@ -81,9 +91,8 @@ jobs:
       - name: Test — contracts (Hardhat)
         run: pnpm --filter @oversync/contracts exec hardhat test test/v2/HTLCEscrow.test.ts test/v2/ResolverRegistry.test.ts
 
-      - name: Check evidence links (advisory)
+      - name: Check evidence links
         run: node scripts/check-evidence-links.mjs
-        continue-on-error: true
 
       - name: Generate CI evidence summary
         env:
@@ -126,14 +135,6 @@ jobs:
           toolchain: 1.88.0
           targets: wasm32-unknown-unknown,wasm32v1-none
 
-      # Install the released binary instead of `cargo install`: stellar-cli
-      # 22.8.1 depends on ethnum 1.5.0, which no longer compiles under current
-      # stable Rust (E0512 transmute size check).
-      - name: Install Stellar CLI
-        run: |
-          cargo install --locked stellar-cli --version 22.8.1
-          stellar --version
-
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -146,10 +147,14 @@ jobs:
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
 
+      # One pinned install. stellar-cli 22.8.1 depends on ethnum 1.5.0, which no
+      # longer compiles under current stable Rust, so this uses the released
+      # binary via cargo-binstall rather than a second `cargo install`.
       - name: Install Stellar CLI
         run: |
           cargo binstall -y stellar-cli --version 22.8.1
           stellar --version
+
       # soroban/Cargo.lock is committed and is the only source of the resolved
       # graph: nothing in this job may re-resolve it. In particular it pins
       # ed25519-dalek to 2.2.0. soroban-env-host 22.1.3 declares ed25519-dalek as

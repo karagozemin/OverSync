@@ -5,10 +5,21 @@ on:
     tags:
       - 'v*'
 
+# Pushes of the same tag share one concurrency group. github.ref_name is the
+# tag (for example v1.2.3) on this workflow, which only runs for v* tags.
+# A newer run for that tag cancels the in-progress build so two resolver
+# image publications cannot race on ghcr.io. Different tags still publish
+# in parallel because each tag has its own group.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   resolver-docker:
     name: Build + push resolver Docker image
     runs-on: ubuntu-latest
+    # Multi-arch image builds finish well under this. A hung buildx step cannot hold the runner indefinitely.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

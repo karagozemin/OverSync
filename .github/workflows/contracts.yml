@@ -35,7 +35,7 @@ jobs:
           cache: pnpm
 
       - name: Install workspace (for OZ remapping)
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       - name: Run Foundry fuzz + invariant tests
         working-directory: contracts
@@ -53,11 +53,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      # Slither auto-detects the Foundry project (contracts/foundry.toml) and
-      # shells out to `forge config` / `forge build`, so forge must be on PATH.
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
+      # Slither shells out to `forge config` / `forge build`, so this single
+      # setup step must leave forge on PATH. Version is checked before analysis.
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -70,7 +67,7 @@ jobs:
           cache: pnpm
 
       - name: Install workspace
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       - name: Compile contracts
         run: pnpm --filter @oversync/contracts compile
@@ -81,7 +78,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install slither
-        run: pip install slither-analyzer==0.10.4
+        run: pip install --require-hashes -r .github/pip/slither-requirements.txt
+
+      - name: Verify Foundry
+        run: forge --version
 
       - name: Run slither on v2 contracts
         working-directory: contracts

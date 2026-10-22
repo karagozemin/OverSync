@@ -2,6 +2,10 @@
 
 Reference resolver runner for the OverSync cross-chain bridge.
 
+Docker builds use this directory as their context. `.dockerignore` keeps local
+environment files, Git data, dependencies, coverage, caches, and editor artifacts
+out of that context while retaining the files required by `Dockerfile`.
+
 ## Preflight Command
 
 Before registering or staking as an operator, you can run the read-only preflight check to validate your local configuration (`.env`), check RPC reachability, verify testnet configurations, and ensure the resolver status is queryable.
