@@ -1,6 +1,9 @@
 name: ci
 # PR comparison marker – no functional impact
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [master, main, v2-rebuild]

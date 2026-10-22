@@ -1,5 +1,8 @@
 name: address-verify
 
+permissions:
+  contents: read
+
 on:
   push:
     paths:
