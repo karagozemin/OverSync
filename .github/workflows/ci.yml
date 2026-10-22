@@ -81,9 +81,8 @@ jobs:
       - name: Test — contracts (Hardhat)
         run: pnpm --filter @oversync/contracts exec hardhat test test/v2/HTLCEscrow.test.ts test/v2/ResolverRegistry.test.ts
 
-      - name: Check evidence links (advisory)
+      - name: Check evidence links
         run: node scripts/check-evidence-links.mjs
-        continue-on-error: true
 
       - name: Generate CI evidence summary
         env:
