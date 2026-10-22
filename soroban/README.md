@@ -50,8 +50,22 @@ WASM artefacts land in
 
 ```bash
 cd soroban
-cargo test
+cargo test --locked
 ```
+
+## Dependencies and the lockfile
+
+`soroban/Cargo.lock` is committed and CI builds from it. Run Cargo with
+`--locked` (as above) so a stale lockfile fails instead of being rewritten.
+The lockfile matters here: `soroban-env-host` allows `ed25519-dalek >=2.0.0`,
+and a fresh resolve picks 3.x, which breaks the contract tests, so the lockfile
+holds it at 2.2.0.
+
+To change a dependency, run `cargo update` (or `cargo update -p <crate>`)
+locally, run the tests, and commit the new `Cargo.lock` in the same pull
+request. CI never re-resolves dependencies; `pnpm test:scripts` fails if a
+workflow runs `cargo update` or `cargo generate-lockfile`, or runs Cargo
+without `--locked`.
 
 Tests use the Soroban `testutils` Env and cover:
 

@@ -62,8 +62,12 @@ For Soroban changes:
 ```bash
 cd soroban
 stellar contract build
-cargo test --release
+cargo test --release --locked
 ```
+
+`soroban/Cargo.lock` is committed and CI runs Cargo with `--locked`. If you
+change a Soroban dependency, run `cargo update` locally and commit the new
+lockfile (see `soroban/README.md`).
 
 For Solidity contract changes, the contracts workflow also runs Slither on
 `contracts/contracts/v2`.
