@@ -36,6 +36,11 @@ jobs:
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #355: each env key must appear exactly once in env.example, so
+      # operators cannot edit one copy while deployment reads another.
+      - name: Check env.example for duplicate keys
+        run: node --test scripts/lib/env-keys.test.mjs
+
       - name: Validate deployment JSON
         run: pnpm validate:deployments
 
