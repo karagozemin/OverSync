@@ -39,6 +39,11 @@ jobs:
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #384: every evidence/Slither artifact upload must declare a
+      # bounded retention-days, including upload steps added later.
+      - name: Check CI artifact retention
+        run: node scripts/check-artifact-retention.mjs
+
       # Guards #355: each env key must appear exactly once in env.example, so
       # operators cannot edit one copy while deployment reads another.
       - name: Check env.example for duplicate keys
@@ -104,6 +109,7 @@ jobs:
         with:
           name: ci-evidence-summary-typescript
           path: evidence-summary.md
+          retention-days: 14
 
   soroban:
     name: Soroban contracts
@@ -186,3 +192,4 @@ jobs:
         with:
           name: ci-evidence-summary-soroban
           path: evidence-summary.md
+          retention-days: 14

@@ -94,3 +94,4 @@ jobs:
         with:
           name: slither-report
           path: contracts/slither-results.json
+          retention-days: 14

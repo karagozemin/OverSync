@@ -78,6 +78,11 @@ Slither is installed with pinned, hash-verified dependencies from
 --generate-hashes` under Python 3.11 after bumping the version in
 `.github/pip/slither.in`).
 
+All CI evidence artifacts (TypeScript/Soroban evidence summaries, the
+Slither report) are uploaded with `retention-days: 14` — long enough
+for a PR review cycle, short enough to avoid piling up stale build
+artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.
