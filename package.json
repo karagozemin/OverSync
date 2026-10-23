@@ -42,6 +42,7 @@
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
     "check:repo-malware": "node scripts/check-repo-malware.mjs",
     "check:env-docs": "node scripts/check-env-docs.mjs",
+    "check:vscode-tasks": "node scripts/check-vscode-tasks.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
     "verify:addresses": "node scripts/verify-addresses.mjs",
