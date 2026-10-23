@@ -94,12 +94,15 @@ jobs:
       - name: Check evidence links
         run: node scripts/check-evidence-links.mjs
 
+      # Keep diagnostics available even when an earlier build or test step fails.
       - name: Generate CI evidence summary
+        if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: node scripts/generate-ci-evidence.mjs
 
       - name: Upload CI evidence summary
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-evidence-summary-typescript
@@ -176,12 +179,15 @@ jobs:
       - name: Run unit tests
         run: cargo test --release --locked
 
+      # Keep diagnostics available even when an earlier build or test step fails.
       - name: Generate CI evidence summary (Soroban)
+        if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: node ${{ github.workspace }}/scripts/generate-ci-evidence.mjs
 
       - name: Upload CI evidence summary (Soroban)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-evidence-summary-soroban
