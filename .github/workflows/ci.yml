@@ -33,6 +33,11 @@ jobs:
       - name: Check relayer Docker build context
         run: node --test relayer/test/dockerignore.test.mjs
 
+      # #376 — both service Dockerfiles must end their final build stage
+      # on a non-root user (no deps needed, runs pre-install).
+      - name: Check Dockerfile runtime users
+        run: node --test scripts/lib/dockerfile-users.test.mjs
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
