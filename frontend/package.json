@@ -1,6 +1,7 @@
 {
   "name": "@oversync/frontend",
   "version": "1.0.0",
+  "private": true,
   "description": "Frontend interface for OverSync cross-chain token swaps",
   "type": "module",
   "scripts": {

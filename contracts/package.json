@@ -1,6 +1,7 @@
 {
   "name": "@oversync/contracts",
   "version": "1.0.0",
+  "private": true,
   "description": "Ethereum smart contracts for OverSync cross-chain token swaps",
   "scripts": {
     "compile": "hardhat compile",
