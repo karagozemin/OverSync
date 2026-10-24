@@ -41,6 +41,7 @@
     "frontend:preview": "pnpm --filter frontend preview",
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
     "check:repo-malware": "node scripts/check-repo-malware.mjs",
+    "release:dry-run": "node scripts/release-dry-run.mjs",
     "check:env-docs": "node scripts/check-env-docs.mjs",
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
