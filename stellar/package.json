@@ -32,5 +32,10 @@
     "cross-chain",
     "claimable-balance",
     "htlc"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "stellar"
+  }
 }
