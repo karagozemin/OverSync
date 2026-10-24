@@ -49,5 +49,10 @@
     "@types/node": "^22.10.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "packages/sdk"
   }
 }

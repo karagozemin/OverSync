@@ -1,63 +1,70 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
+import {
+  CANONICAL_REPOSITORY_URL,
+  loadWorkspaceRepositoryManifests,
+  validateWorkspaceRepositoryMetadata,
+} from "./repository-metadata.mjs";
+
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
-/** The canonical OverSync repository every manifest should point at. */
-const CANONICAL_REPOSITORY_URL = "https://github.com/karagozemin/OverSync.git";
-const PLACEHOLDER_OWNER = "your-username";
-
-function readManifest(dir) {
-  const path = join(repoRoot, dir, "package.json");
-  const raw = readFileSync(path, "utf8");
-  return { path: join(dir, "package.json"), raw, json: JSON.parse(raw) };
-}
-
-/** Workspace directories from the root manifest, with `dir/*` globs expanded. */
-function workspaceDirs(rootManifest) {
-  return rootManifest.workspaces.flatMap((pattern) => {
-    if (!pattern.endsWith("/*")) return [pattern];
-    const parent = pattern.slice(0, -2);
-    return readdirSync(join(repoRoot, parent), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => `${parent}/${entry.name}`);
-  });
-}
-
-function repositoryUrl(manifest) {
-  const { repository } = manifest;
-  return typeof repository === "string" ? repository : repository?.url;
-}
-
 describe("repository metadata", () => {
-  const root = readManifest(".");
+  it("points root and every workspace manifest at the canonical OverSync repository and directory", () => {
+    const manifests = loadWorkspaceRepositoryManifests(repoRoot);
+    const result = validateWorkspaceRepositoryMetadata(manifests);
 
-  it("points the root package.json at the canonical OverSync repository", () => {
-    assert.equal(root.json.repository?.type, "git");
-    assert.equal(root.json.repository?.url, CANONICAL_REPOSITORY_URL);
+    assert.equal(result.ok, true, `unexpected violations: ${result.violations.join("; ")}`);
+    assert.ok(result.workspaceCount >= 8, `expected >= 8 workspaces, got ${result.workspaceCount}`);
   });
 
-  it("has no placeholder repository owner in any workspace manifest", () => {
-    const manifests = [
-      root,
-      ...workspaceDirs(root.json)
-        .filter((dir) => existsSync(join(repoRoot, dir, "package.json")))
-        .map(readManifest),
-    ];
-    assert.ok(manifests.length > 1, "expected workspace manifests to be found");
+  it("rejects missing repository blocks, wrong URLs, placeholder owners, or mismatched directory fields", () => {
+    const result = validateWorkspaceRepositoryMetadata({
+      rootManifest: {
+        raw: '{"repository":{"type":"git","url":"https://github.com/karagozemin/OverSync.git"}}',
+        json: {
+          repository: {
+            type: "git",
+            url: CANONICAL_REPOSITORY_URL,
+          },
+        },
+      },
+      workspaceManifests: [
+        {
+          dir: "coordinator",
+          raw: "{}",
+          json: {},
+        },
+        {
+          dir: "packages/sdk",
+          raw: '{"repository":{"type":"git","url":"https://github.com/your-username/OverSync.git","directory":"sdk"}}',
+          json: {
+            repository: {
+              type: "git",
+              url: "https://github.com/your-username/OverSync.git",
+              directory: "sdk",
+            },
+          },
+        },
+      ],
+    });
 
-    for (const manifest of manifests) {
-      assert.ok(
-        !manifest.raw.includes(PLACEHOLDER_OWNER),
-        `${manifest.path} still contains the "${PLACEHOLDER_OWNER}" placeholder`,
-      );
-      const url = repositoryUrl(manifest.json);
-      if (url !== undefined) {
-        assert.equal(url, CANONICAL_REPOSITORY_URL, `${manifest.path} repository URL`);
-      }
-    }
+    assert.equal(result.ok, false);
+    assert.equal(result.violations.length, 4);
+    assert.match(result.violations[0], /coordinator\/package\.json must declare a repository object/);
+    assert.match(result.violations[1], /placeholder owner "your-username"/);
+    assert.match(result.violations[2], /packages\/sdk\/package\.json repository\.url/);
+    assert.match(result.violations[3], /packages\/sdk\/package\.json repository\.directory must be "packages\/sdk"/);
+  });
+
+  it("wires check:repository-metadata into package.json", () => {
+    const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
+    assert.equal(
+      pkg.scripts["check:repository-metadata"],
+      "node scripts/check-repository-metadata.mjs",
+    );
   });
 });
