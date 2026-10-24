@@ -28,6 +28,7 @@
     "validate:deployments": "node scripts/validate-deployments.mjs",
     "test:scripts": "node --test scripts/lib/*.test.mjs scripts/*.test.mjs",
     "lint": "pnpm -r lint",
+    "lint:docker": "node scripts/check-dockerfiles.mjs",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "contracts:compile": "pnpm --filter contracts compile",
     "contracts:deploy": "pnpm --filter contracts deploy",
