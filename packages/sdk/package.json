@@ -1,6 +1,7 @@
 {
   "name": "@oversync/sdk",
   "version": "0.1.0",
+  "private": true,
   "description": "TypeScript SDK for the OverSync cross-chain bridge: Ethereum + Soroban HTLC clients, secret utilities, and a shared order state machine.",
   "type": "module",
   "main": "dist/index.js",

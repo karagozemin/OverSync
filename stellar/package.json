@@ -1,6 +1,7 @@
 {
   "name": "@oversync/stellar",
   "version": "1.0.0",
+  "private": true,
   "description": "Stellar blockchain operations for OverSync cross-chain token swaps",
   "type": "module",
   "main": "dist/index.js",
