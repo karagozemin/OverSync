@@ -2,8 +2,17 @@
 // This script collects safe CI metadata from environment variables and writes a concise evidence summary.
 // It intentionally avoids including any secrets or sensitive values.
 
-import { writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+import {
+  DEFAULT_RETENTION_DAYS,
+  formatCompactLicenseMarkdown,
+  generateProductionLicenseReport,
+} from './lib/license-report.mjs';
+
+const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function getEnv(name, fallback = 'N/A') {
   return process.env[name] ?? fallback;
@@ -43,7 +52,16 @@ function formatMarkdown(data) {
     `- **Artifact Links:** ${data.artifact_links}\n`;
 }
 
-const markdown = formatMarkdown(summary);
+const lockfileText = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+const licenseReport = generateProductionLicenseReport({
+  lockfileText,
+  repoRoot,
+  retentionDays: DEFAULT_RETENTION_DAYS,
+});
+const licenseOutputPath = resolve(process.cwd(), 'license-report.json');
+writeFileSync(licenseOutputPath, `${JSON.stringify(licenseReport, null, 2)}\n`, { encoding: 'utf8' });
+
+const markdown = `${formatMarkdown(summary)}\n${formatCompactLicenseMarkdown(licenseReport)}`;
 const outputPath = resolve(process.cwd(), 'evidence-summary.md');
 writeFileSync(outputPath, markdown, { encoding: 'utf8' });
 console.log('CI evidence summary written to', outputPath);
