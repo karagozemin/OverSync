@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "./interfaces/IHTLCEscrowV2.sol";
+
 contract HTLCBridge {
     address public immutable escrowFactory;
     address public activeV2Escrow;

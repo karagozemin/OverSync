@@ -6,8 +6,6 @@ import App from './App';
 vi.mock('./config/networks', () => ({
   isMainnetEnabled: vi.fn(() => false),
   isTestnet: vi.fn(() => true),
-  STELLAR_MAINNET_PASSPHRASE: 'Public Global Stellar Network ; September 2015',
-  STELLAR_TESTNET_PASSPHRASE: 'Test SDF Network ; September 2015',
   resolveNetworkMode: vi.fn((requested: string) => requested),
   getCurrentNetwork: vi.fn(() => ({
     ethereum: {

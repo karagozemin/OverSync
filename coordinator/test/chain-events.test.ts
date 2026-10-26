@@ -115,7 +115,7 @@ describe("ChainEventProcessor", () => {
   it("recovers from a crash after the transition but before the event was marked", async () => {
     const { repo, orders, events, publicId } = await setup();
     // Crash window: the order moved, but processed_chain_events/cursor never persisted.
-    await orders.recordRefund({ publicId, txHash: refund.txHash });
+    await orders.recordRefund(publicId, refund.txHash);
     const before = await transitionCount(repo, publicId);
 
     const counts = await events.processBatch(ETH_NET, "ethereum", [refund], 130);

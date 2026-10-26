@@ -1,14 +1,7 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
 import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
-import {
-  announceSchema,
-  isTransitionRejection,
-  OrderService,
-  OrderValidationError,
-  QuoteValidationError
-} from "../../services/order-service.js";
-import { evaluateRefundEligibility } from "../../utils/timelock-validator.js";
+import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
 import {
   encodeHistoryCursor,
   validateHistoryCursor,
@@ -46,11 +39,6 @@ function readHistoryAddress(query: Request["query"]): string {
 }
 
 function orderValidationResponse(err: OrderValidationError): { status: number; body: Record<string, unknown> } {
-  // Quote rejections carry a stable reason so clients can distinguish a
-  // stale quote from a quote that was issued for different terms.
-  if (err instanceof QuoteValidationError) {
-    return { status: 400, body: { error: err.quoteError, message: err.message } };
-  }
   // A refused lifecycle edge is a conflict with the stored order, not a bad
   // request: answer 409 with the stable failure code so clients can tell an
   // illegal transition apart from a malformed payload (issue #252).

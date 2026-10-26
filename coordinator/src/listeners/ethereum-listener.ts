@@ -4,7 +4,7 @@ import type { Logger } from "pino";
 import type { CoordinatorConfig } from "../config.js";
 import type { OrderService } from "../services/order-service.js";
 import { listenerLastBlock } from "../metrics.js";
-import type { ChainEventProcessor, SettlementEvent } from "../services/chain-events.js";
+import { OrderEventApplier, type BridgeOrderEvent } from "./order-events.js";
 
 const ORDER_CREATED = parseAbiItem(
   "event OrderCreated(uint256 indexed orderId, address indexed sender, address indexed beneficiary, address token, uint256 amount, uint256 safetyDeposit, bytes32 hashlock, uint64 timelock)"
@@ -19,34 +19,30 @@ const ORDER_REFUNDED = parseAbiItem(
 export class EthereumListener {
   private readonly client: PublicClient;
   private readonly log: Logger;
+  private readonly applier: OrderEventApplier;
   private unwatchers: Array<() => void> = [];
 
   constructor(
     private readonly cfg: CoordinatorConfig,
-    private readonly orders: OrderService,
-    log: Logger,
-    /** When supplied, claims/refunds are applied exactly once and the block cursor is persisted. */
-    private readonly events?: ChainEventProcessor
+    orders: OrderService,
+    log: Logger
   ) {
     this.log = log.child({ component: "EthereumListener" });
+    this.applier = new OrderEventApplier(orders, this.log, "ethereum-listener");
     this.client = createPublicClient({
       chain: cfg.ethereum.chainId === 1 ? mainnet : sepolia,
       transport: http(cfg.ethereum.rpcUrl)
     });
   }
 
-  private get networkId(): string {
-    return `ethereum:${this.cfg.ethereum.chainId}`;
+  /** Log the block we are following and hand the event to the applier. */
+  private async handle(blockNumber: number, event: BridgeOrderEvent): Promise<void> {
+    listenerLastBlock.set({ chain: "ethereum" }, blockNumber);
+    const outcome = await this.applier.apply(event);
+    this.applier.logOutcome(event, outcome);
   }
 
-  /**
-   * Resume from the persisted block cursor: re-read logs from the last
-   * fully processed block (inclusive; the processor skips events it has
-   * already applied) up to the chain head, then live-watch. Throws
-   * CursorMismatchError when the saved cursor belongs to another network.
-   * With no saved cursor the listener starts at the current head.
-   */
-  async start(): Promise<void> {
+  start(): void {
     if (!this.cfg.ethereum.htlcEscrow) {
       this.log.warn("ETH_HTLC_ESCROW not configured - Ethereum listener disabled");
       return;
@@ -71,10 +67,20 @@ export class EthereumListener {
         onLogs: (logs) => {
           void (async () => {
             for (const log of logs) {
-              if (log.blockNumber != null) {
-                listenerLastBlock.set({ chain: "ethereum" }, Number(log.blockNumber));
+              if (log.blockNumber == null || log.transactionHash == null) continue;
+              try {
+                await this.handle(Number(log.blockNumber), {
+                  kind: "lock",
+                  chain: "ethereum",
+                  txHash: log.transactionHash,
+                  blockNumber: Number(log.blockNumber),
+                  orderId: log.args.orderId?.toString() ?? null,
+                  hashlock: log.args.hashlock ?? null,
+                  timelock: log.args.timelock != null ? Number(log.args.timelock) : null
+                });
+              } catch (err) {
+                this.log.warn({ err, hashlock: log.args.hashlock }, "could not record src lock");
               }
-              await this.handleCreated(log);
             }
           })();
         }
@@ -86,13 +92,23 @@ export class EthereumListener {
         address,
         event: ORDER_CLAIMED,
         onLogs: (logs) => {
-          for (const log of logs) {
-            if (log.blockNumber != null) {
-              listenerLastBlock.set({ chain: "ethereum" }, Number(log.blockNumber));
+          void (async () => {
+            for (const log of logs) {
+              if (log.blockNumber == null || log.transactionHash == null) continue;
+              try {
+                await this.handle(Number(log.blockNumber), {
+                  kind: "claim",
+                  chain: "ethereum",
+                  txHash: log.transactionHash,
+                  blockNumber: Number(log.blockNumber),
+                  orderId: log.args.orderId?.toString() ?? null,
+                  preimage: log.args.preimage ?? null
+                });
+              } catch (err) {
+                this.log.warn({ err, orderId: log.args.orderId?.toString() }, "could not record claim");
+              }
             }
-            this.log.info({ orderId: log.args.orderId!.toString() }, "ETH order claimed");
-            void this.applySettlement(toSettlement(log, "claimed"));
-          }
+          })();
         }
       })
     );
@@ -102,13 +118,22 @@ export class EthereumListener {
         address,
         event: ORDER_REFUNDED,
         onLogs: (logs) => {
-          for (const log of logs) {
-            if (log.blockNumber != null) {
-              listenerLastBlock.set({ chain: "ethereum" }, Number(log.blockNumber));
+          void (async () => {
+            for (const log of logs) {
+              if (log.blockNumber == null || log.transactionHash == null) continue;
+              try {
+                await this.handle(Number(log.blockNumber), {
+                  kind: "refund",
+                  chain: "ethereum",
+                  txHash: log.transactionHash,
+                  blockNumber: Number(log.blockNumber),
+                  orderId: log.args.orderId?.toString() ?? null
+                });
+              } catch (err) {
+                this.log.warn({ err, orderId: log.args.orderId?.toString() }, "could not record refund");
+              }
             }
-            this.log.info({ orderId: log.args.orderId!.toString() }, "ETH order refunded");
-            void this.applySettlement(toSettlement(log, "refunded"));
-          }
+          })();
         }
       })
     );

@@ -3,18 +3,14 @@ import { z } from "zod";
 import { QuoteExpiredError, QuoteNotFoundError } from "../../services/quote-service.js";
 import type { QuoteService } from "../../services/quote-service.js";
 
-const quoteTermsSchema = z
-  .object({
-    srcChain: z.enum(["ethereum", "stellar"]),
-    srcAsset: z.string().min(1),
-    srcAmount: z.string().regex(/^\d+$/),
-    dstChain: z.enum(["ethereum", "stellar"]),
-    dstAsset: z.string().min(1),
-    dstAmount: z.string().regex(/^\d+$/)
-  })
-  // Query terms are optional: a caller may ask for a bare price quote and
-  // bind terms later, or only bind a base-unit amount.
-  .partial();
+const quoteTermsSchema = z.object({
+  srcChain: z.enum(["ethereum", "stellar"]),
+  srcAsset: z.string().min(1),
+  srcAmount: z.string().regex(/^\d+$/),
+  dstChain: z.enum(["ethereum", "stellar"]),
+  dstAsset: z.string().min(1),
+  dstAmount: z.string().regex(/^\d+$/)
+});
 
 export function quotesRoutes(quotes: QuoteService): Router {
   const router = Router();

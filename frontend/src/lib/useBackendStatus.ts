@@ -1,31 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-export type BackendStatus =
-  | 'checking'
-  | 'reachable'
-  | 'unavailable'
-  | 'degraded'
-  // Readiness aliases consumed by the bridge form guardrails.
-  | 'ready'
-  | 'not-ready'
-  | 'loading'
-  | 'down';
+export type BackendStatus = 'checking' | 'reachable' | 'unavailable' | 'degraded';
 
 export interface BackendStatusState {
   status: BackendStatus;
-  /** True once the coordinator answered a healthy status. */
-  isReady: boolean;
-  /** True while a health check is in flight. */
-  isLoading: boolean;
-  /** Alias of `isLoading`, kept for the bridge form guardrails. */
-  loading: boolean;
   lastChecked: Date | null;
   errorMessage: string | null;
-  /** Alias of `errorMessage`, kept for the bridge form guardrails. */
-  error: string | null;
   retry: () => void;
-  /** Alias of `retry`, kept for the bridge form guardrails. */
-  refresh: () => void;
 }
 
 const POLL_INTERVAL_MS = 60_000;
@@ -46,7 +27,7 @@ export function useBackendStatus(): BackendStatusState {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const requestId = ++requestIdRef.current;
+    const requestId = ++requestIdRef;
     const timerId = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     setStatus('checking');
@@ -97,15 +78,5 @@ export function useBackendStatus(): BackendStatusState {
     };
   }, [check]);
 
-  return {
-    status,
-    isReady: status === 'reachable',
-    isLoading: status === 'checking',
-    loading: status === 'checking',
-    lastChecked,
-    errorMessage,
-    error: errorMessage,
-    retry: check,
-    refresh: check,
-  };
+  return { status, lastChecked, errorMessage, retry: check };
 }

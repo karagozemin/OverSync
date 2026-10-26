@@ -9,7 +9,6 @@ import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";
 import { createReadinessRateLimiter } from "./readiness-rate-limit.js";
-import { publicResponseRedaction } from "./public-response-redaction.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
 import type { QuoteService } from "../services/quote-service.js";
