@@ -29,7 +29,11 @@ function pnpmInstallLines() {
   const hits = [];
   for (const fileName of workflowFiles()) {
     for (const { line, number } of workflowLines(fileName)) {
-      if (line.includes("pnpm install")) hits.push({ fileName, number, line: line.trim() });
+      const trimmed = line.trim();
+      // Comments may mention `pnpm install` while explaining why a job does
+      // not need one; only executable lines are subject to the policy.
+      if (trimmed.startsWith("#")) continue;
+      if (line.includes("pnpm install")) hits.push({ fileName, number, line: trimmed });
     }
   }
   return hits;

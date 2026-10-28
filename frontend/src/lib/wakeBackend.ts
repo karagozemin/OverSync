@@ -5,3 +5,8 @@ export function pingBackendWake(): void {
     // Best-effort — site works without it; order creation also wakes pollers.
   });
 }
+
+/** Awaitable alias used by the bridge form's wake-up guardrail. */
+export async function wakeBackend(): Promise<void> {
+  pingBackendWake();
+}

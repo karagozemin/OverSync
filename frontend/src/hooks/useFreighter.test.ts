@@ -301,7 +301,9 @@ describe('useFreighter — Network Agreement & Refusal', () => {
       const addr = await result.current.connect();
 
       expect(addr).toBe(TEST_STELLAR_ADDRESS);
-      expect(result.current.isConnected).toBe(true);
+      // `connect()` resolves before React flushes the state update, so wait
+      // for the hook to re-render rather than reading a stale snapshot.
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
       expect(result.current.address).toBe(TEST_STELLAR_ADDRESS);
       expect(result.current.network).toBe('TESTNET');
       expect(result.current.networkPassphrase).toBe(TESTNET_PASSPHRASE);

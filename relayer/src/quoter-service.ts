@@ -106,7 +106,7 @@ export class QuoterService {
     tracker: RelaySubmissionTracker,
     executor: () => Promise<R>
   ) {
-    return tracker.submit(action, async () => {
+    return tracker.submitExecutor(action, async () => {
       if (!quote || !coordinatorQuoteId) {
         throw new RelayRefusalError('COORDINATOR_QUOTE_REQUIRED');
       }

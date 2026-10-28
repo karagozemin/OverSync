@@ -14,6 +14,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import { createServer } from "node:net";
 import { spawn, type ChildProcess } from "node:child_process";
 import { ethers, type ErrorFragment, type InterfaceAbi } from "ethers";
 
@@ -34,7 +35,6 @@ const SAFETY_DEPOSIT = 0n;
 /** The escrow value locked per order, exported so tests can assert balances. */
 export const ESCROW_AMOUNT = AMOUNT;
 const ZERO_ADDR = ethers.ZeroAddress;
-const HARDHAT_RPC = "http://127.0.0.1:8545";
 const DEPLOYER_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const BENEFICIARY_KEY =
@@ -81,11 +81,29 @@ function decodeCustomError(abi: InterfaceAbi, data: string | undefined): string 
   return null;
 }
 
+/**
+ * Reserve an ephemeral loopback port. Vitest runs test files in parallel, and
+ * more than one suite (cross-chain + hashlock parity) starts a Hardhat node;
+ * a fixed port would make whichever suite binds second fail with EADDRINUSE.
+ */
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
 /** Spawn a Hardhat node and wait until it is ready to accept connections. */
-async function spawnHardhatNode(): Promise<ChildProcess> {
+async function spawnHardhatNode(port: number): Promise<ChildProcess> {
   const contractsDir = join(__dirname, "../contracts");
 
-  const node = spawn("pnpm", ["hardhat", "node"], {
+  const node = spawn("pnpm", ["hardhat", "node", "--port", String(port)], {
     cwd: contractsDir,
     stdio: ["ignore", "pipe", "pipe"],
     shell: true,
@@ -130,10 +148,11 @@ export async function startEvmFixture(): Promise<RealEvmHtlcFixture> {
   const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
   const HTLC_ABI = artifact.abi;
   const HTLC_BYTECODE = artifact.bytecode as string;
-  // Spawn a fresh Hardhat node for this test
-  const nodeProcess = await spawnHardhatNode();
+  // Spawn a fresh Hardhat node for this test on a port owned by this fixture.
+  const port = await findFreePort();
+  const nodeProcess = await spawnHardhatNode(port);
 
-  const provider = new ethers.JsonRpcProvider(HARDHAT_RPC, undefined, {
+  const provider = new ethers.JsonRpcProvider(`http://127.0.0.1:${port}`, undefined, {
     cacheTimeout: -1,
     polling: true,
   });

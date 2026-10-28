@@ -184,10 +184,8 @@ import ClientSubscriptionManager from './client-subscriptions.js';
 
 // Phase 5: Recovery System imports
 import RecoveryService, {
-  RecoveryConfig,
-  RecoveryType,
-  RecoveryStatus,
-  type RecoverySubmitter,
+  type RecoveryServiceConfig,
+  type TxStatusProvider,
 } from './recovery-service.js';
 
 // Stellar SDK will be imported dynamically when needed
@@ -585,20 +583,31 @@ export const relaySubmissionTracker = new RelaySubmissionTracker({
  * (`stageStellarTransaction` / `stageEthereumTransaction`) so the hash is
  * recorded before the broadcast.
  */
-function createRecoverySubmitter(): RecoverySubmitter {
-  return async ({ orderId, side, action, chain, reason, execute }) => {
-    const recoveryAction: RelayAction = {
-      orderId,
-      side,
-      action,
-      chain,
-      extra: { source: 'recovery-service', reason },
-    };
-    const blocking = relaySubmissionTracker.getBlockingRecord(recoveryAction);
-    if (blocking) {
-      throw new RelayOrderBusyError(recoveryAction, blocking);
-    }
-    return execute();
+/**
+ * Reads the settlement status of a stored hash so the recovery service can
+ * decide whether to patch, forget, or leave a tracker row alone. Unknown
+ * statuses are reported conservatively — the row is left untouched.
+ */
+function createRecoveryStatusProvider(): TxStatusProvider {
+  return {
+    async getTxStatus(txHash, chain) {
+      try {
+        if (chain === 'stellar') {
+          const server = await getStellarServer();
+          const tx = await server.transactions().transaction(txHash).call();
+          return tx.successful ? { kind: 'confirmed' } : { kind: 'expired' };
+        }
+        const provider = await getEthereumProvider();
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (receipt) {
+          return { kind: receipt.status === 1 ? 'confirmed' : 'expired' };
+        }
+        const pendingTx = await provider.getTransaction(txHash);
+        return pendingTx ? { kind: 'pending' } : { kind: 'unknown' };
+      } catch {
+        return { kind: 'unknown' };
+      }
+    },
   };
 }
 
@@ -3383,27 +3392,22 @@ console.log('✅ Phase 4: Event System initialized');
 // ===== PHASE 5: RECOVERY SYSTEM INITIALIZATION =====
 
 // Initialize recovery configuration
-const recoveryConfig: RecoveryConfig = {
-  monitoringInterval: 30000, // 30 seconds
-  autoRefundEnabled: true,
-  emergencyEnabled: true,
-  maxRetries: 3,
-  retryDelay: 60000, // 1 minute
-  gracePeriod: 300 // 5 minutes after timelock
+const recoveryConfig: RecoveryServiceConfig = {
+  expectedChains: ['ethereum', 'stellar'],
+  pollingIntervalMs: 30000, // 30 seconds
+  logger: console,
 };
 
-// Initialize recovery service. Every on-chain step it wants to take is routed
-// through the shared submission tracker, so a recovery can never race a claim
-// or a watchdog refund for the same order.
-const recoveryService = new RecoveryService(ordersService, eventManager, recoveryConfig, createRecoverySubmitter());
+// Initialize recovery service. It reads the shared submission tracker, so a
+// recovery can never race a claim or a watchdog refund for the same order.
+const recoveryService = new RecoveryService(
+  relaySubmissionTracker,
+  createRecoveryStatusProvider(),
+  recoveryConfig
+);
 
-// Connect recovery service to event system
-recoveryService.on('recoveryCompleted', (event) => {
-  console.log(`✅ Recovery completed: ${event.recoveryId}`);
-});
-
-recoveryService.on('recoveryFailed', (event) => {
-  console.log(`❌ Recovery failed: ${event.recoveryId} - ${event.error}`);
+void recoveryService.start().catch((err) => {
+  console.error('❌ Recovery service failed to start:', err);
 });
 
 console.log('✅ Phase 5: Recovery System initialized');

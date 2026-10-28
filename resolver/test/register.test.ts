@@ -83,6 +83,22 @@ vi.mock("viem/accounts", () => ({
 }));
 
 // ---------------------------------------------------------------
+// Mock: network agreement (the RPC clients above are stubs)
+// ---------------------------------------------------------------
+vi.mock("../src/network-agreement.js", () => ({
+  // Plain function: the suite calls vi.resetAllMocks(), which would strip
+  // the implementation from a vi.fn().
+  checkResolverNetworkAgreement: async () => ({
+    status: "ok",
+    detail: "networks agree",
+    observed: {
+      evm: { chainId: 11_155_111, rpcUrl: "http://localhost:8545" },
+      soroban: { networkPassphrase: "Test SDF Network ; September 2015", rpcUrl: "http://localhost:8000" }
+    }
+  })
+}));
+
+// ---------------------------------------------------------------
 // Mock: @stellar/stellar-sdk
 // ---------------------------------------------------------------
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {

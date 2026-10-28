@@ -20,15 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 8.15.0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -130,7 +130,7 @@ jobs:
       run:
         working-directory: soroban
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Pinned deliberately. `@stable` resolves to a toolchain that rejects
       # ethnum 1.5.0 (pinned by stellar-cli 22.8.1's own lockfile, which we keep
@@ -147,13 +147,13 @@ jobs:
       # To move off this pin: upgrade stellar-cli past 22.8.1 to a release whose
       # lockfile uses ethnum >= 1.5.3, then return to `@stable`.
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: 1.88.0
           targets: wasm32-unknown-unknown,wasm32v1-none
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -162,7 +162,7 @@ jobs:
           key: soroban-${{ runner.os }}-${{ hashFiles('soroban/Cargo.toml', 'soroban/Cargo.lock', 'soroban/contracts/**/Cargo.toml') }}
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@8a2045612414e945291083f820cd50b4d8fc2218 # main
 
       # One pinned install. stellar-cli 22.8.1 depends on ethnum 1.5.0, which no
       # longer compiles under current stable Rust, so this uses the released

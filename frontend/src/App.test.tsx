@@ -6,6 +6,8 @@ import App from './App';
 vi.mock('./config/networks', () => ({
   isMainnetEnabled: vi.fn(() => false),
   isTestnet: vi.fn(() => true),
+  STELLAR_MAINNET_PASSPHRASE: 'Public Global Stellar Network ; September 2015',
+  STELLAR_TESTNET_PASSPHRASE: 'Test SDF Network ; September 2015',
   resolveNetworkMode: vi.fn((requested: string) => requested),
   getCurrentNetwork: vi.fn(() => ({
     ethereum: {
@@ -98,7 +100,7 @@ describe('App — Mainnet safety gates', () => {
   describe('mainnet disabled (VITE_MAINNET_ENABLED unset or false)', () => {
     test('shows "Mainnet Coming" badge when mainnet is disabled', () => {
       render(<App />, { wrapper: MemoryRouter });
-      expect(screen.getByText('Mainnet Coming')).toBeInDocument();
+      expect(screen.getByText('Mainnet Coming')).toBeInTheDocument();
       expect(
         screen.getByTitle(/v2 mainnet launches after independent audit/i),
       ).toBeInTheDocument();
@@ -114,21 +116,21 @@ describe('App — Mainnet safety gates', () => {
       render(<App />, { wrapper: MemoryRouter });
       expect(
         screen.queryByText(/0xa7bcb4ea/i),
-      ).not.toBeInDocument();
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(
           /0xa7bCb4EAc8964306F9e3764f67Db6A7af6DdF99A/i,
         ),
-      ).not.toBeInDocument();
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/mainnet\.infura\.io/i),
-      ).not.toBeInDocument();
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/ethereum-rpc\.publicnode\.com/i),
-      ).not.toBeInDocument();
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/v1 single-relayer bridge active/i),
-      ).not.toBeInDocument();
+      ).not.toBeInTheDocument();
     });
 
     test('Mode metric tile shows "Testnet" when mainnet is disabled', () => {
@@ -145,7 +147,7 @@ describe('App — Mainnet safety gates', () => {
 
       render(<App />, { wrapper: MemoryRouter });
 
-      expect(screen.queryByText('Mainnet Coming')).not.toBeInDocument();
+      expect(screen.queryByText('Mainnet Coming')).not.toBeInTheDocument();
       const toggle = screen.getByRole('button', { name: 'Testnet' });
       expect(toggle).toBeEnabled();
     });

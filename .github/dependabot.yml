@@ -1,0 +1,68 @@
+# Scheduled dependency updates for OverSync.
+#
+# Each ecosystem is pinned to a specific directory so Dependabot scans only the
+# manifests we own. Weekly (rather than daily) updates keep review load low
+# while still surfacing vulnerable or outdated versions.
+version: 2
+updates:
+  # Root pnpm workspace. pnpm-workspace.yaml lists contracts, coordinator, e2e,
+  # frontend, relayer, resolver, stellar, and packages/*, so a single entry at
+  # the repository root covers every package.json in the workspace.
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: master
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - security
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  # Soroban Rust workspace (soroban/Cargo.toml). Scoping the directory to
+  # /soroban keeps vendored Solidity dependencies such as
+  # contracts/lib/forge-std out of the scan, since they are not Cargo projects.
+  - package-ecosystem: cargo
+    directory: "/soroban"
+    target-branch: master
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - security
+    groups:
+      cargo-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+
+  # The workflow actions in .github/workflows/ are pinned to immutable commit
+  # SHAs; Dependabot rewrites both the SHA and the trailing version comment.
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: master
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - security
+    groups:
+      github-actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
