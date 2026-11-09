@@ -25,6 +25,15 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+ARG OCI_SOURCE=https://github.com/karagozemin/OverSync
+ARG OCI_REVISION=unknown
+ARG OCI_VERSION=1.0.0
+ARG OCI_LICENSES=MIT
+LABEL org.opencontainers.image.source=$OCI_SOURCE \
+      org.opencontainers.image.revision=$OCI_REVISION \
+      org.opencontainers.image.version=$OCI_VERSION \
+      org.opencontainers.image.licenses=$OCI_LICENSES
+
 # Run as the image's built-in unprivileged `node` user (uid 1000). The final
 # build stage must end non-root — enforced by scripts/lib/dockerfile-users.mjs.
 USER node

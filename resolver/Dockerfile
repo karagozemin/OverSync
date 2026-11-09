@@ -12,6 +12,14 @@ RUN corepack enable
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
+ARG OCI_SOURCE=https://github.com/karagozemin/OverSync
+ARG OCI_REVISION=unknown
+ARG OCI_VERSION=0.1.0
+ARG OCI_LICENSES=MIT
+LABEL org.opencontainers.image.source=$OCI_SOURCE \
+      org.opencontainers.image.revision=$OCI_REVISION \
+      org.opencontainers.image.version=$OCI_VERSION \
+      org.opencontainers.image.licenses=$OCI_LICENSES
 USER node
 ENV NODE_ENV=production
 ENTRYPOINT ["node", "dist/index.js"]

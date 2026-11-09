@@ -83,6 +83,11 @@ Slither report) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 
+Container builds populate standard OCI image labels
+(`org.opencontainers.image.source`, `org.opencontainers.image.revision`,
+`org.opencontainers.image.version`, and `org.opencontainers.image.licenses`) in
+both `.github/workflows/release.yml` and the service Dockerfiles.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.
