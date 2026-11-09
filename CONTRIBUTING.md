@@ -83,6 +83,10 @@ Slither report) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 
+On pull requests, `.github/workflows/ci.yml` also runs no-push Docker builds
+(`push: false`) for both `./resolver/Dockerfile` and `./relayer/Dockerfile` so
+broken service container builds are caught before release.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.

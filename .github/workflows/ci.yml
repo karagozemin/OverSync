@@ -207,3 +207,27 @@ jobs:
           name: ci-evidence-summary-soroban
           path: evidence-summary.md
           retention-days: 14
+
+  docker:
+    name: Service Docker image builds (no-push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build resolver image (no-push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./resolver
+          file: ./resolver/Dockerfile
+          push: false
+
+      - name: Build relayer image (no-push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./relayer
+          file: ./relayer/Dockerfile
+          push: false
