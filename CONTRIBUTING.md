@@ -46,6 +46,7 @@ pnpm --filter @oversync/frontend dev
 Run the checks that match your change before opening a PR:
 
 ```bash
+pnpm format:check
 pnpm --filter @oversync/sdk build
 pnpm check:env-docs
 pnpm --filter @oversync/sdk exec tsc --noEmit
