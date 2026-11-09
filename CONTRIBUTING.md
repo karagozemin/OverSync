@@ -71,7 +71,10 @@ change a Soroban dependency, run `cargo update` locally and commit the new
 lockfile (see `soroban/README.md`).
 
 For Solidity contract changes, the contracts workflow also runs Slither on
-`contracts/contracts/v2`.
+`contracts/contracts/v2`. The workflow triggers on changes under `contracts/**`,
+the root `package.json`, `pnpm-lock.yaml`, and `.github/workflows/contracts.yml`
+so dependency or lockfile updates affecting OpenZeppelin or Hardhat are always
+verified against Foundry and Slither.
 
 Slither is installed with pinned, hash-verified dependencies from
 `.github/pip/slither-requirements.txt` (regenerate with `pip-compile
