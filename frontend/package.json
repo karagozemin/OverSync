@@ -2,6 +2,11 @@
   "name": "@oversync/frontend",
   "version": "1.0.0",
   "description": "Frontend interface for OverSync cross-chain token swaps",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "frontend"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

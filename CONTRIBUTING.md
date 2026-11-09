@@ -26,6 +26,11 @@ requests against the codebase. If you want to operate a resolver, use
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
 
+Every workspace `package.json` must declare a `repository` block with
+`type: "git"`, `url: "https://github.com/karagozemin/OverSync.git"`, and
+`directory` matching the workspace's relative directory
+(`scripts/lib/repository-metadata.mjs`, verified by `pnpm test:scripts`).
+
 ## Local setup
 
 ```bash

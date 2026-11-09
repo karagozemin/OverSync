@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Reference resolver implementation for the OverSync cross-chain bridge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "resolver"
+  },
   "type": "module",
   "main": "dist/index.js",
   "bin": {

@@ -2,6 +2,11 @@
   "name": "@oversync/relayer",
   "version": "1.0.0",
   "description": "Event relayer service that listens to Ethereum events and triggers Stellar operations",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "relayer"
+  },
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
