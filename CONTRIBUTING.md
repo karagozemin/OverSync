@@ -83,6 +83,10 @@ Slither report) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 
+Released container images built by `.github/workflows/release.yml` enable
+Buildx provenance attestations (`provenance: mode=max`) attached to the
+published image digest on GHCR.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.
