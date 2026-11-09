@@ -79,7 +79,8 @@ Slither is installed with pinned, hash-verified dependencies from
 `.github/pip/slither.in`).
 
 All CI evidence artifacts (TypeScript/Soroban evidence summaries, the
-Slither report) are uploaded with `retention-days: 14` — long enough
+Slither report, and the compact runtime `production-dependency-license-report`
+generated via `pnpm report:licenses`) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 

@@ -107,6 +107,16 @@ jobs:
       - name: Check evidence links
         run: node scripts/check-evidence-links.mjs
 
+      - name: Generate production dependency license report
+        run: node scripts/generate-license-report.mjs
+
+      - name: Upload production dependency license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dependency-license-report
+          path: license-report.json
+          retention-days: 14
+
       # Keep diagnostics available even when an earlier build or test step fails.
       - name: Generate CI evidence summary
         if: always()
