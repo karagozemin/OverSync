@@ -33,6 +33,10 @@ on:
       - 'scripts/verify-addresses.mjs'
       - '.github/workflows/address-verify.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: Docs/config address consistency
