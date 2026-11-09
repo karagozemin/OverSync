@@ -83,6 +83,11 @@ Slither report) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 
+For container releases (`.github/workflows/release.yml`), the `v*` git tag must
+match the root `package.json` `version` field. The workflow runs
+`node scripts/check-release-tag-version.mjs` (`pnpm check:release-tag`) before
+registry login or image build and fails with a clear diagnostic on mismatch.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.
