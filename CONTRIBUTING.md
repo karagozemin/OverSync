@@ -71,7 +71,10 @@ change a Soroban dependency, run `cargo update` locally and commit the new
 lockfile (see `soroban/README.md`).
 
 For Solidity contract changes, the contracts workflow also runs Slither on
-`contracts/contracts/v2`.
+`contracts/contracts/v2`. The `Upload Slither report` step runs under
+`if: always()` with `if-no-files-found: warn` after a pre-upload check so
+findings are uploaded even when `slither` exits non-zero, and a missing report
+emits a clear warning diagnostic without masking the analysis result.
 
 Slither is installed with pinned, hash-verified dependencies from
 `.github/pip/slither-requirements.txt` (regenerate with `pip-compile

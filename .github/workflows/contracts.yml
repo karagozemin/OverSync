@@ -91,10 +91,18 @@ jobs:
         run: |
           slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version,timestamp --json slither-results.json
 
+      - name: Check Slither report before upload
+        if: always()
+        run: |
+          if [ ! -s contracts/slither-results.json ]; then
+            echo "::warning file=contracts/slither-results.json::Slither report not found or empty at contracts/slither-results.json; inspect the preceding build or Slither analysis logs for the failure."
+          fi
+
       - name: Upload Slither report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: slither-report
           path: contracts/slither-results.json
+          if-no-files-found: warn
           retention-days: 14
