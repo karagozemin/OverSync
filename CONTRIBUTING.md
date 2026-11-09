@@ -6,7 +6,7 @@ requests against the codebase. If you want to operate a resolver, use
 
 ## Prerequisites
 
-- Node.js 22.5+ and pnpm
+- Node.js 22+ (`engines.node: ">=22.0.0"` across root and workspaces, pinned in `.nvmrc` and CI) and pnpm 8.15.0
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
