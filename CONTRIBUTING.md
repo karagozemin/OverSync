@@ -83,6 +83,10 @@ Slither report) are uploaded with `retention-days: 14` — long enough
 for a PR review cycle, short enough to avoid piling up stale build
 artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
 
+Container releases in `.github/workflows/release.yml` publish immutable version
+tags (`vX.Y.Z` and `X.Y.Z`, plus `X.Y`) with `flavor: latest=false` and avoid
+publishing un-gated mutable major-only (`{{major}}`) tags.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.
