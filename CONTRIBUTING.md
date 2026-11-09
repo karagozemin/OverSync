@@ -26,6 +26,10 @@ requests against the codebase. If you want to operate a resolver, use
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
 
+All non-published workspace `package.json` manifests must explicitly declare
+`"private": true` (`scripts/lib/workspace-private-metadata.mjs`, enforced by
+`pnpm test:scripts`) so internal packages cannot be accidentally published to npm.
+
 ## Local setup
 
 ```bash
