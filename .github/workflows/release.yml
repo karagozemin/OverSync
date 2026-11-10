@@ -57,5 +57,21 @@ jobs:
           file: ./resolver/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Generate CycloneDX SBOM for resolver image
+        uses: anchore/sbom-action@v0
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/oversync-resolver:${{ github.ref_name }}
+          format: cyclonedx-json
+          output-file: resolver-sbom.cdx.json
+          upload-artifact: false
+
+      - name: Upload resolver SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolver-sbom-${{ github.ref_name }}
+          path: resolver-sbom.cdx.json
+          retention-days: 14
