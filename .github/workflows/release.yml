@@ -51,6 +51,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build + push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./resolver
@@ -59,3 +60,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Publish container image digest summary
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: node scripts/lib/release-digest-summary.mjs >> "$GITHUB_STEP_SUMMARY"
