@@ -50,6 +50,19 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
+      - name: Build local resolver image for vulnerability scan
+        run: docker buildx build --load --file ./resolver/Dockerfile --tag oversync-resolver:scan ./resolver
+
+      - name: Scan resolver image for HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: oversync-resolver:scan
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
       - name: Build + push
         uses: docker/build-push-action@v6
         with:
