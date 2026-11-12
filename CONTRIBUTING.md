@@ -144,3 +144,7 @@ pnpm check:vscode-tasks
 
 This check runs in CI on every PR through the `Check tracked VS Code tasks`
 step. Do not add workspace tasks that circumvent this policy.
+
+### Release Tag Version Check
+
+Before publishing container images, `.github/workflows/release.yml` runs `node scripts/check-release-tag-version.mjs --tag "$GITHUB_REF_NAME"` (or locally via `pnpm check:release-tag --tag vX.Y.Z`) to verify that the pushed `v*` tag matches the root `package.json` `version`.
