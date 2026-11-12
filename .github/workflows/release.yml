@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
 
 # Pushes of the same tag share one concurrency group. github.ref_name is the
 # tag (for example v1.2.3) on this workflow, which only runs for v* tags.
@@ -26,6 +26,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate release tag syntax
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/lib/release-tag-semver.mjs "$RELEASE_TAG"
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
