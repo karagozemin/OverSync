@@ -51,7 +51,8 @@
     "health:check": "curl -s http://localhost:3001/health | jq .",
     "deploy:setup": "cp .env.production .env && pnpm build:prod",
     "verify:addresses": "node scripts/verify-addresses.mjs",
-    "check:testnet-assets": "node scripts/check-testnet-assets.mjs"
+    "check:testnet-assets": "node scripts/check-testnet-assets.mjs",
+    "check:release-tag": "node scripts/check-release-tag-version.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
