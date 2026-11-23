@@ -26,6 +26,30 @@ requests against the codebase. If you want to operate a resolver, use
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
 
+## Workspace repository metadata
+
+Every workspace `package.json` points back at the canonical OverSync repository
+and names its own subdirectory, so npm and repository tooling link a package to
+the right sources:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/karagozemin/OverSync.git",
+  "directory": "packages/sdk"
+}
+```
+
+Use the workspace's own path for `directory` (`contracts`, `relayer`,
+`packages/sdk`, ...). Verify with:
+
+```bash
+pnpm check:workspace-repository
+```
+
+The check also runs in `pnpm test:scripts`, so a copied template URL, a leftover
+placeholder owner, or a directory that names another package fails CI.
+
 ## Local setup
 
 ```bash
