@@ -47,6 +47,11 @@ jobs:
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #390: workspace manifests stay canonical 2-space JSON.
+      # format:check is read-only and must never rewrite files.
+      - name: Check workspace formatting
+        run: pnpm format:check
+
       # Guards #384: every evidence/Slither artifact upload must declare a
       # bounded retention-days, including upload steps added later.
       - name: Check CI artifact retention
