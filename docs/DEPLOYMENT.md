@@ -225,4 +225,6 @@ the CI address-consistency check stays green:
 
 5. **Verify**: run `pnpm verify:addresses` locally before pushing. The same
    check runs in CI (`address-verify` workflow) on every PR that touches these
-   files and will block the merge if any value drifts.
+   files and will block the merge if any value drifts. The workflow uses a
+   branch-scoped concurrency group, so pushing a new commit cancels any
+   in-progress `address-verify` run for the same branch or PR.
