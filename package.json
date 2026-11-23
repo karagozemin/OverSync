@@ -44,6 +44,7 @@
     "check:codegen-clean": "node scripts/check-codegen-clean.mjs",
     "check:evidence-links": "node scripts/check-evidence-links.mjs",
     "check:lockfile-sources": "node scripts/check-lockfile-sources.mjs",
+    "check:node-engine": "node scripts/check-node-engine.mjs",
     "check:repo-malware": "node scripts/check-repo-malware.mjs",
     "release:dry-run": "node scripts/release-dry-run.mjs",
     "check:env-docs": "node scripts/check-env-docs.mjs",
@@ -61,7 +62,7 @@
     "vitest": "^2.1.0"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=22.0.0",
     "pnpm": "8.15.0"
   },
   "repository": {
