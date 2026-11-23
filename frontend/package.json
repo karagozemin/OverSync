@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Frontend interface for OverSync cross-chain token swaps",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "frontend"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
