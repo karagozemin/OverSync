@@ -12,6 +12,16 @@ RUN corepack enable
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
+# Standard OCI labels (issue #400). Declared after the last RUN so a new
+# revision does not invalidate cached layers. CI overrides the defaults with
+# --build-arg; enforced by scripts/lib/dockerfile-oci-labels.mjs.
+ARG OCI_SOURCE=https://github.com/karagozemin/OverSync
+ARG OCI_REVISION=unknown
+ARG OCI_VERSION=dev
+LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
+      org.opencontainers.image.version="${OCI_VERSION}" \
+      org.opencontainers.image.licenses="MIT"
 USER node
 ENV NODE_ENV=production
 ENTRYPOINT ["node", "dist/index.js"]
