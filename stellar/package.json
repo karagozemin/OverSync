@@ -32,5 +32,8 @@
     "cross-chain",
     "claimable-balance",
     "htlc"
-  ]
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }

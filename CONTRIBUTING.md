@@ -10,6 +10,10 @@ requests against the codebase. If you want to operate a resolver, use
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
+
+Every workspace manifest declares an `engines.node` lower bound aligned with
+CI's `setup-node` version (`>=22.0.0`). `pnpm check:node-engine` enforces that
+no workspace drifts below the CI toolchain.
 ### Stellar Testnet Funding
 
 - New Stellar testnet wallets start with **zero XLM**.
@@ -48,6 +52,7 @@ Run the checks that match your change before opening a PR:
 ```bash
 pnpm --filter @oversync/sdk build
 pnpm check:env-docs
+pnpm check:node-engine
 pnpm --filter @oversync/sdk exec tsc --noEmit
 pnpm --filter @oversync/coordinator exec tsc --noEmit
 pnpm --filter @oversync/resolver exec tsc --noEmit
