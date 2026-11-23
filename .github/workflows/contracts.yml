@@ -7,10 +7,16 @@ on:
   push:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
   pull_request:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
 
 jobs:
