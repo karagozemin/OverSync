@@ -207,3 +207,33 @@ jobs:
           name: ci-evidence-summary-soroban
           path: evidence-summary.md
           retention-days: 14
+
+  # #398 — build resolver and relayer production images without pushing so
+  # broken Dockerfiles fail on PRs before a release tag publishes to GHCR.
+  service-images:
+    name: Build service images (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build resolver image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./resolver
+          file: ./resolver/Dockerfile
+          push: false
+          load: true
+          tags: oversync-resolver:ci
+
+      - name: Build relayer image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./relayer
+          file: ./relayer/Dockerfile
+          push: false
+          load: true
+          tags: oversync-relayer:ci
