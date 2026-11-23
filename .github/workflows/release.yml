@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-release-tag-version.mjs
+
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
 
