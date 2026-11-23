@@ -47,6 +47,10 @@ jobs:
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #392: unpublished workspaces must declare private: true.
+      - name: Check workspace private metadata
+        run: pnpm check:workspace-private
+
       # Guards #384: every evidence/Slither artifact upload must declare a
       # bounded retention-days, including upload steps added later.
       - name: Check CI artifact retention

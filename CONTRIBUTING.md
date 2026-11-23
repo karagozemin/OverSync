@@ -26,6 +26,19 @@ requests against the codebase. If you want to operate a resolver, use
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
 
+## Workspace package metadata
+
+Every workspace that is not published to a registry must say so in its own
+`package.json` with `"private": true`. A new workspace starts private. Add a
+non-empty `publishConfig` only when the package is meant to be published; that
+object is the explicit opt-in this check looks for.
+
+```bash
+pnpm check:workspace-private
+```
+
+The check also runs as part of `pnpm test:scripts`.
+
 ## Local setup
 
 ```bash
