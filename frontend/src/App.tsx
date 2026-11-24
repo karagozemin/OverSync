@@ -18,6 +18,7 @@ import LaunchReadinessSurface from './pages/LaunchReadinessSurface'
 import RefundTimelineSurface from './pages/RefundTimelineSurface'
 import InvestorMode from './pages/InvestorMode'
 import BackendStatusBanner from './components/BackendStatusBanner'
+import SafeExternalLink from './components/SafeExternalLink'
 import { useBackendStatus } from './lib/useBackendStatus'
 import {
   Activity,
@@ -289,10 +290,10 @@ function App() {
 
         <div className="flex items-center gap-2 md:gap-3">
           <nav className="hidden items-center gap-2 md:flex">
-            <a href="https://www.alchemy.com/faucets/ethereum-sepolia" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white">
+            <SafeExternalLink href="https://www.alchemy.com/faucets/ethereum-sepolia" className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white">
               Faucet
               <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            </SafeExternalLink>
             <Link
               to="/launch-readiness"
               className="inline-flex items-center gap-2 rounded-full border border-cyan-200/15 bg-white/[0.055] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 hover:text-white"
@@ -588,15 +589,13 @@ function App() {
 
       {/* Footer Bar */}
       <div className="fixed inset-x-0 bottom-0 z-40 flex h-9 w-full items-center justify-end border-t border-cyan-200/15 bg-[#03040a]/86 px-6 backdrop-blur-xl">
-        <a 
-          href="https://x.com/kaptan_web3" 
-          target="_blank" 
-          rel="noopener noreferrer"
+        <SafeExternalLink
+          href="https://x.com/kaptan_web3"
           className="flex items-center gap-2 text-sm font-semibold text-slate-300 transition-colors hover:text-cyan-200"
         >
           Created by Kaptan
           <span className="text-base">X</span>
-        </a>
+        </SafeExternalLink>
       </div>
 
       {/* Deployment Self-Check - visible in development or when debug mode enabled */}

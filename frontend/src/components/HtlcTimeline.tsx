@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, XCircle, Loader2, ExternalLink, Shield } from 'lucide-react';
 import { isTestnet } from '../config/networks';
+import SafeExternalLink from './SafeExternalLink';
 
 export interface HtlcTimelineProps {
   tx: {
@@ -283,15 +284,13 @@ export default function HtlcTimeline({ tx }: HtlcTimelineProps) {
               {/* Transaction Hash Link */}
               {showLink && (
                 <div className="mt-1 flex items-center">
-                  <a
+                  <SafeExternalLink
                     href={getExplorerUrl(step.txHash!, step.chain!)}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 rounded bg-white/5 px-2 py-1 text-3xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
                   >
                     <span>Tx: {step.txHash!.slice(0, 8)}...{step.txHash!.slice(-6)}</span>
                     <ExternalLink className="h-3 w-3 opacity-60" />
-                  </a>
+                  </SafeExternalLink>
                 </div>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { ExternalLink, BarChart3 } from 'lucide-react';
 import { testnetTraction, type TractionMetric } from '../config/testnet-traction';
 import { isTestnet } from '../config/networks';
+import SafeExternalLink from './SafeExternalLink';
 
 function TractionRow({ metric }: { metric: TractionMetric }) {
   const content = (
@@ -14,9 +15,9 @@ function TractionRow({ metric }: { metric: TractionMetric }) {
 
   if (metric.link) {
     return (
-      <a href={metric.link} target="_blank" rel="noopener noreferrer" className="block transition-opacity hover:opacity-80">
+      <SafeExternalLink href={metric.link} className="block transition-opacity hover:opacity-80">
         {content}
-      </a>
+      </SafeExternalLink>
     );
   }
 
@@ -55,16 +56,14 @@ export default function TestnetTractionCard() {
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-white/10 pt-3 text-xs text-slate-400">
         <span>Updated: {lastUpdated}</span>
         {sourceLinks.map((link) => (
-          <a
+          <SafeExternalLink
             key={link.url}
             href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-cyan-200/70 hover:text-cyan-200 transition-colors"
           >
             {link.label}
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </SafeExternalLink>
         ))}
       </div>
     </div>

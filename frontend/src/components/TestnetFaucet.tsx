@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useToast } from './Toast';
 import { getFaucets, isTestnet } from '../config/networks';
+import SafeExternalLink from './SafeExternalLink';
 
 export function walletIsConfiguredTestnet(walletNetwork: string | null | undefined): boolean {
   return walletNetwork === 'testnet';
@@ -121,11 +122,9 @@ export default function TestnetFaucet({ ethAddress, stellarAddress, walletNetwor
             <h4 className="text-sm text-gray-400">Available Faucets</h4>
             
             {faucets.map((faucet, index) => (
-              <a 
+              <SafeExternalLink
                 key={index}
                 href={faucet.url}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="flex items-center justify-between bg-white/5 hover:bg-white/10 rounded-lg p-3 border border-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -138,7 +137,7 @@ export default function TestnetFaucet({ ethAddress, stellarAddress, walletNetwor
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-              </a>
+              </SafeExternalLink>
             ))}
           </div>
 
