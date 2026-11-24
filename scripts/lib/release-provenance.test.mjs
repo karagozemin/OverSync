@@ -24,6 +24,8 @@ describe("release image provenance", () => {
     const buildStep = workflowStep(workflow, "Build + push").join("\n");
 
     assert.match(buildStep, /^\s+uses:\s+docker\/build-push-action@v6\s*$/m);
+    assert.match(buildStep, /^\s+context:\s*\.\s*$/m);
+    assert.match(buildStep, /^\s+file:\s*\.\/resolver\/Dockerfile\s*$/m);
     assert.match(buildStep, /^\s+push:\s*true\s*$/m);
     assert.match(buildStep, /^\s+provenance:\s*mode=max\s*$/m);
   });

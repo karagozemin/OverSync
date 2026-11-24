@@ -250,7 +250,7 @@ jobs:
       - name: Build resolver image
         uses: docker/build-push-action@v6
         with:
-          context: ./resolver
+          context: .
           file: ./resolver/Dockerfile
           push: false
           load: true
