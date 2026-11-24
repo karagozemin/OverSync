@@ -6,10 +6,17 @@ requests against the codebase. If you want to operate a resolver, use
 
 ## Prerequisites
 
-- Node.js 22.5+ and pnpm
+- Node.js 22.5+ (run `nvm use` to pick up `.nvmrc`) and pnpm
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
+
+The reviewed Node major lives in `.nvmrc` and must match every
+`actions/setup-node` `node-version` in `.github/workflows/`. Root and workspace
+`package.json` files all declare the same `engines.node` floor on that major.
+When bumping Node, update all three together; `pnpm test:scripts` checks for
+drift.
+
 ### Stellar Testnet Funding
 
 - New Stellar testnet wallets start with **zero XLM**.
