@@ -133,6 +133,12 @@ or a downloaded report tied to one commit. `scripts/check-artifact-retention.mjs
 enforces the retention window, and `pnpm check:slither-artifact-name` enforces
 the commit-specific name.
 
+CI also uploads `production-dependency-license-report` for 14 days. It lists
+unique external packages in the installed pnpm production graph (including
+transitive dependencies), with license counts and per-package licenses. Run
+`node scripts/generate-production-license-report.mjs` after `pnpm install`
+to create the local report at `tmp/production-dependency-licenses.md`.
+
 ## Pull request expectations
 
 - Write PR descriptions and code comments in English.

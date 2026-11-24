@@ -65,6 +65,16 @@ jobs:
       - name: Check CI artifact retention
         run: node scripts/check-artifact-retention.mjs
 
+      - name: Generate production dependency license report
+        run: node scripts/generate-production-license-report.mjs
+
+      - name: Upload production dependency license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dependency-license-report
+          path: tmp/production-dependency-licenses.md
+          retention-days: 14
+
       # Guards #388: Slither downloads from different commits must not share a name.
       - name: Check Slither artifact name
         run: pnpm check:slither-artifact-name
