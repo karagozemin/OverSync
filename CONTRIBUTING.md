@@ -43,9 +43,13 @@ pnpm --filter @oversync/frontend dev
 
 ## CI test matrix
 
+`pnpm format:check` verifies every workspace `package.json` against canonical
+2-space JSON. It only reads files; CI never passes `--write`.
+
 Run the checks that match your change before opening a PR:
 
 ```bash
+pnpm format:check
 pnpm --filter @oversync/sdk build
 pnpm check:env-docs
 pnpm --filter @oversync/sdk exec tsc --noEmit

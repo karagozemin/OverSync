@@ -29,6 +29,7 @@
     "test:scripts": "node --test scripts/lib/*.test.mjs scripts/*.test.mjs",
     "typecheck": "pnpm --filter @oversync/sdk exec tsc --noEmit && pnpm --filter @oversync/coordinator exec tsc --noEmit && pnpm --filter @oversync/resolver exec tsc --noEmit && pnpm --filter @oversync/frontend exec tsc --noEmit && pnpm --filter @oversync/relayer exec tsc --noEmit",
     "lint": "pnpm -r lint",
+    "format:check": "node scripts/check-workspace-format.mjs",
     "lint:docker": "node scripts/check-dockerfiles.mjs",
     "clean": "pnpm -r clean && rm -rf node_modules",
     "contracts:compile": "pnpm --filter contracts compile",
