@@ -47,6 +47,10 @@ jobs:
       - name: Test repository scripts
         run: pnpm test:scripts
 
+      # Guards #392: unpublished workspaces must declare private: true.
+      - name: Check workspace private metadata
+        run: pnpm check:workspace-private
+
       # Guards #390: workspace manifests stay canonical 2-space JSON.
       # format:check is read-only and must never rewrite files.
       - name: Check workspace formatting

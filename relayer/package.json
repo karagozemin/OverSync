@@ -1,6 +1,7 @@
 {
   "name": "@oversync/relayer",
   "version": "1.0.0",
+  "private": true,
   "description": "Event relayer service that listens to Ethereum events and triggers Stellar operations",
   "type": "module",
   "main": "dist/index.js",
