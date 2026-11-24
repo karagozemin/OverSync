@@ -7,10 +7,16 @@ on:
   push:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
   pull_request:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
 
 jobs:
@@ -91,10 +97,15 @@ jobs:
         run: |
           slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version,timestamp --json slither-results.json
 
+      - name: Resolve short commit SHA
+        id: sha
+        if: always()
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Upload Slither report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: slither-report
+          name: slither-report-${{ steps.sha.outputs.short_sha }}
           path: contracts/slither-results.json
           retention-days: 14
