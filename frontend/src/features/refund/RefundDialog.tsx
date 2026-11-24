@@ -6,6 +6,7 @@ import { makeEthereumHTLCClient } from "../../lib/sdk-context";
 import { isTestnet } from "../../config/networks";
 import { useNetworkMode } from "../../lib/useNetworkMode";
 import CopyableIdentifier from "../../components/CopyableIdentifier";
+import SafeExternalLink from "../../components/SafeExternalLink";
 
 /**
  * Two on-chain refund flavors are supported:
@@ -315,14 +316,12 @@ export function RefundDialog(props: RefundDialogProps) {
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 mb-4">
           <p className="text-sm text-emerald-300 font-medium mb-1">Refund submitted.</p>
           <div className="flex min-w-0 items-start gap-2">
-            <a
+            <SafeExternalLink
               href={`${explorer}/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
               className="min-w-0 flex-1 text-xs text-blue-400 hover:underline break-all font-mono"
             >
               {txHash}
-            </a>
+            </SafeExternalLink>
             <CopyableIdentifier
               value={txHash}
               hideDisplay

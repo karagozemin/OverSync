@@ -1,6 +1,7 @@
 import { ExternalLink, FileText, ShieldCheck, Clock, ArrowRight } from 'lucide-react';
 import type { HtlcReceiptData } from '../lib/parseHtlcReceipt';
 import CopyableIdentifier from './CopyableIdentifier';
+import SafeExternalLink from './SafeExternalLink';
 
 interface Props {
   receipt: HtlcReceiptData;
@@ -9,15 +10,13 @@ interface Props {
 function ExplorerLink({ url, label, hash }: { url: string; label: string; hash: string }) {
   if (!hash) return null;
   return (
-    <a
+    <SafeExternalLink
       href={url}
-      target="_blank"
-      rel="noopener noreferrer"
       className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
     >
       <span>{label}</span>
       <ExternalLink className="h-3 w-3 opacity-70" />
-    </a>
+    </SafeExternalLink>
   );
 }
 

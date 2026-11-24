@@ -1,6 +1,7 @@
 // src/pages/InvestorMode.tsx
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
+import SafeExternalLink from '../components/SafeExternalLink';
 
 export default function InvestorMode() {
   // Static data – could be moved to a config file if needed
@@ -37,25 +38,21 @@ export default function InvestorMode() {
         <ul className="list-disc list-inside space-y-2 text-sm">
           <li>
             Ethereum: <code>{contractAddresses.ethereum}</code>{' '}
-            <a
+            <SafeExternalLink
               href={explorerLinks.ethereum}
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
             >
               View on Etherscan <ExternalLink className="h-3 w-3" />
-            </a>
+            </SafeExternalLink>
           </li>
           <li>
             Stellar: <code>{contractAddresses.stellar}</code>{' '}
-            <a
+            <SafeExternalLink
               href={explorerLinks.stellar}
-              target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
             >
               View on Stellar Explorer <ExternalLink className="h-3 w-3" />
-            </a>
+            </SafeExternalLink>
           </li>
         </ul>
       </section>
