@@ -64,6 +64,7 @@ jobs:
           file: ./resolver/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: mode=max
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Feed the Dockerfile's OCI label ARGs (issue #400).
