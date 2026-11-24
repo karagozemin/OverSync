@@ -33,6 +33,13 @@ on:
       - 'scripts/verify-addresses.mjs'
       - '.github/workflows/address-verify.yml'
 
+# Runs for the same branch or PR ref share one group. A newer push cancels the
+# in-progress check so only the latest commit's address verification reports.
+# Different branches and PRs have their own groups and still run in parallel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: Docs/config address consistency
