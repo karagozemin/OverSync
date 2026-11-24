@@ -11,6 +11,7 @@ import { createApp } from "./server/app.js";
 import { EthereumListener } from "./listeners/ethereum-listener.js";
 import { ChainEventProcessor } from "./services/chain-events.js";
 import { SorobanListener } from "./listeners/soroban-listener.js";
+import { createShutdown, installShutdownHandlers } from "./shutdown.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
@@ -50,20 +51,22 @@ async function main(): Promise<void> {
   await ethListener.start();
   await sorobanListener.start();
 
-  const shutdown = async (signal: string) => {
-    log.info({ signal }, "shutting down");
-    ethListener.stop();
-    sorobanListener.stop();
-    server.close(() => {
+  const shutdown = createShutdown({
+    log,
+    // Stop feeding order transitions first, then refuse new HTTP requests and
+    // let in-flight ones finish, and only then close the database (#505).
+    listeners: [ethListener, sorobanListener],
+    server,
+    closeDatabase: () => {
       // Close database if it has a close method (SQLite)
-      if ('close' in db) {
-        (db as any).close();
+      if ("close" in db) {
+        (db as { close(): void }).close();
       }
-      process.exit(0);
-    });
-  };
-  process.on("SIGINT", () => void shutdown("SIGINT"));
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+    },
+    deadlineMs: cfg.shutdownTimeoutMs,
+    exit: (code) => process.exit(code)
+  });
+  installShutdownHandlers(process, shutdown);
 }
 
 main().catch((err) => {

@@ -62,7 +62,9 @@ const configSchema = z.object({
     htlcContract: z.string().optional().transform((v) => v ?? null),
     resolverRegistry: z.string().optional().transform((v) => v ?? null)
   }),
-  timelockSafetyGapSeconds: z.coerce.number().int().positive().default(600)
+  timelockSafetyGapSeconds: z.coerce.number().int().positive().default(600),
+  /** Upper bound for graceful shutdown on SIGTERM/SIGINT (#505). */
+  shutdownTimeoutMs: z.coerce.number().int().positive().default(10_000)
 });
 
 export type CoordinatorConfig = z.infer<typeof configSchema>;
@@ -103,7 +105,8 @@ export function loadConfig(): CoordinatorConfig {
       resolverRegistry:
         process.env[isMainnet ? "SOROBAN_RESOLVER_REGISTRY_MAINNET" : "SOROBAN_RESOLVER_REGISTRY_TESTNET"]
     },
-    timelockSafetyGapSeconds: 600
+    timelockSafetyGapSeconds: 600,
+    shutdownTimeoutMs: process.env.COORDINATOR_SHUTDOWN_TIMEOUT_MS
   };
 
   return configSchema.parse(raw);
