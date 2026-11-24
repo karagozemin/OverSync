@@ -54,6 +54,8 @@ jobs:
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.licenses=MIT
 
       - name: Build + push
         uses: docker/build-push-action@v6
@@ -64,3 +66,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Feed the Dockerfile's OCI label ARGs (issue #400).
+          build-args: |
+            OCI_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            OCI_REVISION=${{ github.sha }}
+            OCI_VERSION=${{ steps.meta.outputs.version }}
