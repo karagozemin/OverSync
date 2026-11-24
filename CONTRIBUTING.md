@@ -6,10 +6,17 @@ requests against the codebase. If you want to operate a resolver, use
 
 ## Prerequisites
 
-- Node.js 22.5+ and pnpm
+- Node.js 22.5+ (run `nvm use` to pick up `.nvmrc`) and pnpm
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
+
+The reviewed Node major lives in `.nvmrc` and must match every
+`actions/setup-node` `node-version` in `.github/workflows/`. Root and workspace
+`package.json` files all declare the same `engines.node` floor on that major.
+When bumping Node, update all three together; `pnpm test:scripts` checks for
+drift.
+
 ### Stellar Testnet Funding
 
 - New Stellar testnet wallets start with **zero XLM**.
@@ -25,6 +32,42 @@ requests against the codebase. If you want to operate a resolver, use
 - `soroban` - Rust workspace for Stellar Soroban contracts
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
+
+## Workspace repository metadata
+
+Every workspace `package.json` points back at the canonical OverSync repository
+and names its own subdirectory:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/karagozemin/OverSync.git",
+  "directory": "packages/sdk"
+}
+```
+
+Use that workspace's own path for `directory` (`contracts`, `relayer`,
+`packages/sdk`, and so on). Verify with:
+
+```bash
+pnpm check:workspace-repository
+```
+
+The check also runs in `pnpm test:scripts`. A copied template URL, a leftover
+placeholder owner, or a directory that names another package fails CI.
+
+## Workspace package metadata
+
+Every workspace that is not published to a registry must say so in its own
+`package.json` with `"private": true`. A new workspace starts private. Add a
+non-empty `publishConfig` only when the package is meant to be published; that
+object is the explicit opt-in this check looks for.
+
+```bash
+pnpm check:workspace-private
+```
+
+The check also runs as part of `pnpm test:scripts`.
 
 ## Local setup
 
@@ -43,9 +86,13 @@ pnpm --filter @oversync/frontend dev
 
 ## CI test matrix
 
+`pnpm format:check` verifies every workspace `package.json` against canonical
+2-space JSON. It only reads files; CI never passes `--write`.
+
 Run the checks that match your change before opening a PR:
 
 ```bash
+pnpm format:check
 pnpm --filter @oversync/sdk build
 pnpm check:env-docs
 pnpm --filter @oversync/sdk exec tsc --noEmit
@@ -79,9 +126,12 @@ Slither is installed with pinned, hash-verified dependencies from
 `.github/pip/slither.in`).
 
 All CI evidence artifacts (TypeScript/Soroban evidence summaries, the
-Slither report) are uploaded with `retention-days: 14` — long enough
-for a PR review cycle, short enough to avoid piling up stale build
-artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
+Slither report named `slither-report-<short-sha>`) are uploaded with
+`retention-days: 14` — long enough for a PR review cycle, short enough to
+avoid piling up stale build artifacts. The short commit SHA keeps a rerun
+or a downloaded report tied to one commit. `scripts/check-artifact-retention.mjs`
+enforces the retention window, and `pnpm check:slither-artifact-name` enforces
+the commit-specific name.
 
 CI also uploads `production-dependency-license-report` for 14 days. It lists
 unique external packages in the installed pnpm production graph (including

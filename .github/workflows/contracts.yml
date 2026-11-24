@@ -7,10 +7,16 @@ on:
   push:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
   pull_request:
     paths:
       - 'contracts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/contracts.yml'
 
 jobs:
@@ -91,10 +97,26 @@ jobs:
         run: |
           slither contracts/v2 --filter-paths "node_modules|test" --exclude naming-convention,solc-version,timestamp --json slither-results.json
 
+      # Upload even when Slither exits non-zero. A missing report gets a warning
+      # diagnostic (if-no-files-found: warn) so the upload step does not mask
+      # the upstream analysis / compile failure.
+      - name: Check Slither report before upload
+        if: always()
+        run: |
+          if [ ! -s contracts/slither-results.json ]; then
+            echo "::warning file=contracts/slither-results.json::Slither report not found or empty at contracts/slither-results.json; inspect the preceding build or Slither analysis logs for the failure."
+          fi
+
+      - name: Resolve short commit SHA
+        id: sha
+        if: always()
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Upload Slither report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: slither-report
+          name: slither-report-${{ steps.sha.outputs.short_sha }}
           path: contracts/slither-results.json
+          if-no-files-found: warn
           retention-days: 14
