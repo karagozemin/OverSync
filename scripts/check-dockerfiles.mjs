@@ -2,6 +2,7 @@
 /**
  * Lints `resolver/Dockerfile` and `relayer/Dockerfile` with `.hadolint.yaml`
  * and fails on any high-severity (`error` or `warning`) finding (issue #397).
+ * Also requires the standard OCI labels in each final build stage (issue #400).
  *
  * Usage:
  *   node scripts/check-dockerfiles.mjs
@@ -18,6 +19,7 @@ import {
   parseHadolintConfig,
   validateHadolintConfig,
 } from "./lib/dockerfile-lint.mjs";
+import { checkDockerfileOciLabels } from "./lib/dockerfile-oci-labels.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const configPath = resolve(repoRoot, ".hadolint.yaml");
@@ -26,18 +28,23 @@ const configCheck = validateHadolintConfig(config);
 
 const errors = [...configCheck.violations];
 const blocking = [];
+const labelErrors = [];
 
 for (const relPath of TARGET_DOCKERFILES) {
   const fullPath = resolve(repoRoot, relPath);
   const dockerfileText = readFileSync(fullPath, "utf8");
   const res = lintDockerfile(dockerfileText, { file: relPath, config });
   blocking.push(...res.blockingFindings);
+  labelErrors.push(...checkDockerfileOciLabels(dockerfileText, relPath));
 }
 
-if (errors.length > 0 || blocking.length > 0) {
+if (errors.length > 0 || blocking.length > 0 || labelErrors.length > 0) {
   console.error("Dockerfile lint failed:");
   for (const err of errors) {
     console.error(`  - [config] ${err}`);
+  }
+  for (const err of labelErrors) {
+    console.error(`  - [oci-labels] ${err}`);
   }
   for (const finding of blocking) {
     console.error(
