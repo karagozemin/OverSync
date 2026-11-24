@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 import {
+  isStrictReleaseTag,
   verifyReleaseTagAgainstManifest,
   verifyReleaseTagVersion,
 } from "./release-tag-version.mjs";
@@ -50,6 +51,56 @@ describe("release tag vs root package.json version check", () => {
     });
     assert.equal(noPrefix.ok, false);
     assert.match(noPrefix.error, /must start with "v"/);
+  });
+
+  it("rejects partial, malformed, and prerelease tags even when they match the version", () => {
+    const bad = [
+      "v1",
+      "v1.0",
+      "v1.0.0.0",
+      "v1.0.x",
+      "v01.0.0",
+      "v1.00.0",
+      "v1.0.0-rc.1",
+      "v1.0.0-beta",
+      "v1.0.0+build.5",
+      "vv1.0.0",
+      "v1.0.0 ",
+      " v1.0.0",
+      "v1.0.0\n",
+      "V1.0.0",
+    ];
+    for (const tag of bad) {
+      for (const packageVersion of ["1.0.0", tag.trim().replace(/^[vV]+/, "")]) {
+        const res = verifyReleaseTagVersion({ tag, packageVersion });
+        assert.equal(res.ok, false, `tag ${JSON.stringify(tag)} must be rejected`);
+      }
+    }
+    const res = verifyReleaseTagVersion({
+      tag: "v1.0.0-rc.1",
+      packageVersion: "1.0.0-rc.1",
+    });
+    assert.match(res.error, /not a valid semantic version tag.*vMAJOR\.MINOR\.PATCH/);
+  });
+
+  it("accepts strict stable semver tags", () => {
+    for (const version of ["0.0.0", "1.0.0", "1.20.300", "10.0.1"]) {
+      const res = verifyReleaseTagVersion({
+        tag: `v${version}`,
+        packageVersion: version,
+      });
+      assert.equal(res.ok, true, version);
+    }
+    assert.equal(isStrictReleaseTag("v1.2.3"), true);
+    assert.equal(isStrictReleaseTag(undefined), false);
+  });
+
+  it("exits 1 for a prerelease tag via CLI", () => {
+    const run = spawnSync(process.execPath, [cliPath, "--tag", "v1.0.0-rc.1"], {
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /not a valid semantic version tag/);
   });
 
   it("exits 0 on match and exits 1 with a clear error on mismatch via CLI", () => {
