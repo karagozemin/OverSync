@@ -42,6 +42,33 @@ export const DEFAULT_ALLOWED_ORIGINS =
 export const WS_POLICY_VIOLATION = 1008;
 
 /**
+ * Maximum number of event subscriptions allowed per WebSocket connection.
+ * 
+ * This limit prevents a single client from consuming unbounded memory by
+ * creating an excessive number of subscriptions. The limit applies to the
+ * combined count of event types, order filters, resolver filters, and
+ * chain filters.
+ * 
+ * Can be overridden via WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION env var.
+ * 
+ * @default 1000
+ */
+export const DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION = 1000;
+
+/**
+ * Parse the max subscriptions limit from environment or use default.
+ */
+export function getMaxSubscriptionsPerConnection(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = env.WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION;
+  if (!configured) return DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION;
+  const parsed = parseInt(configured, 10);
+  if (isNaN(parsed) || parsed < 1) {
+    throw new Error(`Invalid WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION: "${configured}". Must be a positive integer.`);
+  }
+  return parsed;
+}
+
+/**
  * Parse a comma-separated origin allowlist exactly like the coordinator's
  * `parseCorsOrigins`, so the socket and the HTTP API admit the same set.
  */
@@ -255,11 +282,17 @@ export class FusionWebSocketServer extends EventEmitter {
   private readonly PING_INTERVAL = 30000; // 30 seconds
   private isRunning = false;
   private readonly allowedOrigins: string[];
+  private readonly maxSubscriptionsPerConnection: number;
 
-  constructor(private port: number = 3002, allowedOrigins: string[] = allowedOriginsFromEnv()) {
+  constructor(
+    private port: number = 3002,
+    allowedOrigins: string[] = allowedOriginsFromEnv(),
+    maxSubscriptionsPerConnection?: number
+  ) {
     super();
     this.httpServer = createServer();
     this.allowedOrigins = allowedOrigins;
+    this.maxSubscriptionsPerConnection = maxSubscriptionsPerConnection ?? getMaxSubscriptionsPerConnection();
   }
 
   /**
@@ -313,7 +346,11 @@ export class FusionWebSocketServer extends EventEmitter {
       client.lastPing = Date.now();
     });
     socket.on('close', () => {
+      const subscriptionCount = this.getSubscriptionCount(client);
       this.clients.delete(client.id);
+      if (subscriptionCount > 0) {
+        console.log(`🔌 Client ${client.id} disconnected: released ${subscriptionCount} subscription(s)`);
+      }
     });
 
     return client;
@@ -445,10 +482,61 @@ export class FusionWebSocketServer extends EventEmitter {
   }
 
   /**
+   * Calculate the total subscription count for a client.
+   * This includes event subscriptions and all filter types.
+   */
+  private getSubscriptionCount(client: WebSocketClient): number {
+    return (
+      client.subscriptions.size +
+      client.orderFilters.size +
+      client.resolverFilters.size +
+      client.chainFilters.size
+    );
+  }
+
+  /**
    * Handle event subscriptions
    */
   private handleSubscribe(client: WebSocketClient, id?: string, params?: any): void {
     const { events, orderHashes, resolvers, chainIds } = params || {};
+
+    // Calculate how many new subscriptions would be added
+    const newEvents = events && Array.isArray(events) 
+      ? events.filter(e => Object.values(EventType).includes(e) && !client.subscriptions.has(e))
+      : [];
+    const newOrderHashes = orderHashes && Array.isArray(orderHashes)
+      ? orderHashes.filter(h => !client.orderFilters.has(h))
+      : [];
+    const newResolvers = resolvers && Array.isArray(resolvers)
+      ? resolvers.filter(r => !client.resolverFilters.has(r))
+      : [];
+    const newChainIds = chainIds && Array.isArray(chainIds)
+      ? chainIds.filter(c => !client.chainFilters.has(c))
+      : [];
+
+    const currentCount = this.getSubscriptionCount(client);
+    const additionalCount = newEvents.length + newOrderHashes.length + newResolvers.length + newChainIds.length;
+    const projectedCount = currentCount + additionalCount;
+
+    // Enforce subscription limit
+    if (projectedCount > this.maxSubscriptionsPerConnection) {
+      this.sendError(
+        client,
+        -32000,
+        'Subscription limit exceeded',
+        {
+          current: currentCount,
+          requested: additionalCount,
+          limit: this.maxSubscriptionsPerConnection,
+          message: `Cannot add ${additionalCount} subscription(s). Current: ${currentCount}, Limit: ${this.maxSubscriptionsPerConnection}`
+        }
+      );
+      console.warn(
+        `⚠️ Client ${client.id} exceeded subscription limit: ` +
+        `current=${currentCount}, requested=${additionalCount}, limit=${this.maxSubscriptionsPerConnection}`
+      );
+      return;
+    }
 
     // Subscribe to events
     if (events && Array.isArray(events)) {
@@ -479,10 +567,12 @@ export class FusionWebSocketServer extends EventEmitter {
         orders: Array.from(client.orderFilters),
         resolvers: Array.from(client.resolverFilters),
         chains: Array.from(client.chainFilters)
-      }
+      },
+      subscriptionCount: this.getSubscriptionCount(client),
+      limit: this.maxSubscriptionsPerConnection
     });
 
-    console.log(`📡 Client ${client.id} subscribed to ${client.subscriptions.size} events`);
+    console.log(`📡 Client ${client.id} subscribed: count=${this.getSubscriptionCount(client)}/${this.maxSubscriptionsPerConnection}`);
   }
 
   /**
@@ -490,6 +580,7 @@ export class FusionWebSocketServer extends EventEmitter {
    */
   private handleUnsubscribe(client: WebSocketClient, id?: string, params?: any): void {
     const { events, orderHashes, resolvers, chainIds } = params || {};
+    const beforeCount = this.getSubscriptionCount(client);
 
     // Unsubscribe from events
     if (events && Array.isArray(events)) {
@@ -509,7 +600,19 @@ export class FusionWebSocketServer extends EventEmitter {
       chainIds.forEach(chainId => client.chainFilters.delete(chainId));
     }
 
-    this.sendResponse(client, id, { unsubscribed: true });
+    const afterCount = this.getSubscriptionCount(client);
+    const removed = beforeCount - afterCount;
+
+    this.sendResponse(client, id, {
+      unsubscribed: true,
+      removed,
+      subscriptionCount: afterCount,
+      limit: this.maxSubscriptionsPerConnection
+    });
+
+    if (removed > 0) {
+      console.log(`📡 Client ${client.id} unsubscribed: removed=${removed}, count=${afterCount}/${this.maxSubscriptionsPerConnection}`);
+    }
   }
 
   /**
@@ -642,9 +745,13 @@ export class FusionWebSocketServer extends EventEmitter {
    * Send error to client
    */
   private sendError(client: WebSocketClient, code: number, message: string, data?: any): void {
-    this.sendMessage(client, {
+    const errorMessage: WebSocketMessage = {
       error: { code, message }
-    });
+    };
+    if (data !== undefined) {
+      (errorMessage.error as any).data = data;
+    }
+    this.sendMessage(client, errorMessage);
   }
 
   /**
