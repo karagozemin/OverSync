@@ -9,6 +9,7 @@ import { publicResponseRedaction } from "./public-response-redaction.js";
 import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";
+import { requireJsonContentType } from "./content-type.js";
 import { createReadinessRateLimiter } from "./readiness-rate-limit.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
@@ -30,8 +31,9 @@ export function createApp(deps: AppDeps): Express {
   const { maxRequestBodyBytes } = deps;
   const app = express();
   app.use(pinoHttp({ logger: deps.log }));
-  app.use(express.json({ limit: maxRequestBodyBytes }));
   app.use(createCorsMiddleware(deps.corsOrigins));
+  app.use(requireJsonContentType());
+  app.use(express.json({ limit: maxRequestBodyBytes }));
   app.use(publicResponseRedaction);
 
   // Prometheus HTTP duration instrumentation
@@ -44,8 +46,12 @@ export function createApp(deps: AppDeps): Express {
     next();
   });
 
-  const readinessLimit = Number(process.env.COORDINATOR_READINESS_RATE_LIMIT ?? 30);
-  const readinessWindowMs = Number(process.env.COORDINATOR_READINESS_RATE_WINDOW_MS ?? 60_000);
+  const readinessLimit = Number(
+    process.env.COORDINATOR_READINESS_RATE_LIMIT ?? 30,
+  );
+  const readinessWindowMs = Number(
+    process.env.COORDINATOR_READINESS_RATE_WINDOW_MS ?? 60_000,
+  );
   app.use(healthRoutes({ limit: readinessLimit, windowMs: readinessWindowMs }));
   app.use(metricsRoutes());
   app.use("/api", ordersRoutes(deps.orders, { network: deps.network }));
@@ -58,24 +64,24 @@ export function createApp(deps: AppDeps): Express {
       err: Error & { type?: string; status?: number },
       _req: express.Request,
       res: express.Response,
-      next: express.NextFunction
+      next: express.NextFunction,
     ) => {
       if (err.type === "entity.too.large" || err.status === 413) {
         res.status(413).json({
           error: "payload_too_large",
-          message: `Request body exceeds the ${maxRequestBodyBytes}-byte limit`
+          message: `Request body exceeds the ${maxRequestBodyBytes}-byte limit`,
         });
         return;
       }
       if (err.type === "entity.parse.failed" || err.status === 400) {
         res.status(400).json({
           error: "validation_error",
-          message: "Malformed JSON request body"
+          message: "Malformed JSON request body",
         });
         return;
       }
       next(err);
-    }
+    },
   );
 
   // Final error handler — never leak a stack trace to clients.
@@ -84,11 +90,11 @@ export function createApp(deps: AppDeps): Express {
       err: Error,
       _req: express.Request,
       res: express.Response,
-      _next: express.NextFunction
+      _next: express.NextFunction,
     ) => {
       deps.log.error({ err }, "unhandled error");
       res.status(500).json({ error: "internal_error", message: err.message });
-    }
+    },
   );
 
   return app;
