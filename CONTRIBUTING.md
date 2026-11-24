@@ -83,9 +83,12 @@ Slither is installed with pinned, hash-verified dependencies from
 `.github/pip/slither.in`).
 
 All CI evidence artifacts (TypeScript/Soroban evidence summaries, the
-Slither report) are uploaded with `retention-days: 14` — long enough
-for a PR review cycle, short enough to avoid piling up stale build
-artifacts. `scripts/check-artifact-retention.mjs` enforces this in CI.
+Slither report named `slither-report-<short-sha>`) are uploaded with
+`retention-days: 14` — long enough for a PR review cycle, short enough to
+avoid piling up stale build artifacts. The short commit SHA keeps a rerun
+or a downloaded report tied to one commit. `scripts/check-artifact-retention.mjs`
+enforces the retention window, and `pnpm check:slither-artifact-name` enforces
+the commit-specific name.
 
 ## Pull request expectations
 

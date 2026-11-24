@@ -57,6 +57,10 @@ jobs:
       - name: Check CI artifact retention
         run: node scripts/check-artifact-retention.mjs
 
+      # Guards #388: Slither downloads from different commits must not share a name.
+      - name: Check Slither artifact name
+        run: pnpm check:slither-artifact-name
+
       # Guards #355: each env key must appear exactly once in env.example, so
       # operators cannot edit one copy while deployment reads another.
       - name: Check env.example for duplicate keys
