@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { resolveClientIp } from "./client-ip.js";
 
 export interface ReadinessRateLimitOptions {
   /** Maximum requests per client in the window. */
@@ -11,6 +12,11 @@ export interface ReadinessRateLimitOptions {
   message?: string;
   /** Optional custom error code for rejections. */
   errorCode?: string;
+  /**
+   * Number of trusted reverse-proxy hops. Default 0 ignores Forwarded /
+   * X-Forwarded-For so clients cannot spoof their rate-limit key.
+   */
+  trustedProxyHops?: number;
 }
 
 /**
@@ -26,10 +32,11 @@ export function createReadinessRateLimiter(options: ReadinessRateLimitOptions = 
   const now = options.now ?? (() => Date.now());
   const message = options.message ?? "Too many health or readiness requests";
   const errorCode = options.errorCode ?? "rate_limited";
+  const trustedProxyHops = Math.max(0, Math.floor(options.trustedProxyHops ?? 0));
   const buckets = new Map<string, { startedAt: number; count: number }>();
 
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const key = resolveClientIp(req, { trustedProxyHops });
     const timestamp = now();
     const current = buckets.get(key);
     const bucket = !current || timestamp - current.startedAt >= windowMs

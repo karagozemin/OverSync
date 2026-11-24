@@ -9,7 +9,7 @@ import { publicResponseRedaction } from "./public-response-redaction.js";
 import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";
-import { createReadinessRateLimiter } from "./readiness-rate-limit.js";
+import { parseTrustedProxySetting } from "./client-ip.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
 import type { QuoteService } from "../services/quote-service.js";
@@ -46,7 +46,14 @@ export function createApp(deps: AppDeps): Express {
 
   const readinessLimit = Number(process.env.COORDINATOR_READINESS_RATE_LIMIT ?? 30);
   const readinessWindowMs = Number(process.env.COORDINATOR_READINESS_RATE_WINDOW_MS ?? 60_000);
-  app.use(healthRoutes({ limit: readinessLimit, windowMs: readinessWindowMs }));
+  const trustedProxyHops = parseTrustedProxySetting(process.env.COORDINATOR_TRUSTED_PROXY);
+  app.use(
+    healthRoutes({
+      limit: readinessLimit,
+      windowMs: readinessWindowMs,
+      trustedProxyHops
+    })
+  );
   app.use(metricsRoutes());
   app.use("/api", ordersRoutes(deps.orders, { network: deps.network }));
   app.use("/api", secretsRoutes(deps.secrets));
