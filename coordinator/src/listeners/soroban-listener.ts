@@ -1,4 +1,3 @@
-import { rpc } from "@stellar/stellar-sdk";
 import type { Logger } from "pino";
 import type { CoordinatorConfig } from "../config.js";
 import type { OrderService } from "../services/order-service.js";
@@ -6,6 +5,7 @@ import { listenerLastBlock } from "../metrics.js";
 import { OrderEventApplier } from "./order-events.js";
 import { decodeSorobanOrderEvent } from "./soroban-events.js";
 import type { ChainEventProcessor } from "../services/chain-events.js";
+import { createSorobanRpcClient, type SorobanRpcClient } from "../soroban-rpc.js";
 
 /**
  * Polls the Soroban RPC for HTLC contract events, decodes the `created` /
@@ -14,7 +14,7 @@ import type { ChainEventProcessor } from "../services/chain-events.js";
  * Ethereum listener and the HTTP API use.
  */
 export class SorobanListener {
-  private readonly server: rpc.Server;
+  private readonly server: SorobanRpcClient;
   private readonly log: Logger;
   private readonly applier: OrderEventApplier;
   private readonly events?: ChainEventProcessor;
@@ -32,8 +32,9 @@ export class SorobanListener {
     this.events = events;
     this.log = log.child({ component: "SorobanListener" });
     this.applier = new OrderEventApplier(orders, this.log, "soroban-listener");
-    this.server = new rpc.Server(cfg.soroban.rpcUrl, {
-      allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
+    this.server = createSorobanRpcClient(cfg.soroban.rpcUrl, {
+      allowHttp: cfg.soroban.rpcUrl.startsWith("http://"),
+      maxResponseBytes: cfg.maxRpcResponseBytes
     });
   }
 
