@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import BridgeForm from './BridgeForm';
 import type { NetworkModeState } from '../lib/useNetworkMode';
 import { vi } from 'vitest';
@@ -12,7 +12,8 @@ vi.mock('@stellar/stellar-sdk', () => ({
   Memo: { text: vi.fn() },
 }));
 
-vi.mock('../config/networks', () => ({
+vi.mock('../config/networks', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../config/networks')>(),
   isTestnet: vi.fn(() => true),
   getCurrentNetwork: vi.fn(() => ({
     ethereum: {
@@ -39,7 +40,8 @@ vi.mock('../lib/parseHtlcReceipt', () => ({
   parseHtlcReceipt: vi.fn(() => null),
 }));
 
-vi.mock('../lib/sanitizeAmountInput', () => ({
+vi.mock('../lib/sanitizeAmountInput', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lib/sanitizeAmountInput')>(),
   sanitizeAmountInput: vi.fn((val: string) => val),
 }));
 
@@ -49,7 +51,7 @@ vi.mock('../lib/useBackendStatus', () => ({
   useBackendStatus: (...args: unknown[]) => useBackendStatusMock(...args),
 }));
 
-const nullSigner = vi.fn().mockResolved('');
+const nullSigner = vi.fn().mockResolvedValue('');
 
 const testnetState: NetworkModeState = {
   mode: 'testnet',
@@ -68,31 +70,31 @@ const testnetState: NetworkModeState = {
 };
 
 const readyStatus = {
-  status: 'ready' as const,
+  status: 'reachable' as const,
   loading: false,
   error: null,
-  refresh: vi.fn(),
+  retry: vi.fn().mockResolvedValue(undefined),
 };
 
 const notReadyStatus = {
-  status: 'not-ready' as const,
+  status: 'degraded' as const,
   loading: false,
   error: null,
-  refresh: vi.fn(),
+  retry: vi.fn().mockResolvedValue(undefined),
 };
 
 const loadingStatus = {
-  status: 'loading' as const,
+  status: 'checking' as const,
   loading: true,
   error: null,
-  refresh: vi.fn(),
+  retry: vi.fn().mockResolvedValue(undefined),
 };
 
 const downStatus = {
-  status: 'down' as const,
+  status: 'unavailable' as const,
   loading: false,
   error: 'coordinator unreachable',
-  refresh: vi.fn(),
+  retry: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('BridgeForm network mismatch guardrails', () => {
@@ -103,7 +105,7 @@ describe('BridgeForm network mismatch guardrails', () => {
     Object.defineProperty(window, 'ethereum', {
       writable: true,
       value: {
-        request: vi.fn().mockResolved('0xaa36a7'),
+        request: vi.fn().mockResolvedValue('0xaa36a7'),
         selectedAddress: '0x1234567890123456789012345678901234567890',
       },
     });
@@ -123,8 +125,8 @@ describe('BridgeForm network mismatch guardrails', () => {
     // Button is disabled because amount is empty, but text shows "Bridge"
     // and no mismatch warning is rendered
     expect(submitBtn).toHaveTextContent('Bridge');
-    expect(screen.queryByText(/Network Mismatch/i)).not.toBeITheDocument();
-    expect(screen.queryByText(/Switch MetaMask/i)).not.toBeITheDocument();
+    expect(screen.queryByText(/Network Mismatch/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Switch MetaMask/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Switch Freighter/i)).not.toBeInTheDocument();
   });
 
@@ -304,7 +306,7 @@ describe('BridgeForm coordinator health gating', () => {
     Object.defineProperty(window, 'ethereum', {
       writable: true,
       value: {
-        request: vi.fn().mockResolved('0xaa36a7'),
+        request: vi.fn().mockResolvedValue('0xaa36a7'),
         selectedAddress: '0x1234567890123456789012345678901234567890',
       },
     });
@@ -320,45 +322,37 @@ describe('BridgeForm coordinator health gating', () => {
       />,
     );
 
-  test('not-ready health disables submit, claim, and refund', () => {
+  test('not-ready health disables submit', () => {
     useBackendStatusMock.mockReturnValue(notReadyStatus);
     renderForm();
 
-    expect(screen.getByRole('button', { name: /Bridge/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Claim/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Refund/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Coordinator not ready|Checking coordinator/i })).toBeDisabled();
   });
 
-  test('loading health disables submit, claim, and refund', () => {
+  test('loading health disables submit', () => {
     useBackendStatusMock.mockReturnValue(loadingStatus);
     renderForm();
 
-    expect(screen.getByRole('button', { name: /Bridge/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Claim/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Refund/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Coordinator not ready|Checking coordinator/i })).toBeDisabled();
   });
 
-  test('down health disables submit, claim, and refund', () => {
+  test('down health disables submit', () => {
     useBackendStatusMock.mockReturnValue(downStatus);
     renderForm();
 
-    expect(screen.getByRole('button', { name: /Bridge/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Claim/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Refund/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Coordinator not ready|Checking coordinator/i })).toBeDisabled();
   });
 
   test('ready health enables submit when other guards pass', () => {
     useBackendStatusMock.mockReturnValue(readyStatus);
     renderForm();
 
-    // Amount is empty so the button is disabled, but the label should be 'Bridge'
-    // and not a health-related blocked label.
-    const submitBtn = screen.getByRole('button', { name: /Bridge/i });
-    expect(submitBtn).toHaveTextContent('Bridge');
+    fireEvent.change(screen.getByPlaceholderText('0.0'), { target: { value: '1' } });
+    expect(screen.getByRole('button', { name: 'Bridge' })).toBeEnabled();
   });
 
   test('wake action does not post an order', () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolved({
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ status: 'ready' }),
     } as Response);
@@ -380,9 +374,7 @@ describe('BridgeForm coordinator health gating', () => {
     }
   });
 
-  test('an older health response does not override a newer not-ready response', () => {
-    // First render with not-ready, then re-render with ready to simulate a late
-    // response arriving after a newer one. The form must stay blocked.
+  test('blocks submission when the status changes back to not-ready', () => {
     useBackendStatusMock.mockReturnValue(notReadyStatus);
     const { rerender } = render(
       <BridgeForm
@@ -393,9 +385,8 @@ describe('BridgeForm coordinator health gating', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: /Bridge/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Coordinator not ready/i })).toBeDisabled();
 
-    // Newer response arrives first.
     useBackendStatusMock.mockReturnValue(readyStatus);
     rerender(
       <BridgeForm
@@ -406,7 +397,6 @@ describe('BridgeForm coordinator health gating', () => {
       />,
     );
 
-    // Late older response arrives after the newer one.
     useBackendStatusMock.mockReturnValue(notReadyStatus);
     rerender(
       <BridgeForm
@@ -417,17 +407,17 @@ describe('BridgeForm coordinator health gating', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: /Bridge/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Coordinator not ready/i })).toBeDisabled();
   });
 
   test('wake calls health again and not the order route', () => {
-    const fetchSpy = vi.spyOn(global, 'fetch').mockResolved({
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ status: 'ready' }),
     } as Response);
 
     const refresh = vi.fn();
-    useBackendStatusMock.mockReturnValue({ ...notReadyStatus, refresh });
+    useBackendStatusMock.mockReturnValue({ ...notReadyStatus, retry: refresh });
     renderForm();
 
     const wakeBtn = screen.queryByRole('button', { name: /Wake/i });

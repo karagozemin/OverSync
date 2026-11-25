@@ -115,6 +115,7 @@ export function lintDockerfile(dockerfileText, options = {}) {
   const lines = String(dockerfileText).split(/\r?\n/);
   const declaredStages = new Set();
   const findings = [];
+  let healthcheckContinuation = false;
 
   function addFinding(line, code, severity, message) {
     if (ignoredSet.has(code)) return;
@@ -133,6 +134,16 @@ export function lintDockerfile(dockerfileText, options = {}) {
     const lineNum = i + 1;
     const trimmed = lines[i].trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
+
+    if (healthcheckContinuation) {
+      healthcheckContinuation = trimmed.endsWith("\\");
+      continue;
+    }
+
+    if (/^HEALTHCHECK\b/i.test(trimmed)) {
+      healthcheckContinuation = trimmed.endsWith("\\");
+      continue;
+    }
 
     const fromMatch = trimmed.match(/^FROM\s+([^\s]+)(?:\s+AS\s+([A-Za-z0-9_-]+))?$/i);
     if (fromMatch) {

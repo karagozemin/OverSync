@@ -224,7 +224,7 @@ export class RecoveryService {
 
     const rows = this.tracker
       .list()
-      .filter((r) => r.status === 'in_flight' || r.status === 'failed');
+      .filter((r) => r.status === 'in_flight' || r.status === 'pending' || r.status === 'failed');
 
     if (rows.length === 0) return report;
 
@@ -290,7 +290,7 @@ export class RecoveryService {
     record: SubmissionRecord,
     report: RecoveryReport
   ): Promise<void> {
-    const txHash = extractTxHash(record.result);
+    const txHash = record.txHash ?? extractTxHash(record.result);
 
     // If there is no tx hash yet (e.g. the record was created but the
     // executor never ran a single attempt), treat as unknown.
@@ -319,13 +319,16 @@ export class RecoveryService {
         this.log(
           `recovery-service: row ${record.key} confirmed on-chain — patching to succeeded`
         );
-        // Forget the old record so submit() can create a fresh one.
-        this.tracker.forget(record.key);
+        // The RPC has independently confirmed the persisted hash, so it is safe
+        // to replace the pending tracker entry with a terminal success record.
+        this.tracker.forget(record.key, { force: true });
         // Re-submit with an executor that immediately resolves with the
         // original result so the duplicate gate is armed.
-        await this.tracker.submit(record.action, () =>
-          Promise.resolve(record.result)
-        );
+        await this.tracker.submit(record.action, () => ({
+          txHash,
+          network: record.network ?? record.action.network,
+          broadcast: () => Promise.resolve(record.result),
+        }));
         report.alreadyConfirmed.push(record.key);
         break;
       }
@@ -338,7 +341,7 @@ export class RecoveryService {
         this.log(
           `recovery-service: row ${record.key} expired — forgetting for replacement`
         );
-        this.tracker.forget(record.key);
+        this.tracker.forget(record.key, { force: true });
         report.replaced.push(record.key);
         break;
       }

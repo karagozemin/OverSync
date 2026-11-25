@@ -12,6 +12,9 @@ export interface CreateOrderInput {
    * is enabled; used to look the sender up in the active-resolver set.
    */
   sender?: string;
+  amount?: bigint;
+  maker?: string;
+  recipient?: string;
 }
 
 export interface OrderView {
@@ -52,7 +55,8 @@ export type SimErrorCode =
   | "InvalidPreimage"
   | "Expired"
   | "NotExpired"
-  | "ResolverNotAuthorised";
+  | "ResolverNotAuthorised"
+  | "ClaimResolverNotRegistered";
 
 export class SimError extends Error {
   constructor(public readonly code: SimErrorCode) {
@@ -64,15 +68,15 @@ export class SimError extends Error {
 export interface HtlcSim {
   readonly name: "evm" | "soroban";
   createOrder(input: CreateOrderInput): bigint;
-  claimOrder(id: bigint, preimage: Hex): void;
+  claimOrder(id: bigint, preimage: Hex, caller?: string): void;
   refundOrder(id: bigint): void;
   getOrder(id: bigint): OrderView;
   nextOrderId(): bigint;
+  getEscrowBalanceFor(id: bigint): bigint;
   advanceTime(seconds: number): void;
   /**
    * Mirrors `HTLCEscrow`'s optional `ResolverRegistry`: when enabled,
-   * only an active resolver may create an order. Claim and refund stay
-   * permissionless regardless of registry state.
+   * only an active resolver may create an order. EVM claims are also gated.
    */
   setRegistryEnabled(enabled: boolean): void;
   setResolverActive(resolver: string, active: boolean): void;
@@ -91,7 +95,7 @@ abstract class BaseHtlcSim {
   protected readonly balances = new Map<string, bigint>();
   protected nextId = 1n;
   protected now: number;
-  private registryEnabled = false;
+  protected registryEnabled = false;
   private readonly activeResolvers = new Set<string>();
 
   constructor() {
@@ -106,6 +110,20 @@ abstract class BaseHtlcSim {
     return this.nextId;
   }
 
+  setRegistryEnabled(enabled: boolean): void {
+    this.registryEnabled = enabled;
+  }
+
+  setResolverActive(resolver: string, active: boolean): void {
+    const address = resolver.toLowerCase();
+    if (active) this.activeResolvers.add(address);
+    else this.activeResolvers.delete(address);
+  }
+
+  protected isResolverActive(address?: string): boolean {
+    return address !== undefined && this.activeResolvers.has(address.toLowerCase());
+  }
+
   createOrder(input: CreateOrderInput): bigint {
     if (!/^0x[0-9a-fA-F]{64}$/.test(input.hashlock) || /^0x0+$/.test(input.hashlock)) {
       throw new SimError("InvalidHashlock");
@@ -113,11 +131,8 @@ abstract class BaseHtlcSim {
     if (input.timelockSeconds < MIN_TIMELOCK || input.timelockSeconds > MAX_TIMELOCK) {
       throw new SimError("InvalidTimelock");
     }
-    if (this.registryEnabled) {
-      const sender = input.sender?.toLowerCase();
-      if (!sender || !this.activeResolvers.has(sender)) {
-        throw new SimError("ResolverNotAuthorised");
-      }
+    if (this.registryEnabled && !this.isResolverActive(input.sender)) {
+      throw new SimError("ResolverNotAuthorised");
     }
     const id = this.nextId++;
     const amount = input.amount ?? DEFAULT_ESCROW_AMOUNT;
@@ -198,10 +213,13 @@ abstract class BaseHtlcSim {
 export class EvmHtlcSim extends BaseHtlcSim implements HtlcSim {
   readonly name = "evm" as const;
 
-  claimOrder(id: bigint, preimage: Hex): void {
+  claimOrder(id: bigint, preimage: Hex, caller?: string): void {
     const o = this.getMutable(id);
     if (o.status !== "Funded") throw new SimError("OrderNotClaimable");
     if (this.now > o.timelockAbsolute) throw new SimError("Expired");
+    if (this.registryEnabled && !this.isResolverActive(caller)) {
+      throw new SimError("ClaimResolverNotRegistered");
+    }
     if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(preimage)) {
       throw new SimError("InvalidPreimage");
     }

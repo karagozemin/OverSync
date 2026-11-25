@@ -22,7 +22,7 @@ describe("release dry-run workflow path", () => {
 
     assert.deepEqual(config, {
       imageTemplate: "ghcr.io/${{ github.repository_owner }}/oversync-resolver",
-      context: "./resolver",
+      context: ".",
       dockerfile: "./resolver/Dockerfile",
       platforms: "linux/amd64,linux/arm64",
     });

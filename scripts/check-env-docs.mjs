@@ -123,6 +123,10 @@ const ALLOWLIST = {
   'PREIMAGE': 'E2E test script only',
   'RESOLVER_REGISTRY_ADDRESS': 'Contract deployment param, not runtime config',
   'V2_DRY_RUN': 'Contract deployment param, not runtime config',
+  'RELEASE_TAG': 'Release workflow input; supplied by GitHub Actions',
+  'GITHUB_REF_NAME': 'GitHub Actions context value, not user-configurable',
+  'RELEASE_DRY_RUN_BUILD': 'Release dry-run CLI flag, not runtime configuration',
+  'GITHUB_REPOSITORY_OWNER': 'GitHub Actions context value, not user-configurable',
 };
 
 function walkDir(dirPath) {

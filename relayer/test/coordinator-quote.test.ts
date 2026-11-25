@@ -17,11 +17,16 @@ const quote = (validUntil: number): QuoteResponse => ({
 } as QuoteResponse);
 
 const action: RelayAction = {
-  kind: 'eth->xlm',
   orderId: 'order-1',
+  side: 'eth_to_xlm',
+  action: 'claim',
   chain: 'stellar',
   amount: '1000',
 };
+
+function makeStager(executor: () => Promise<{ hash: string }>) {
+  return () => ({ txHash: 'tx-1', broadcast: executor });
+}
 
 function coordinatorResponse(overrides: Record<string, unknown> = {}): Response {
   return new Response(JSON.stringify({
@@ -51,10 +56,10 @@ describe('QuoterService coordinator quote gate', () => {
     const executor = vi.fn().mockResolvedValue({ hash: 'tx-1' });
 
     const first = await service.submitIfCoordinatorQuoteMatches(
-      quote(expiresAt), 'coord-quote-1', action, tracker, executor
+      quote(expiresAt), 'coord-quote-1', action, tracker, makeStager(executor)
     );
     const second = await service.submitIfCoordinatorQuoteMatches(
-      quote(expiresAt), 'coord-quote-1', action, tracker, executor
+      quote(expiresAt), 'coord-quote-1', action, tracker, makeStager(executor)
     );
 
     expect(first.status).toBe('succeeded');
@@ -70,7 +75,7 @@ describe('QuoterService coordinator quote gate', () => {
     const executor = vi.fn();
 
     await expect(service.submitIfCoordinatorQuoteMatches(
-      quote(Date.now() + 30_000), 'coord-quote-1', action, tracker, executor
+      quote(Date.now() + 30_000), 'coord-quote-1', action, tracker, makeStager(executor)
     )).rejects.toBeInstanceOf(RelayTerminalError);
 
     expect(executor).not.toHaveBeenCalled();
@@ -91,7 +96,7 @@ describe('QuoterService coordinator quote gate', () => {
     const executor = vi.fn();
 
     await expect(service.submitIfCoordinatorQuoteMatches(
-      quote(expiresAt), 'coord-quote-1', action, tracker, executor
+      quote(expiresAt), 'coord-quote-1', action, tracker, makeStager(executor)
     )).rejects.toBeInstanceOf(RelayTerminalError);
 
     expect(executor).not.toHaveBeenCalled();
@@ -108,7 +113,7 @@ describe('QuoterService coordinator quote gate', () => {
     const executor = vi.fn();
 
     await expect(service.submitIfCoordinatorQuoteMatches(
-      quote(localExpiry), 'coord-quote-1', action, tracker, executor
+      quote(localExpiry), 'coord-quote-1', action, tracker, makeStager(executor)
     )).rejects.toBeInstanceOf(RelayTerminalError);
 
     expect(executor).not.toHaveBeenCalled();
@@ -127,7 +132,7 @@ describe('QuoterService coordinator quote gate', () => {
     const executor = vi.fn();
 
     await expect(service.submitIfCoordinatorQuoteMatches(
-      quote(Date.now() + 30_000), 'coord-quote-1', action, tracker, executor
+      quote(Date.now() + 30_000), 'coord-quote-1', action, tracker, makeStager(executor)
     )).rejects.toBeInstanceOf(RelayTerminalError);
 
     expect(executor).not.toHaveBeenCalled();
