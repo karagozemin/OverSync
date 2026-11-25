@@ -133,6 +133,16 @@ The refusal count is also exported as the `coordinator_illegal_order_transitions
 
 ---
 
+### Invalid order identifiers and history cursors
+
+Order identifiers in order and secret routes may be 1–128 characters long.
+Control characters and leading or trailing whitespace are rejected. Invalid
+identifiers return HTTP 400 with `{"error":"invalid_order_id"}`.
+
+The `cursor` query parameter for `GET /api/orders/history` has a 512-character
+limit before decoding. Oversized and malformed tokens return HTTP 400 with
+`{"error":"invalid_cursor","reason":"malformed","message":"Cursor is not a valid pagination token"}`.
+
 ## HTTP 404 — Not Found
 
 ```json

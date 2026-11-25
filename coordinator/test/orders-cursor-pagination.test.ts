@@ -15,7 +15,7 @@ import { createApp } from "../src/server/app.js";
 import { openDatabase, type Database } from "../src/persistence/db.js";
 import { OrdersRepository } from "../src/persistence/orders-repo.js";
 import { OrderService } from "../src/services/order-service.js";
-import { encodeHistoryCursor } from "../src/server/routes/cursor-utils.js";
+import { encodeHistoryCursor, MAX_HISTORY_CURSOR_LENGTH } from "../src/server/routes/cursor-utils.js";
 import type { SecretService } from "../src/services/secret-service.js";
 import type { QuoteService } from "../src/services/quote-service.js";
 
@@ -301,5 +301,28 @@ describe("GET /api/orders/history — invalid cursors", () => {
     const res = await request(app).get("/api/orders/history");
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("address_required");
+  });
+
+  it("accepts an exact-limit token and gives the same error for oversized and malformed tokens", async () => {
+    const encoded = encodeHistoryCursor({
+      createdAt: T,
+      publicId: hex("a"),
+      user: USER,
+      network: "testnet"
+    });
+    // Trailing JSON whitespace leaves the cursor payload unchanged.
+    const payload = Buffer.from(encoded, "base64url").toString("utf8");
+    const exact = Buffer.from(payload.padEnd(MAX_HISTORY_CURSOR_LENGTH * 3 / 4)).toString("base64url");
+    expect(exact).toHaveLength(MAX_HISTORY_CURSOR_LENGTH);
+    const oversized = Buffer.from(payload.padEnd(MAX_HISTORY_CURSOR_LENGTH * 3 / 4 + 1)).toString("base64url");
+
+    await request(app).get("/api/orders/history").query({ address: USER, cursor: exact }).expect(200);
+    for (const cursor of [oversized, "not-a-cursor"]) {
+      await request(app).get("/api/orders/history").query({ address: USER, cursor }).expect(400, {
+        error: "invalid_cursor",
+        reason: "malformed",
+        message: "Cursor is not a valid pagination token"
+      });
+    }
   });
 });
