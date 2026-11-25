@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, chmod } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -12,11 +12,22 @@ const __dirname = dirname(__filename);
 // is the recommended zero-install SQLite driver.
 const nodeRequire = createRequire(import.meta.url);
 const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
-
 export type Database = InstanceType<typeof DatabaseSync> | PostgresDatabase;
-
 export function isPostgresDatabase(db: Database): db is PostgresDatabase {
   return (db as any).getPool !== undefined;
+}
+
+/**
+ * Set SQLite database file permissions to owner-only (0o600).
+ * This prevents other users on the host from reading the coordinator's
+ * database, which contains order state and secret-related data.
+ */
+export function setSqliteDatabasePermissions(filename: string): void {
+  try {
+    chmod(filename, 0o600);
+  } catch {
+    // Best-effort: if we can't set permissions, continue without error.
+  }
 }
 
 /**
@@ -159,6 +170,8 @@ function openSqliteDatabase(url: string): Database {
   const db = new DatabaseSync(filename);
   const schema = readFileSync(resolve(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
+  // Set owner-only permissions on the SQLite database file.
+  setSqliteDatabasePermissions(filename);
   return db;
 }
 
