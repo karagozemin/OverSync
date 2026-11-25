@@ -1,6 +1,7 @@
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { sepolia, mainnet } from "viem/chains";
 import { rpc } from "@stellar/stellar-sdk";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 import { z } from "zod";
 import { loadConfig } from "./config.js";
 
@@ -47,7 +48,9 @@ export async function runReplay(args: ReplayArgs): Promise<ReplaySummary> {
     }
     const client = createPublicClient({
       chain: cfg.ethereum.chainId === 1 ? mainnet : sepolia,
-      transport: http(cfg.ethereum.rpcUrl)
+      transport: http(cfg.ethereum.rpcUrl, {
+        fetchFn: createJsonRpcFetch()
+      })
     });
 
     try {
@@ -80,7 +83,7 @@ export async function runReplay(args: ReplayArgs): Promise<ReplaySummary> {
     if (!contractId) {
       throw new Error("SOROBAN_HTLC contract not configured");
     }
-    const server = new rpc.Server(cfg.soroban.rpcUrl, {
+    const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
       allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
     });
 

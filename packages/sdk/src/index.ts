@@ -6,6 +6,7 @@ export * from "./amounts/index.js";
 export * from "./errors/index.js";
 export * from "./explorers/index.js";
 export * from "./deployment-evidence/index.js";
+export * from "./rpc-response.js";
 export {
   EthereumHTLCClient,
   HTLC_ESCROW_ABI,

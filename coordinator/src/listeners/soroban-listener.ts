@@ -5,6 +5,7 @@ import type { OrderService } from "../services/order-service.js";
 import { listenerLastBlock } from "../metrics.js";
 import { OrderEventApplier } from "./order-events.js";
 import { decodeSorobanOrderEvent } from "./soroban-events.js";
+import { createSorobanRpcServer } from "@oversync/sdk";
 
 /**
  * Polls the Soroban RPC for HTLC contract events, decodes the `created` /
@@ -28,7 +29,7 @@ export class SorobanListener {
   ) {
     this.log = log.child({ component: "SorobanListener" });
     this.applier = new OrderEventApplier(orders, this.log, "soroban-listener");
-    this.server = new rpc.Server(cfg.soroban.rpcUrl, {
+    this.server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
       allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
     });
   }

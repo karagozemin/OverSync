@@ -20,6 +20,7 @@ import {
 import { loadConfig } from "../config.js";
 import { getLogger } from "../logger.js";
 import { checkResolverNetworkAgreement } from "../network-agreement.js";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 
 // ---------------------------------------------------------------
 // ABIs
@@ -194,7 +195,7 @@ async function validateSorobanRegistry(
     throw new Error("RESOLVER_STELLAR_SECRET env var is required for Soroban registry actions");
   }
 
-  const server = new rpc.Server(cfg.soroban.rpcUrl, {
+  const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
     allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
   });
   const contract = new Contract(cfg.soroban.resolverRegistry);
@@ -243,7 +244,7 @@ async function registerSoroban(
   }
 
   const kp = Keypair.fromSecret(cfg.soroban.resolverSecret);
-  const server = new rpc.Server(cfg.soroban.rpcUrl, {
+  const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
     allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
   });
   const contract = new Contract(cfg.soroban.resolverRegistry);
@@ -340,8 +341,15 @@ export async function registerCommand(
 
   const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
   const account = privateKeyToAccount(cfg.ethereum.resolverPrivateKey);
-  const publicClient = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl) });
-  const walletClient = createWalletClient({ chain, account, transport: http(cfg.ethereum.rpcUrl) });
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+  });
+  const walletClient = createWalletClient({
+    chain,
+    account,
+    transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+  });
 
   // ---------------------------------------------------------------
   // 2. Validate EVM registry address against the deployed escrow
@@ -470,8 +478,15 @@ function ensureEvmContext() {
 
   const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
   const account = privateKeyToAccount(cfg.ethereum.resolverPrivateKey);
-  const publicClient = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl) });
-  const walletClient = createWalletClient({ chain, account, transport: http(cfg.ethereum.rpcUrl) });
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+  });
+  const walletClient = createWalletClient({
+    chain,
+    account,
+    transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+  });
 
   return { cfg, log, account, publicClient, walletClient };
 }

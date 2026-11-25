@@ -20,6 +20,7 @@ import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia, mainnet } from "viem/chains";
 import { rpc, Keypair } from "@stellar/stellar-sdk";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 import { resolveEthereumRpcUrl } from "../ethereum-rpc-url.js";
 import { checkCoordinatorNetwork, checkResolverNetworkAgreement, redactUrl } from "../network-agreement.js";
 
@@ -109,7 +110,10 @@ async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
   try {
     const client = createPublicClient({
       chain,
-      transport: http(url, { timeout: RPC_TIMEOUT_MS })
+      transport: http(url, {
+        timeout: RPC_TIMEOUT_MS,
+        fetchFn: createJsonRpcFetch()
+      })
     });
     const cid = await client.getChainId();
     if (cid === expectedChainId) {
@@ -142,7 +146,7 @@ async function pingSorobanRpc(network: "testnet" | "mainnet"): Promise<{
     (network === "mainnet" ? "https://mainnet.sorobanrpc.com" : "https://soroban-testnet.stellar.org");
   const displayUrl = redactRpcUrl(url);
   try {
-    const server = new rpc.Server(url, {
+    const server = createSorobanRpcServer(url, {
       allowHttp: url.startsWith("http://"),
       timeout: RPC_TIMEOUT_MS
     });
