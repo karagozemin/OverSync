@@ -65,7 +65,7 @@ describe('TransactionHistory recovery', () => {
   });
 
   test('recovers orders from the coordinator after reconnecting a wallet and renders them', async () => {
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = vi.fn(async (_url: string) => ({
       ok: true,
       json: async () => ({ transactions: [coordinatorOrder()] }),
     }));
@@ -77,11 +77,10 @@ describe('TransactionHistory recovery', () => {
       expect(screen.getByText('ETH Sepolia')).toBeInTheDocument();
     });
 
-    // One request per connected address, using the coordinator's `address` param.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const requestedUrls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(requestedUrls.some((u) => u.includes('address=0xEthAddress'))).toBe(true);
-    expect(requestedUrls.some((u) => u.includes('address=GSTELLARADDRESS'))).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(fetchMock.mock.calls[0][0], window.location.origin);
+    expect(url.searchParams.get('eth')).toBe('0xEthAddress');
+    expect(url.searchParams.get('stellar')).toBe('GSTELLARADDRESS');
 
     // Recovered order persisted to local storage for the next reload.
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
@@ -116,7 +115,7 @@ describe('TransactionHistory recovery', () => {
 
     await waitFor(() => {
       const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
-      expect(stored).toHaveLength(1);
+      expect(stored.map(({ id }: { id: string }) => id)).toEqual(['coordinator-final-id']);
     });
 
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');

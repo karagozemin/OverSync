@@ -182,14 +182,6 @@ import ClientSubscriptionManager from './client-subscriptions.js';
 
 
 
-// Phase 5: Recovery System imports
-import RecoveryService, {
-  RecoveryConfig,
-  RecoveryType,
-  RecoveryStatus,
-  type RecoverySubmitter,
-} from './recovery-service.js';
-
 // Stellar SDK will be imported dynamically when needed
 
 // Phase 8: Monitoring System imports
@@ -585,23 +577,6 @@ export const relaySubmissionTracker = new RelaySubmissionTracker({
  * (`stageStellarTransaction` / `stageEthereumTransaction`) so the hash is
  * recorded before the broadcast.
  */
-function createRecoverySubmitter(): RecoverySubmitter {
-  return async ({ orderId, side, action, chain, reason, execute }) => {
-    const recoveryAction: RelayAction = {
-      orderId,
-      side,
-      action,
-      chain,
-      extra: { source: 'recovery-service', reason },
-    };
-    const blocking = relaySubmissionTracker.getBlockingRecord(recoveryAction);
-    if (blocking) {
-      throw new RelayOrderBusyError(recoveryAction, blocking);
-    }
-    return execute();
-  };
-}
-
 /**
  * The refund watchdog handle, kept at module scope so `gracefulShutdown` can
  * stop its timer before the process exits.
@@ -789,6 +764,10 @@ async function initializeRelayer() {
     res.json({ message: 'FusionBridge Relayer API', status: 'running' });
   });
   
+  app.get(['/health', '/api/health'], (_req, res) => {
+    res.json({ status: 'ok' });
+  });
+
   // Simple test endpoints
   app.get('/test', (req, res) => {
     res.json({ message: 'ROOT test working!', timestamp: new Date().toISOString() });
@@ -1908,7 +1887,11 @@ async function initializeRelayer() {
               amount: xlmAmount,
             },
             relaySubmissionTracker,
-            () => server.submitTransaction(transaction)
+            () => stageStellarTransaction({
+              server,
+              transaction,
+              network: dynamicNetwork,
+            })
           );
           payoutResult = submission.result;
           payoutTxHash = submission.txHash ?? payoutResult?.hash;
@@ -3379,34 +3362,6 @@ console.log('✅ Phase 4: Event System initialized');
 // ===== PHASE 3.5: RESOLVER INTEGRATION INITIALIZATION =====
 
 
-
-// ===== PHASE 5: RECOVERY SYSTEM INITIALIZATION =====
-
-// Initialize recovery configuration
-const recoveryConfig: RecoveryConfig = {
-  monitoringInterval: 30000, // 30 seconds
-  autoRefundEnabled: true,
-  emergencyEnabled: true,
-  maxRetries: 3,
-  retryDelay: 60000, // 1 minute
-  gracePeriod: 300 // 5 minutes after timelock
-};
-
-// Initialize recovery service. Every on-chain step it wants to take is routed
-// through the shared submission tracker, so a recovery can never race a claim
-// or a watchdog refund for the same order.
-const recoveryService = new RecoveryService(ordersService, eventManager, recoveryConfig, createRecoverySubmitter());
-
-// Connect recovery service to event system
-recoveryService.on('recoveryCompleted', (event) => {
-  console.log(`✅ Recovery completed: ${event.recoveryId}`);
-});
-
-recoveryService.on('recoveryFailed', (event) => {
-  console.log(`❌ Recovery failed: ${event.recoveryId} - ${event.error}`);
-});
-
-console.log('✅ Phase 5: Recovery System initialized');
 
 // ===== PHASE 4: EVENT SYSTEM ENDPOINTS =====
 

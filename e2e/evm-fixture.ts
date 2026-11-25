@@ -34,7 +34,6 @@ const SAFETY_DEPOSIT = 0n;
 /** The escrow value locked per order, exported so tests can assert balances. */
 export const ESCROW_AMOUNT = AMOUNT;
 const ZERO_ADDR = ethers.ZeroAddress;
-const HARDHAT_RPC = "http://127.0.0.1:8545";
 const DEPLOYER_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const BENEFICIARY_KEY =
@@ -82,10 +81,10 @@ function decodeCustomError(abi: InterfaceAbi, data: string | undefined): string 
 }
 
 /** Spawn a Hardhat node and wait until it is ready to accept connections. */
-async function spawnHardhatNode(): Promise<ChildProcess> {
+async function spawnHardhatNode(): Promise<{ node: ChildProcess; rpcUrl: string }> {
   const contractsDir = join(__dirname, "../contracts");
 
-  const node = spawn("pnpm", ["hardhat", "node"], {
+  const node = spawn("pnpm", ["hardhat", "node", "--hostname", "127.0.0.1", "--port", "0"], {
     cwd: contractsDir,
     stdio: ["ignore", "pipe", "pipe"],
     shell: true,
@@ -93,17 +92,23 @@ async function spawnHardhatNode(): Promise<ChildProcess> {
   });
 
   // Wait until the node prints its ready message
-  await new Promise<void>((resolve, reject) => {
+  const rpcUrl = await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error("Hardhat node did not start within 30s"));
     }, 30_000);
 
-    node.stdout?.on("data", (chunk: Buffer) => {
-      if (chunk.toString().includes("Started HTTP and WebSocket JSON-RPC server")) {
+    let output = "";
+    const readAddress = (chunk: Buffer) => {
+      output += chunk.toString();
+      const address = output.match(/Started HTTP and WebSocket JSON-RPC server at (http:\/\/127\.0\.0\.1:\d+\/)/)?.[1];
+      if (address) {
+        node.stdout?.off("data", readAddress);
+        node.stdout?.resume();
         clearTimeout(timeout);
-        resolve();
+        resolve(address);
       }
-    });
+    };
+    node.stdout?.on("data", readAddress);
 
     node.stderr?.on("data", (chunk: Buffer) => {
       const msg = chunk.toString();
@@ -119,7 +124,7 @@ async function spawnHardhatNode(): Promise<ChildProcess> {
     });
   });
 
-  return node;
+  return { node, rpcUrl };
 }
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
@@ -131,9 +136,9 @@ export async function startEvmFixture(): Promise<RealEvmHtlcFixture> {
   const HTLC_ABI = artifact.abi;
   const HTLC_BYTECODE = artifact.bytecode as string;
   // Spawn a fresh Hardhat node for this test
-  const nodeProcess = await spawnHardhatNode();
+  const { node: nodeProcess, rpcUrl } = await spawnHardhatNode();
 
-  const provider = new ethers.JsonRpcProvider(HARDHAT_RPC, undefined, {
+  const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
     cacheTimeout: -1,
     polling: true,
   });

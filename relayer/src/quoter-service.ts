@@ -9,6 +9,7 @@ import { getCurrentTimestamp } from './utils.js';
 import {
   RelayRefusalError,
   type RelayAction,
+  type RelayStager,
   type RelaySubmissionTracker,
 } from './relay-submission-tracker.js';
 
@@ -104,7 +105,7 @@ export class QuoterService {
     coordinatorQuoteId: string | undefined,
     action: RelayAction,
     tracker: RelaySubmissionTracker,
-    executor: () => Promise<R>
+    stager: RelayStager<R>
   ) {
     return tracker.submit(action, async () => {
       if (!quote || !coordinatorQuoteId) {
@@ -168,7 +169,7 @@ export class QuoterService {
         throw new RelayRefusalError('COORDINATOR_QUOTE_MISMATCH');
       }
 
-      return executor();
+      return stager();
     });
   }
 

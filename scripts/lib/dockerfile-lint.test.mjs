@@ -68,6 +68,18 @@ describe("resolver and relayer Dockerfile linting", () => {
     );
   });
 
+  it("allows shell-form CMD within a continued HEALTHCHECK instruction", () => {
+    const dockerfile = [
+      "FROM node:22-alpine",
+      "HEALTHCHECK --interval=30s \\",
+      "  CMD node -e \"process.exit(0)\"",
+      'CMD ["node", "dist/index.js"]',
+    ].join("\n");
+
+    const result = lintDockerfile(dockerfile, { file: "healthcheck/Dockerfile" });
+    assert.equal(result.ok, true, JSON.stringify(result.blockingFindings));
+  });
+
   it("rejects non-blocking failure thresholds or overly broad ignore lists in .hadolint.yaml", () => {
     const permissive = parseHadolintConfig("failure-threshold: style\ntrustedRegistries:\n  - docker.io\n");
     assert.equal(validateHadolintConfig(permissive).ok, false);

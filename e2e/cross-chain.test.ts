@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, beforeAll, afterAll, afterEach } from "vitest";
+import { beforeEach, describe, expect, it, beforeAll, afterAll } from "vitest";
 import { generateSecret, hashSecret, hashOrderPreimage, verifyPreimage } from "@oversync/sdk/secrets";
-import { EvmHtlcSim, SorobanHtlcSim, type HtlcSim } from "./sim.js";
-import { startEvmFixture, type RealEvmHtlcFixture } from "./evm-fixture.js";
+import { assertEscrowReleasedTogether, DEFAULT_ESCROW_AMOUNT, EvmHtlcSim, OneSidedReleaseError, SorobanHtlcSim, type CrossChainLeg, type HtlcSim } from "./sim.js";
+import { ESCROW_AMOUNT, HARDHAT_TEST_KEYS, startEvmFixture, type RealEvmHtlcFixture } from "./evm-fixture.js";
 
 const TIMELOCK_SECONDS = 600;
 const PAST_TIMELOCK = TIMELOCK_SECONDS + 1;
@@ -137,14 +137,14 @@ describe("cross-chain HTLC differential harness", () => {
       const evm = new EvmHtlcSim();
       const stellar = new SorobanHtlcSim();
       const evmId = evm.createOrder({
-        hashlock: secret.sha256,
+        hashlock: hashOrderPreimage(1n, secret.preimage),
         timelockSeconds: TIMELOCK_SECONDS,
         amount: AMOUNT,
         maker: "evm-maker",
         recipient: "evm-recipient"
       });
       const stellarId = stellar.createOrder({
-        hashlock: secret.sha256,
+        hashlock: hashOrderPreimage(1n, secret.preimage),
         timelockSeconds: TIMELOCK_SECONDS,
         amount: AMOUNT,
         maker: "stellar-maker",
@@ -257,16 +257,16 @@ describe("cross-chain HTLC differential harness", () => {
   });
 
   // ── Real EVM execution via Anvil + deployed HTLCEscrow ──────────────────
-describe("real EVM HTLCEscrow (Anvil)", () => {
+  describe("real EVM HTLCEscrow (Hardhat)", () => {
     let fixture: RealEvmHtlcFixture;
 
     beforeAll(async () => {
       fixture = await startEvmFixture();
     }, 60_000);
 
-   afterAll(async () => {
-    await fixture.stop();
-});
+    afterAll(async () => {
+      await fixture?.stop();
+    });
     it("deploys and accepts a valid sha256 preimage from @oversync/sdk — order becomes Claimed", async () => {
       const secret = generateSecret();
 

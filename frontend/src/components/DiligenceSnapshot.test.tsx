@@ -1,7 +1,10 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { DiligenceSnapshot } from './DiligenceSnapshot';
+import SharedDiligenceSnapshot, { DiligenceSnapshot } from './DiligenceSnapshot';
 import { DeploymentContext } from '../context/DeploymentContext';
+
+import { getSelfCheckDeploymentRecord } from './DeploymentSelfCheck';
+import { buildDeploymentRecord, diffDeploymentRecords, getDeploymentRecord } from '../config/deployment';
 
 const mockDeploymentRecord = {
   registryAddress: '0x1234567890123456789012345678901234567890',
@@ -59,7 +62,7 @@ describe('DiligenceSnapshot', () => {
     expect(screen.getByText('Diligence Snapshot')).toBeInTheDocument();
     expect(screen.getByText(mockDeploymentRecord.registryAddress)).toBeInTheDocument();
     expect(screen.getByText(mockDeploymentRecord.escrowAddress)).toBeInTheDocument();
-    expect(screen.getByText(/ContractA: 0xabcdef...cdef12/i)).toBeInTheDocument();
+    expect(screen.getByText(/ContractA: 0xabcd\.\.\.ef12/i)).toBeInTheDocument();
   });
 
   it('hides snapshot when registry address differs', () => {
@@ -115,7 +118,7 @@ describe('DiligenceSnapshot — shared deployment record', () => {
   });
 
   test('a matching record renders the snapshot fields from that record', () => {
-    render(<DiligenceSnapshot record={RECORD} selfCheckRecord={{ ...RECORD }} />);
+    render(<SharedDiligenceSnapshot record={RECORD} selfCheckRecord={{ ...RECORD }} />);
 
     expect(screen.queryByTestId('diligence-snapshot-mismatch')).not.toBeInTheDocument();
     expect(screen.getByTestId('diligence-snapshot-network')).toHaveTextContent('testnet');
@@ -134,7 +137,7 @@ describe('DiligenceSnapshot — shared deployment record', () => {
       ...RECORD,
       ethereum: { ...RECORD.ethereum, registry: '0x3333333333333333333333333333333333333333' },
     };
-    render(<DiligenceSnapshot record={RECORD} selfCheckRecord={selfCheck} />);
+    render(<SharedDiligenceSnapshot record={RECORD} selfCheckRecord={selfCheck} />);
 
     expect(screen.getByTestId('diligence-snapshot-mismatch')).toHaveTextContent('ethereum.registry');
     expect(screen.queryByText('0x1111111111111111111111111111111111111111')).not.toBeInTheDocument();
@@ -143,7 +146,7 @@ describe('DiligenceSnapshot — shared deployment record', () => {
   });
 
   test('the visible text does not contain a secret or deployer', () => {
-    const { container } = render(<DiligenceSnapshot record={RECORD} selfCheckRecord={RECORD} />);
+    const { container } = render(<SharedDiligenceSnapshot record={RECORD} selfCheckRecord={RECORD} />);
     const text = container.textContent ?? '';
     expect(text).not.toContain('f'.repeat(64));
     expect(text).not.toContain('SDEPLOYERSECRETFIXTURE');
@@ -153,7 +156,7 @@ describe('DiligenceSnapshot — shared deployment record', () => {
 
   test('defaults render the same record the self-check reports (no wallet needed)', () => {
     expect(diffDeploymentRecords(getDeploymentRecord(), getSelfCheckDeploymentRecord())).toEqual([]);
-    render(<DiligenceSnapshot />);
+    render(<SharedDiligenceSnapshot />);
     expect(screen.queryByTestId('diligence-snapshot-mismatch')).not.toBeInTheDocument();
   });
 });

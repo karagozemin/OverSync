@@ -1,3 +1,4 @@
+import { resolveApiBaseUrl } from './orderRecovery';
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type BackendStatus = 'checking' | 'reachable' | 'unavailable' | 'degraded';
@@ -6,15 +7,11 @@ export interface BackendStatusState {
   status: BackendStatus;
   lastChecked: Date | null;
   errorMessage: string | null;
-  retry: () => void;
+  retry: () => Promise<void>;
 }
 
 const POLL_INTERVAL_MS = 60_000;
 const TIMEOUT_MS = 5_000;
-
-function getApiBase(): string {
-  return import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || '');
-}
 
 export function useBackendStatus(): BackendStatusState {
   const [status, setStatus] = useState<BackendStatus>('checking');
@@ -27,13 +24,13 @@ export function useBackendStatus(): BackendStatusState {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const requestId = ++requestIdRef;
+    const requestId = ++requestIdRef.current;
     const timerId = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     setStatus('checking');
 
     try {
-      const res = await fetch(`${getApiBase()}/health`, { signal: controller.signal });
+      const res = await fetch(`${resolveApiBaseUrl()}/api/health`, { signal: controller.signal });
 
       if (requestId !== requestIdRef.current) return;
 
@@ -74,6 +71,7 @@ export function useBackendStatus(): BackendStatusState {
     const id = window.setInterval(check, POLL_INTERVAL_MS);
     return () => {
       window.clearInterval(id);
+      requestIdRef.current++;
       abortRef.current?.abort();
     };
   }, [check]);

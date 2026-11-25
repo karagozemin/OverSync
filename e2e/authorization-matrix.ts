@@ -1,4 +1,4 @@
-import { generateSecret } from "@oversync/sdk/secrets";
+import { generateSecret, hashOrderPreimage } from "@oversync/sdk/secrets";
 import { SimError, type HtlcSim, type SimErrorCode } from "./sim.js";
 
 /**
@@ -9,7 +9,7 @@ import { SimError, type HtlcSim, type SimErrorCode } from "./sim.js";
  * only one side lets the other side settle when it should not. This
  * module encodes every claim/refund outcome once and runs it against
  * both simulators (which re-encode the contracts' branch logic — see
- * `sim.ts`). `parity.test.ts` fails if the two result sets differ.
+ * `sim.ts`). `parity.test.ts` checks shared behavior and the EVM claim gate.
  *
  * Rows:
  *   registered resolver      | unregistered resolver
@@ -23,8 +23,9 @@ export type OutcomeClass = "ok" | SimErrorCode;
 export interface MatrixRow {
   id: string;
   description: string;
-  /** The outcome both contracts must produce. */
   expected: OutcomeClass;
+  /** Override for EVM when the deployed contract intentionally differs. */
+  expectedOnEvm?: OutcomeClass;
   run(sim: HtlcSim): OutcomeClass;
 }
 
@@ -59,7 +60,7 @@ export function strangerAddress(sim: HtlcSim): string {
 function newOrder(sim: HtlcSim, sender?: string): { id: bigint; preimage: `0x${string}` } {
   const secret = generateSecret();
   const id = sim.createOrder({
-    hashlock: secret.sha256,
+    hashlock: hashOrderPreimage(sim.nextOrderId(), secret.preimage),
     timelockSeconds: TIMELOCK_SECONDS,
     sender
   });
@@ -185,12 +186,13 @@ export const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     id: "unregistered-resolver-claims",
-    description: "claim stays permissionless even when the registry gate is on",
+    description: "only EVM requires an active resolver to claim when the registry gate is on",
     expected: "ok",
+    expectedOnEvm: "ClaimResolverNotRegistered",
     run: (sim) => {
       const resolver = enableRegistry(sim);
       const { id, preimage } = newOrder(sim, resolver);
-      return attempt(() => sim.claimOrder(id, preimage));
+      return attempt(() => sim.claimOrder(id, preimage, strangerAddress(sim)));
     }
   },
   {
