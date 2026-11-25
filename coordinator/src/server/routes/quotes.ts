@@ -6,6 +6,7 @@ import {
   QuoteNotFoundError
 } from "../../services/quote-service.js";
 import type { QuoteService } from "../../services/quote-service.js";
+import { noStore } from "./no-store.js";
 
 const quoteTermsSchema = z.object({
   srcChain: z.enum(["ethereum", "stellar"]),
@@ -18,6 +19,8 @@ const quoteTermsSchema = z.object({
 
 export function quotesRoutes(quotes: QuoteService): Router {
   const router = Router();
+  // A quote is bound to one caller's terms; no proxy or browser may keep it.
+  router.use(noStore);
 
   /**
    * GET /api/quotes/eth-xlm

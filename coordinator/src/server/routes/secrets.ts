@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SecretService } from "../../services/secret-service.js";
 import { isTransitionRejection } from "../../services/order-service.js";
 import type { RequestHandler } from "express";
+import { noStore } from "./no-store.js";
 
 export interface SecretsRoutesOptions {
   /** CORS middleware to gate the secret route. */
@@ -13,6 +14,8 @@ export interface SecretsRoutesOptions {
 
 export function secretsRoutes(secrets: SecretService, options: SecretsRoutesOptions = {}): Router {
   const router = Router();
+  // Reveals and lookups are order-specific; never let a shared cache keep them.
+  router.use(noStore);
 
   const revealSchema = z.object({
     publicId: z.string().min(1),
