@@ -8,6 +8,7 @@ import { OrderService } from "./services/order-service.js";
 import { QuoteService } from "./services/quote-service.js";
 import { SecretService } from "./services/secret-service.js";
 import { createApp } from "./server/app.js";
+import { createCoordinatorServer } from "./server/timeouts.js";
 import { EthereumListener } from "./listeners/ethereum-listener.js";
 import { ChainEventProcessor } from "./services/chain-events.js";
 import { SorobanListener } from "./listeners/soroban-listener.js";
@@ -39,8 +40,11 @@ async function main(): Promise<void> {
     quotes
   });
 
-  const server = app.listen(cfg.port, () => {
-    log.info({ port: cfg.port }, "HTTP server listening");
+  // Built explicitly rather than with app.listen() so the request limits are in
+  // force before the first connection is accepted.
+  const server = createCoordinatorServer(app, cfg.serverTimeouts);
+  server.listen(cfg.port, () => {
+    log.info({ port: cfg.port, ...cfg.serverTimeouts }, "HTTP server listening");
   });
 
   const chainEvents = new ChainEventProcessor(repo, orders, secrets, log);
