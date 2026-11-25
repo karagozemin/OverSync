@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   FusionWebSocketServer,
   EventType,
+  WS_HEARTBEAT_TIMEOUT_CODE,
   WS_POLICY_VIOLATION,
   allowedOriginsFromEnv,
   isSocketOriginAllowed,
@@ -19,10 +20,11 @@ class FakeSocket {
   sent: string[] = [];
   closed: { code?: number; reason?: string } | null = null;
   private handlers = new Map<string, (...args: any[]) => void>();
+  pings = 0;
   send(data: string) { this.sent.push(data); }
   close(code?: number, reason?: string) { this.closed = { code, reason }; this.readyState = 3; }
   terminate() { this.readyState = 3; }
-  ping() {}
+  ping() { this.pings++; }
   on(event: string, cb: (...args: any[]) => void) { this.handlers.set(event, cb); }
   emit(event: string, ...args: any[]) { this.handlers.get(event)?.(...args); }
 }
@@ -130,5 +132,90 @@ describe("FusionWebSocketServer outbound redaction", () => {
       headers: { "content-type": "application/json" },
       nested: [{ orderId: "ord_2" }]
     });
+  });
+});
+
+describe("FusionWebSocketServer heartbeat", () => {
+  const HEARTBEAT = { heartbeatIntervalMs: 1_000, idleTimeoutMs: 3_000 };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function heartbeatServer() {
+    return new FusionWebSocketServer(0, [ALLOWED], HEARTBEAT);
+  }
+
+  it("pings connected clients on every heartbeat interval", () => {
+    const server = heartbeatServer();
+    const { client, socket } = connect(server, ALLOWED);
+    expect(client).not.toBeNull();
+
+    vi.advanceTimersByTime(1_000);
+    expect(socket.pings).toBe(1);
+    expect(socket.closed).toBeNull();
+    expect(server.getClientCount()).toBe(1);
+  });
+
+  it("keeps a client that answers pings alive", () => {
+    const server = heartbeatServer();
+    const { socket } = connect(server, ALLOWED);
+
+    for (let sweep = 0; sweep < 10; sweep++) {
+      vi.advanceTimersByTime(1_000);
+      socket.emit("pong");
+    }
+
+    expect(socket.pings).toBe(10);
+    expect(socket.closed).toBeNull();
+    expect(server.getClientCount()).toBe(1);
+  });
+
+  it("closes a client that never answers with the stable close code", () => {
+    const server = heartbeatServer();
+    const { socket } = connect(server, ALLOWED);
+
+    // 1s and 2s send pings; at 3s the idle window has elapsed.
+    vi.advanceTimersByTime(3_000);
+
+    expect(socket.closed).toEqual({
+      code: WS_HEARTBEAT_TIMEOUT_CODE,
+      reason: "heartbeat timeout"
+    });
+    expect(server.getClientCount()).toBe(0);
+
+    // The sweep stops once the last client is gone.
+    const pingsAtClose = socket.pings;
+    vi.advanceTimersByTime(10_000);
+    expect(socket.pings).toBe(pingsAtClose);
+  });
+
+  it("clears the heartbeat timer when the last client disconnects", () => {
+    const server = heartbeatServer();
+    const { socket } = connect(server, ALLOWED);
+
+    vi.advanceTimersByTime(1_000);
+    expect(socket.pings).toBe(1);
+
+    socket.emit("close");
+    expect(server.getClientCount()).toBe(0);
+
+    vi.advanceTimersByTime(10_000);
+    expect(socket.pings).toBe(1);
+  });
+
+  it("clears all timers on shutdown and closes connected sockets", async () => {
+    const server = heartbeatServer();
+    const { socket } = connect(server, ALLOWED);
+
+    await server.stop();
+
+    expect(socket.closed).not.toBeNull();
+    vi.advanceTimersByTime(10_000);
+    expect(socket.pings).toBe(0);
   });
 });

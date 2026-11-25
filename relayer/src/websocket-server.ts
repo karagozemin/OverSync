@@ -42,6 +42,45 @@ export const DEFAULT_ALLOWED_ORIGINS =
 export const WS_POLICY_VIOLATION = 1008;
 
 /**
+ * Stable close code sent to a client that stopped answering heartbeats.
+ * 4001 sits in the RFC 6455 §7.4.2 private-use range, so it cannot collide
+ * with a protocol-defined code.
+ */
+export const WS_HEARTBEAT_TIMEOUT_CODE = 4001;
+
+/** Close reason paired with {@link WS_HEARTBEAT_TIMEOUT_CODE}. */
+export const WS_HEARTBEAT_TIMEOUT_REASON = 'heartbeat timeout';
+
+/** Default ping cadence: one ping sweep every 30 seconds. */
+export const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** Default idle window: one unanswered ping closes the socket. */
+export const DEFAULT_IDLE_TIMEOUT_MS = 2 * DEFAULT_HEARTBEAT_INTERVAL_MS;
+
+export interface HeartbeatOptions {
+  /** How often a protocol-level ping is sent to every connected client. */
+  heartbeatIntervalMs?: number;
+  /**
+   * Maximum time a client may go without a pong before it is closed. Must be
+   * greater than `heartbeatIntervalMs` so the client always gets a chance to
+   * answer at least one ping.
+   */
+  idleTimeoutMs?: number;
+}
+
+function positiveMilliseconds(
+  value: number | undefined,
+  fallback: number,
+  name: string
+): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number of milliseconds`);
+  }
+  return value;
+}
+
+/**
  * Parse a comma-separated origin allowlist exactly like the coordinator's
  * `parseCorsOrigins`, so the socket and the HTTP API admit the same set.
  */
@@ -226,8 +265,8 @@ export interface WebSocketClient {
   orderFilters: Set<string>; // Specific order hashes
   resolverFilters: Set<string>; // Specific resolver addresses
   chainFilters: Set<number>; // Specific chain IDs
-  lastPing: number;
-  isAlive: boolean;
+  /** Unix ms of the most recent pong (or of the handshake before the first one). */
+  lastPongAt: number;
   metadata: {
     userAgent?: string;
     ip?: string;
@@ -251,15 +290,35 @@ export class FusionWebSocketServer extends EventEmitter {
   private clients: Map<string, WebSocketClient> = new Map();
   private eventHistory: EventRecord[] = [];
   private readonly MAX_HISTORY_SIZE = 1000;
-  private pingInterval: NodeJS.Timeout | null = null;
-  private readonly PING_INTERVAL = 30000; // 30 seconds
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private readonly heartbeatIntervalMs: number;
+  private readonly idleTimeoutMs: number;
   private isRunning = false;
   private readonly allowedOrigins: string[];
 
-  constructor(private port: number = 3002, allowedOrigins: string[] = allowedOriginsFromEnv()) {
+  constructor(
+    private port: number = 3002,
+    allowedOrigins: string[] = allowedOriginsFromEnv(),
+    heartbeat: HeartbeatOptions = {}
+  ) {
     super();
     this.httpServer = createServer();
     this.allowedOrigins = allowedOrigins;
+    this.heartbeatIntervalMs = positiveMilliseconds(
+      heartbeat.heartbeatIntervalMs,
+      DEFAULT_HEARTBEAT_INTERVAL_MS,
+      'heartbeatIntervalMs'
+    );
+    this.idleTimeoutMs = positiveMilliseconds(
+      heartbeat.idleTimeoutMs,
+      DEFAULT_IDLE_TIMEOUT_MS,
+      'idleTimeoutMs'
+    );
+    // At or below the ping cadence the client would be dropped before it had a
+    // chance to answer even one ping.
+    if (this.idleTimeoutMs <= this.heartbeatIntervalMs) {
+      throw new Error('idleTimeoutMs must be greater than heartbeatIntervalMs');
+    }
   }
 
   /**
@@ -288,8 +347,7 @@ export class FusionWebSocketServer extends EventEmitter {
       orderFilters: new Set(),
       resolverFilters: new Set(),
       chainFilters: new Set(),
-      lastPing: Date.now(),
-      isAlive: true,
+      lastPongAt: Date.now(),
       metadata: {
         userAgent: Array.isArray(userAgent) ? userAgent[0] : userAgent,
         ip: request.socket?.remoteAddress,
@@ -297,6 +355,7 @@ export class FusionWebSocketServer extends EventEmitter {
       }
     };
     this.clients.set(client.id, client);
+    this.ensureHeartbeat();
 
     socket.on('message', (raw: unknown) => {
       let message: WebSocketMessage;
@@ -309,11 +368,13 @@ export class FusionWebSocketServer extends EventEmitter {
       this.handleClientMessage(client, message);
     });
     socket.on('pong', () => {
-      client.isAlive = true;
-      client.lastPing = Date.now();
+      client.lastPongAt = Date.now();
     });
     socket.on('close', () => {
-      this.clients.delete(client.id);
+      this.removeClient(client.id);
+    });
+    socket.on('error', () => {
+      this.removeClient(client.id);
     });
 
     return client;
@@ -327,7 +388,6 @@ export class FusionWebSocketServer extends EventEmitter {
       try {
         this.httpServer.listen(this.port, () => {
           console.log(`🌐 WebSocket server started on port ${this.port}`);
-          this.startPingInterval();
           resolve();
         });
       } catch (error) {
@@ -341,10 +401,7 @@ export class FusionWebSocketServer extends EventEmitter {
    */
   stop(): Promise<void> {
     return new Promise((resolve) => {
-      if (this.pingInterval) {
-        clearInterval(this.pingInterval);
-        this.pingInterval = null;
-      }
+      this.stopHeartbeat();
 
       // Close all client connections
       this.clients.forEach(client => {
@@ -648,22 +705,64 @@ export class FusionWebSocketServer extends EventEmitter {
   }
 
   /**
-   * Start ping interval to keep connections alive
+   * Start the shared heartbeat sweep if it is not already running. The sweep
+   * exists only while at least one client is connected, so an idle relayer
+   * holds no timer at all.
    */
-  private startPingInterval(): void {
-    this.pingInterval = setInterval(() => {
-      this.clients.forEach(client => {
-        if (!client.isAlive) {
-          console.log(`💀 Terminating inactive client: ${client.id}`);
-          client.socket.terminate();
-          this.clients.delete(client.id);
-          return;
-        }
+  private ensureHeartbeat(): void {
+    if (this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), this.heartbeatIntervalMs);
+    // The sweep must not be the reason the process stays alive.
+    this.heartbeatTimer.unref?.();
+  }
 
-        client.isAlive = false;
+  /** Stop the heartbeat sweep and drop its reference. Safe to call twice. */
+  private stopHeartbeat(): void {
+    if (!this.heartbeatTimer) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+  }
+
+  /**
+   * One heartbeat sweep: close clients whose last pong is older than the idle
+   * timeout, then ping everyone still alive. Clients are copied first because
+   * closing one mutates `clients`.
+   */
+  private heartbeat(): void {
+    const now = Date.now();
+    for (const client of [...this.clients.values()]) {
+      if (now - client.lastPongAt >= this.idleTimeoutMs) {
+        console.log(`💀 Closing unresponsive client after heartbeat timeout: ${client.id}`);
+        this.closeIdleClient(client);
+        continue;
+      }
+      try {
         client.socket.ping();
-      });
-    }, this.PING_INTERVAL);
+      } catch {
+        // A socket that cannot be pinged is already gone.
+        this.closeIdleClient(client);
+      }
+    }
+  }
+
+  /**
+   * Remove an unresponsive client and close its socket with the stable
+   * heartbeat code so the peer can distinguish an idle eviction from a
+   * server shutdown (1001) or a policy refusal (1008).
+   */
+  private closeIdleClient(client: WebSocketClient): void {
+    this.removeClient(client.id);
+    try {
+      client.socket.close(WS_HEARTBEAT_TIMEOUT_CODE, WS_HEARTBEAT_TIMEOUT_REASON);
+    } catch {
+      // The socket is already gone; removing the client is what matters.
+    }
+  }
+
+  /** Unregister a client and stop the sweep once the last one disconnects. */
+  private removeClient(id: string): void {
+    if (!this.clients.delete(id)) return;
+    if (this.clients.size === 0) this.stopHeartbeat();
   }
 
   // Public getters for monitoring
