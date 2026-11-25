@@ -17,6 +17,8 @@ export async function runCommand(opts: RunOptions = {}): Promise<void> {
   const log = getLogger(cfg.logLevel);
   log.info({ network: cfg.network, dryRun }, "OverSync resolver starting");
 
+  await checkDeploymentAddresses(cfg);
+
   // Check resolver's own RPC network agreement
   const resolverAgreement = await checkResolverNetworkAgreement(
     cfg.network,

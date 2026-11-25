@@ -5,6 +5,7 @@ import { healthRoutes } from "./routes/health.js";
 import { metricsRoutes, orderMetricsRoutes } from "./routes/metrics.js";
 import { httpRequestDuration } from "../metrics.js";
 import { ordersRoutes } from "./routes/orders.js";
+import { publicResponseRedaction } from "./public-response-redaction.js";
 import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";

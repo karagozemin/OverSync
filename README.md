@@ -13,7 +13,7 @@ is a `sha256` preimage reveal, not a multisig attestation. If anything
 in the bridge fails — coordinator down, resolver malicious, RPC
 rate-limited, frontend offline — the locked funds either settle to
 the beneficiary or refund permissionlessly to the user. There is no
-state in which user funds are stranded under operator control.
+state in which user funds are stranded under operator control. 
 
 > **Status (May 2026).** v2 is the live design and is **deployed on
 > testnet** (Sepolia + Stellar testnet). The public frontend is
@@ -33,9 +33,9 @@ state in which user funds are stranded under operator control.
 > intentionally gated on fuzz/differential tests, multisig governance,
 > and external audit.
 
-> **SCF reviewers and investors.** A consolidated diligence package — contracts,
-> explorer links, CI status, security checklist, roadmap, and budget — is at
-> [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md). Readable in ≤ 10 minutes.
+> **SCF reviewers and investors.** The
+> [`post-demo evidence pack template`](docs/POST_DEMO_EVIDENCE_PACK.md) collects
+> demo details, live service status, and the contract addresses demonstrated.
 
 ---
 
@@ -45,7 +45,7 @@ Historically, cross-chain bridges have caused some of the largest losses
 in DeFi (Ronin $625M, Wormhole $325M, Multichain $231M). The common
 failure pattern is the same: an off-chain validator quorum that signs
 proofs of locks gets compromised, and the wrapped tokens on the
-destination chain get minted without a real lock.
+destination chain get minted without a real lock. 
 
 OverSync gives up the convenience of validator-set bridging in
 exchange for a strictly weaker trust assumption:
@@ -59,6 +59,7 @@ exchange for a strictly weaker trust assumption:
 
 The full competitive analysis (CCTP v2, Axelar ITS, Allbridge) lives
 in [`docs/DIFFERENTIATION.md`](docs/DIFFERENTIATION.md).
+
 
 ---
 
@@ -264,7 +265,7 @@ threat model.
 
 | Document | What it covers |
 |---|---|
-| [`docs/DILIGENCE_DATA_ROOM.md`](docs/DILIGENCE_DATA_ROOM.md) | **SCF reviewer data room** — contracts, explorer links, CI, security checklist, roadmap, budget, risks; readable in ≤ 10 min |
+| [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | **Post-demo evidence pack template** — demo details, live service status, and demonstrated contract addresses |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full technical architecture: invariants, sequence diagrams, refund stack, failure catalogue, cryptographic primitives, operational characteristics, auditor checklist |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Developer setup, CI test matrix, pull request expectations, and the [contributor proof checklist](.github/pull_request_template.md) |
 | [`ROADMAP.md`](ROADMAP.md) | Milestone-by-milestone delivery plan with verifiable artefacts; testnet v2 live, mainnet UI gated until audit |

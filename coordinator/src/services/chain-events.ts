@@ -126,7 +126,7 @@ export class ChainEventProcessor {
     try {
       if (ev.kind === "refunded") {
         if (order.status === "refunded") return "duplicate";
-        await this.orders.recordRefund(order.publicId, ev.txHash);
+        await this.orders.recordRefund({ publicId: order.publicId, txHash: ev.txHash });
       } else {
         if (!ev.preimage) return "ignored";
         if (order.secretRevealedTx === ev.txHash && order.preimage) return "duplicate";

@@ -14,12 +14,12 @@ export interface PriceQuote {
   /** Stable opaque id that callers can reference back to this exact quote. */
   quoteId: string;
   pair: string;
-  srcChain: QuoteTerms["srcChain"];
-  srcAsset: string;
-  srcAmount: string;
-  dstChain: QuoteTerms["dstChain"];
-  dstAsset: string;
-  dstAmount: string;
+  srcChain?: QuoteTerms["srcChain"];
+  srcAsset?: string;
+  srcAmount?: string;
+  dstChain?: QuoteTerms["dstChain"];
+  dstAsset?: string;
+  dstAmount?: string;
   /** Decimal string. `srcUsd` and `dstUsd` are USD per unit of src/dst. */
   srcUsd: string | null;
   dstUsd: string | null;
@@ -29,6 +29,12 @@ export interface PriceQuote {
   issuedAt: number;
   /** Unix ms after which this quote must not be used to fill an order. */
   expiresAt: number;
+  /**
+   * Source amount this quote was issued for, as a base-unit integer
+   * string (e.g. wei). When set, an order must announce exactly this
+   * `srcAmount` or it is rejected.
+   */
+  amountBaseUnits?: string;
   /** Order terms accepted with this quote, when it has been used to announce an order. */
   terms?: {
     fromAsset: string;
@@ -64,6 +70,64 @@ export class QuoteTermsMismatchError extends Error {
   }
 }
 
+export class AmountParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AmountParseError";
+  }
+}
+
+export class QuoteAmountMismatchError extends Error {
+  constructor(
+    public readonly quoteId: string,
+    public readonly quotedAmount: string,
+    public readonly orderAmount: string
+  ) {
+    super(`Quote ${quoteId} was issued for ${quotedAmount} base units, order announced ${orderAmount}`);
+    this.name = "QuoteAmountMismatchError";
+  }
+}
+
+const BASE_UNIT_INTEGER = /^(0|[1-9]\d*)$/;
+const DECIMAL_AMOUNT = /^(\d+)(?:\.(\d*))?$|^\.(\d+)$/;
+
+/**
+ * Parse a user-entered decimal amount into token base units using only
+ * string/BigInt arithmetic (no floating point). This is the same
+ * algorithm as `parseAmountToBaseUnits` in
+ * `frontend/src/lib/sanitizeAmountInput.ts`, so the form and the
+ * coordinator always agree on the integer.
+ *
+ * Rejects empty input, signs, exponents, and more fractional digits than
+ * the asset's `decimals` allows (never rounds or truncates).
+ */
+export function parseAmountToBaseUnits(input: string, decimals: number): bigint {
+  if (!Number.isInteger(decimals) || decimals < 0) {
+    throw new AmountParseError(`invalid decimals: ${decimals}`);
+  }
+  const text = input.trim();
+  const m = DECIMAL_AMOUNT.exec(text);
+  if (!m) {
+    throw new AmountParseError(`amount must be a non-negative decimal: "${input}"`);
+  }
+  const whole = m[1] ?? "0";
+  const frac = m[2] ?? m[3] ?? "";
+  if (frac.length > decimals) {
+    throw new AmountParseError(
+      `amount has ${frac.length} fractional digits, asset allows ${decimals}`
+    );
+  }
+  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, "0") || "0");
+}
+
+/** Validate a base-unit integer string (as sent by the form) and return it canonicalised. */
+export function parseBaseUnitInteger(value: string): string {
+  if (!BASE_UNIT_INTEGER.test(value)) {
+    throw new AmountParseError(`amount must be a base-unit integer string: "${value}"`);
+  }
+  return BigInt(value).toString();
+}
+
 /**
  * Minimal real-data price service. Reads from CoinGecko's free
  * (no-API-key) endpoint; if the call fails we surface a `null` price
@@ -97,10 +161,18 @@ export class QuoteService {
    * The returned object always has a unique `quoteId` so callers
    * can reference it when announcing an order.
    */
-  async quoteEthXlm(terms: QuoteTerms): Promise<PriceQuote> {
+  async quoteEthXlm(
+    opts: { amountBaseUnits?: string } & Partial<QuoteTerms> = {}
+  ): Promise<PriceQuote> {
+    const amountBaseUnits =
+      opts.amountBaseUnits === undefined ? undefined : parseBaseUnitInteger(opts.amountBaseUnits);
+    const TERM_KEYS = ["srcChain", "srcAsset", "srcAmount", "dstChain", "dstAsset", "dstAmount"] as const;
+    const hasTerms = TERM_KEYS.every((k) => opts[k] !== undefined);
+    const terms = hasTerms ? (opts as QuoteTerms) : undefined;
+
     const cached = this.priceCache.get("ETH-XLM");
     if (cached && this.now() < cached.expiresAt) {
-      return this.issueQuote(terms, cached.srcUsd, cached.dstUsd, "cache", cached.expiresAt);
+      return this.issueQuote(terms, cached.srcUsd, cached.dstUsd, "cache", cached.expiresAt, this.now(), amountBaseUnits);
     }
 
     let ethUsd: string | null = null;
@@ -124,7 +196,7 @@ export class QuoteService {
     const issuedAt = this.now();
     const expiresAt = issuedAt + this.cacheTtlMs;
     this.priceCache.set("ETH-XLM", { srcUsd: ethUsd, dstUsd: xlmUsd, expiresAt });
-    return this.issueQuote(terms, ethUsd, xlmUsd, source, expiresAt, issuedAt);
+    return this.issueQuote(terms, ethUsd, xlmUsd, source, expiresAt, issuedAt, amountBaseUnits);
   }
 
   /**
@@ -141,10 +213,27 @@ export class QuoteService {
     terms: NonNullable<PriceQuote["terms"]>
   ): PriceQuote {
     const quote = this.assertFresh(quoteId);
+    // A quote issued with explicit terms only fills an order that announces
+    // those exact terms; anything else is drift and must be rejected.
+    const issued =
+      quote.srcChain !== undefined &&
+      quote.srcAsset !== undefined &&
+      quote.srcAmount !== undefined &&
+      quote.dstChain !== undefined &&
+      quote.dstAsset !== undefined;
+    if (
+      issued &&
+      (quote.srcChain !== terms.fromNetwork ||
+        quote.srcAsset !== terms.fromAsset ||
+        quote.srcAmount !== terms.amount ||
+        quote.dstChain !== terms.toNetwork ||
+        quote.dstAsset !== terms.toAsset)
+    ) {
+      throw new QuoteTermsMismatchError(quoteId);
+    }
     quote.terms = terms;
     return quote;
   }
-
   /**
    * Assert that a quote exists **and** has not expired.
    *
@@ -223,22 +312,24 @@ export class QuoteService {
   }
 
   private issueQuote(
-    terms: QuoteTerms,
+    terms: QuoteTerms | undefined,
     srcUsd: string | null,
     dstUsd: string | null,
     source: PriceQuote["source"],
     expiresAt: number,
-    issuedAt = this.now()
+    issuedAt = this.now(),
+    amountBaseUnits?: string
   ): PriceQuote {
     const quote: PriceQuote = {
-      ...terms,
+      ...(terms ?? {}),
       quoteId: this.newQuoteId(),
       pair: "ETH-XLM",
       srcUsd,
       dstUsd,
       source,
       issuedAt,
-      expiresAt
+      expiresAt,
+      ...(amountBaseUnits === undefined ? {} : { amountBaseUnits })
     };
     this.quotes.set(quote.quoteId, quote);
     this.log.debug({ quoteId: quote.quoteId, source }, "quote issued");

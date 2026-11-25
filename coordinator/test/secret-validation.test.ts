@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { hashOrderPreimage } from "@oversync/sdk/secrets";
 import pino from "pino";
 import { mkdtempSync } from "node:fs";

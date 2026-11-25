@@ -39,7 +39,7 @@ Tick the matches your change and paste the outcome below. Commands mirror the ma
 - [ ] `pnpm --filter @oversync/resolver exec tsc --noEmit && pnpm --filter @oversync/resolver test`
 - [ ] `pnpm --filter @oversync/frontend exec tsc --noEmit && pnpm --filter @oversync/frontend test`
 - [ ] `pnpm --filter @oversync/contracts compile && pnpm --filter @oversync/contracts exec hardhat test test/v2/HTLCEscrow.test.ts test/v2/ResolverRegistry.test.ts`
-- [ ] `cd soroban && stellar contract build && cargo test --release`
+- [ ] `cd soroban && stellar contract build && cargo test --release --locked` (commit `soroban/Cargo.lock` if you changed a dependency)
 - [ ] `(cd contracts && forge test --match-path "test/foundry/*" -v)` (Solidity fuzz / invariant)
 - [ ] `pnpm test:e2e` (cross-chain differential harness)
 - [ ] `node scripts/verify-addresses.mjs` — required if addresses, configs, or `env.example` change

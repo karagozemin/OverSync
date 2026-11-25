@@ -699,7 +699,7 @@ fn second_refund_fails() {
     sac.mint(&sender, &100_0000000);
 
     let preimage = Bytes::from_array(&env, &[31u8; 32]);
-    let hashlock = sha256_32(&env, &preimage);
+    let hashlock = hashlock_order_one(&env, &preimage);
     let order_id = htlc.create_order(
         &sender, &beneficiary, &sender, &asset,
         &10_0000000i128, &0i128, &hashlock, &600u64,
@@ -756,7 +756,7 @@ fn claim_by_unregistered_caller_succeeds_when_registry_configured() {
     registry.register(&resolver, &min_stake);
 
     let preimage = Bytes::from_array(&env, &[34u8; 32]);
-    let hashlock = sha256_32(&env, &preimage);
+    let hashlock = hashlock_order_one(&env, &preimage);
     let amount = 100_0000000i128;
     let order_id = htlc.create_order(
         &resolver, &beneficiary, &resolver, &asset,
@@ -792,7 +792,7 @@ fn refund_by_unregistered_caller_succeeds_when_registry_configured() {
     registry.register(&resolver, &min_stake);
 
     let preimage = Bytes::from_array(&env, &[33u8; 32]);
-    let hashlock = sha256_32(&env, &preimage);
+    let hashlock = hashlock_order_one(&env, &preimage);
     let amount = 100_0000000i128;
     let order_id = htlc.create_order(
         &resolver, &beneficiary, &resolver, &asset,

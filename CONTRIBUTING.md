@@ -6,10 +6,17 @@ requests against the codebase. If you want to operate a resolver, use
 
 ## Prerequisites
 
-- Node.js 22.5+ and pnpm
+- Node.js 22.5+ (run `nvm use` to pick up `.nvmrc`) and pnpm
 - Rust with the `wasm32-unknown-unknown` and `wasm32v1-none` targets
 - `stellar-cli` 22.8.1 for Soroban contract builds
 - Foundry or Hardhat tooling for Solidity contract work
+
+The reviewed Node major lives in `.nvmrc` and must match every
+`actions/setup-node` `node-version` in `.github/workflows/`. Root and workspace
+`package.json` files all declare the same `engines.node` floor on that major.
+When bumping Node, update all three together; `pnpm test:scripts` checks for
+drift.
+
 ### Stellar Testnet Funding
 
 - New Stellar testnet wallets start with **zero XLM**.
@@ -25,6 +32,42 @@ requests against the codebase. If you want to operate a resolver, use
 - `soroban` - Rust workspace for Stellar Soroban contracts
 - `frontend` - React and Vite bridge UI
 - `resolver` - reference community resolver runner
+
+## Workspace repository metadata
+
+Every workspace `package.json` points back at the canonical OverSync repository
+and names its own subdirectory:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/karagozemin/OverSync.git",
+  "directory": "packages/sdk"
+}
+```
+
+Use that workspace's own path for `directory` (`contracts`, `relayer`,
+`packages/sdk`, and so on). Verify with:
+
+```bash
+pnpm check:workspace-repository
+```
+
+The check also runs in `pnpm test:scripts`. A copied template URL, a leftover
+placeholder owner, or a directory that names another package fails CI.
+
+## Workspace package metadata
+
+Every workspace that is not published to a registry must say so in its own
+`package.json` with `"private": true`. A new workspace starts private. Add a
+non-empty `publishConfig` only when the package is meant to be published; that
+object is the explicit opt-in this check looks for.
+
+```bash
+pnpm check:workspace-private
+```
+
+The check also runs as part of `pnpm test:scripts`.
 
 ## Local setup
 
@@ -43,10 +86,15 @@ pnpm --filter @oversync/frontend dev
 
 ## CI test matrix
 
+`pnpm format:check` verifies every workspace `package.json` against canonical
+2-space JSON. It only reads files; CI never passes `--write`.
+
 Run the checks that match your change before opening a PR:
 
 ```bash
+pnpm format:check
 pnpm --filter @oversync/sdk build
+pnpm check:env-docs
 pnpm --filter @oversync/sdk exec tsc --noEmit
 pnpm --filter @oversync/coordinator exec tsc --noEmit
 pnpm --filter @oversync/resolver exec tsc --noEmit
@@ -62,11 +110,34 @@ For Soroban changes:
 ```bash
 cd soroban
 stellar contract build
-cargo test --release
+cargo test --release --locked
 ```
+
+`soroban/Cargo.lock` is committed and CI runs Cargo with `--locked`. If you
+change a Soroban dependency, run `cargo update` locally and commit the new
+lockfile (see `soroban/README.md`).
 
 For Solidity contract changes, the contracts workflow also runs Slither on
 `contracts/contracts/v2`.
+
+Slither is installed with pinned, hash-verified dependencies from
+`.github/pip/slither-requirements.txt` (regenerate with `pip-compile
+--generate-hashes` under Python 3.11 after bumping the version in
+`.github/pip/slither.in`).
+
+All CI evidence artifacts (TypeScript/Soroban evidence summaries, the
+Slither report named `slither-report-<short-sha>`) are uploaded with
+`retention-days: 14` — long enough for a PR review cycle, short enough to
+avoid piling up stale build artifacts. The short commit SHA keeps a rerun
+or a downloaded report tied to one commit. `scripts/check-artifact-retention.mjs`
+enforces the retention window, and `pnpm check:slither-artifact-name` enforces
+the commit-specific name.
+
+CI also uploads `production-dependency-license-report` for 14 days. It lists
+unique external packages in the installed pnpm production graph (including
+transitive dependencies), with license counts and per-package licenses. Run
+`node scripts/generate-production-license-report.mjs` after `pnpm install`
+to create the local report at `tmp/production-dependency-licenses.md`.
 
 ## Pull request expectations
 
@@ -104,3 +175,28 @@ comments.
 
 Report security-sensitive issues privately using [`docs/SECURITY.md`](docs/SECURITY.md).
 Do not open public issues or PRs that reveal exploitable details.
+
+## Editor configuration policy
+
+To prevent supply-chain attacks via automatic code execution, the repository
+enforces strict rules for tracked VS Code configuration files:
+
+- **Only `.vscode/extensions.json` is tracked** — it declares recommended
+  extensions but cannot execute code.
+- **`.vscode/settings.json`, `.vscode/tasks.json`, and `.vscode/launch.json` are
+  gitignored** — these files can execute arbitrary commands (tasks, debug
+  configurations, terminal profiles) and must not be committed.
+- **Automatic tasks are prohibited** — any tracked `tasks.json` containing
+  `"runOn": "folderOpen"` will cause CI to fail. The check examines Git-tracked
+  task files only, supports VS Code JSONC, and fails closed if a tracked file
+  cannot be read or parsed. It reports only the offending path and never
+  executes task content.
+
+Run the validation locally before committing:
+
+```bash
+pnpm check:vscode-tasks
+```
+
+This check runs in CI on every PR through the `Check tracked VS Code tasks`
+step. Do not add workspace tasks that circumvent this policy.

@@ -16,13 +16,20 @@ import {
   ACTION_TARGET_STATUS,
   ORDER_FAILURE_CODES,
   actionForStatus,
+  canTransition,
   describeTransitionFailure,
   evaluateTransition,
   type OrderFailureCode,
   type OrderTransitionAction
 } from "../state-machine/order-machine.js";
 import { illegalOrderTransitions, ordersTotal } from "../metrics.js";
-import { QuoteService, QuoteExpiredError, QuoteNotFoundError } from "./quote-service.js";
+import {
+  QuoteService,
+  QuoteExpiredError,
+  QuoteNotFoundError,
+  QuoteAmountMismatchError,
+  QuoteTermsMismatchError
+} from "./quote-service.js";
 import { loadConfig } from "../config.js";
 import {
   validateTimelocksAtCreation,
@@ -43,6 +50,9 @@ const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const ZERO_HASHLOCK = "0x" + "0".repeat(64);
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const STELLAR_ADDRESS = /^G[A-Z2-7]{55}$/;
+
+/** Writer label used when a caller does not identify itself. */
+export const ORDER_SERVICE_WRITER = "order-service";
 
 /** Page size used when a caller asks for history without naming a limit. */
 const DEFAULT_HISTORY_LIMIT = 50;
@@ -77,12 +87,17 @@ export type AnnounceInput = z.infer<typeof announceSchema>;
  * Codes an `OrderValidationError` can carry: the timelock ordering codes and
  * the stable order state machine failure codes.
  */
-export type OrderErrorCode = TimelockValidationError | OrderFailureCode;
+export type OrderErrorCode =
+  | TimelockValidationError
+  | OrderFailureCode
+  | "QUOTE_EXPIRED"
+  | "QUOTE_NOT_FOUND"
+  | "QUOTE_MISMATCH";
 
 export class OrderValidationError extends Error {
   readonly code?: OrderErrorCode;
 
-  constructor(message: string, code?: TimelockValidationError) {
+  constructor(message: string, code?: OrderErrorCode) {
     super(message);
     this.name = "OrderValidationError";
     this.code = code;
@@ -202,6 +217,58 @@ interface AdvanceRequest {
   apply: (order: OrderRow, to: OrderStatus) => Promise<void>;
 }
 
+/**
+ * The coordinator's single order writer. Every status change goes through
+ * `advance()` so the order state machine is applied uniformly.
+ */
+export interface OrderService {
+  announce(input: AnnounceInput): Promise<OrderRow>;
+  get(publicId: string): Promise<OrderRow | null>;
+  history(
+    address: string,
+    limit?: number,
+    before?: { createdAt: number; publicId: string }
+  ): Promise<OrderRow[]>;
+  getTransitions(publicId: string): Promise<OrderTransitionSummary[]>;
+  getRejectedTransitions(publicId: string): Promise<OrderRejectedTransition[]>;
+  findByHashlock(hashlock: string): Promise<OrderRow | null>;
+  findByPreimage(preimage: string): Promise<OrderRow | null>;
+  findBySrcOrderId(chain: Chain, orderId: string): Promise<OrderRow | null>;
+  findByDstOrderId(chain: Chain, orderId: string): Promise<OrderRow | null>;
+  recordSrcLock(input: {
+    publicId: string;
+    orderId: string;
+    txHash: string;
+    blockNumber: number;
+    timelock: number;
+    writer?: string;
+  }): Promise<void>;
+  recordDstLock(input: {
+    publicId: string;
+    orderId: string;
+    txHash: string;
+    blockNumber: number;
+    timelock: number;
+    resolver: string | null;
+    writer?: string;
+  }): Promise<void>;
+  recordSecret(
+    publicId: string,
+    preimage: string,
+    txHash: string,
+    writer?: string
+  ): Promise<void>;
+  recordClaim(input: { publicId: string; txHash: string; writer?: string }): Promise<void>;
+  recordRefund(input: { publicId: string; txHash: string; writer?: string }): Promise<void>;
+  getOrderMetrics(): Promise<OrderMetrics>;
+  markStatus(publicId: string, status: OrderStatus, writer?: string): Promise<void>;
+  getSnapshots(): Promise<OrderSnapshot[]>;
+  buildClaim(orderId: string, resolverAddress: string): Promise<OrderRow>;
+}
+
+export class OrderService {
+  private readonly minGapSeconds: number;
+
   constructor(
     private readonly repo: OrdersRepository,
     private readonly log: Logger,
@@ -214,14 +281,11 @@ interface AdvanceRequest {
     this.minGapSeconds = config?.timelockSafetyGapSeconds ?? 600;
   }
 
-  async buildLockOrder(request: LockRequest): Promise<any> {
-    const activeV2Escrow = this.config.getActiveV2Escrow();
-
-    if (activeV2Escrow && activeV2Escrow.toLowerCase() !== request.target.toLowerCase()) {
-      throw new Error("Legacy bridge lock rejected: v2 escrow active");
-    }
-
+  async announce(input: AnnounceInput): Promise<OrderRow> {
     const hashlock = input.hashlock.toLowerCase() as `0x${string}`;
+    validateDirectionAgainstChains(input);
+    validateChainAddress(input.srcChain, input.srcAddress);
+    validateChainAddress(input.dstChain, input.dstAddress);
 
     // --- Quote freshness gate -------------------------------------------
     if (input.quoteId) {
@@ -237,10 +301,23 @@ interface AdvanceRequest {
             fromNetwork: input.srcChain,
             toNetwork: input.dstChain
           });
+          // Amount binding: a quote issued with a bound amount only fills
+          // an order that announces that exact srcAmount.
+          this.quoteService.assertFresh(input.quoteId, input.srcAmount);
           this.log.debug({ quoteId: input.quoteId }, "quote freshness confirmed");
         } catch (err) {
-          if (err instanceof QuoteExpiredError || err instanceof QuoteNotFoundError) {
-            throw new OrderValidationError(err.message);
+          if (
+            err instanceof QuoteExpiredError ||
+            err instanceof QuoteNotFoundError ||
+            err instanceof QuoteAmountMismatchError ||
+            err instanceof QuoteTermsMismatchError
+          ) {
+            const code = err instanceof QuoteExpiredError
+              ? "QUOTE_EXPIRED"
+              : err instanceof QuoteNotFoundError
+                ? "QUOTE_NOT_FOUND"
+                : "QUOTE_MISMATCH";
+            throw new OrderValidationError(err.message, code);
           }
           throw err;
         }
@@ -284,6 +361,15 @@ interface AdvanceRequest {
 
   getTransitions(publicId: string): Promise<OrderTransitionSummary[]> {
     return this.repo.getTransitions(publicId);
+  }
+
+  /**
+   * Transitions the state machine refused for an order, with their stable
+   * failure code. Queryable so an operator can see that a late listener event
+   * or a repeated client call was refused and why the status did not move.
+   */
+  getRejectedTransitions(publicId: string): Promise<OrderRejectedTransition[]> {
+    return this.repo.getRejectedTransitions(publicId);
   }
 
   findByHashlock(hashlock: string): Promise<OrderRow | null> {
@@ -379,21 +465,78 @@ interface AdvanceRequest {
     });
   }
 
-  async recordSecret(publicId: string, preimage: string, txHash: string): Promise<void> {
-    const order = await this.repo.findByPublicId(publicId);
-    if (!order) throw new OrderValidationError(`unknown order ${publicId}`);
-    if (order.status === "secret_revealed") {
-      // Idempotent: same preimage for the same order is always accepted,
-      // even if the txHash differs (e.g. a second chain event observer).
-      if (order.preimage === preimage) return;
-      throw new StaleOrderEventError(`conflicting secret event for ${publicId}`);
-    }
-    if (!canTransition(order.status, "secret_revealed")) {
-      throw new StaleOrderEventError(`stale secret event for order in status ${order.status}`);
-    }
-    await this.repo.recordSecretRevealed({ publicId, preimage, txHash });
-    this.log.info({ publicId }, "secret recorded");
-    ordersTotal.inc({ status: "secret_revealed" });
+  /**
+   * Preimage relayed for an order (`secret` edge).
+   *
+   * The preimage is the identity of this step, the transaction hash is only
+   * provenance: the same preimage can legitimately be relayed from a second
+   * transaction (a claim observed on the other chain, an RPC retry, a re-org),
+   * so re-relaying it is idempotent instead of a conflict.
+   */
+  async recordSecret(
+    publicId: string,
+    preimage: string,
+    txHash: string,
+    writer?: string
+  ): Promise<void> {
+    const canonical = preimage.toLowerCase();
+    await this.advance({
+      publicId,
+      action: "secret",
+      txHash,
+      writer,
+      isSameStep: (order) => order.preimage === canonical,
+      logMessage: "secret recorded",
+      apply: async () => {
+        await this.repo.recordSecretRevealed({ publicId, preimage: canonical, txHash });
+      }
+    });
+  }
+
+  /**
+   * The order was claimed on chain (`claim` edge).
+   *
+   * Refused unless the preimage has been recorded first — that is the guard
+   * against a listener settling an order twice or settling one whose secret
+   * the coordinator never saw.
+   */
+  async recordClaim(input: {
+    publicId: string;
+    txHash: string;
+    writer?: string;
+  }): Promise<void> {
+    await this.advance({
+      publicId: input.publicId,
+      action: "claim",
+      txHash: input.txHash,
+      writer: input.writer,
+      // A second claim for an order that is already completed is the same
+      // settlement observed again — idempotent, never a second payout.
+      isSameStep: () => true,
+      logMessage: "claim recorded",
+      apply: async () => {
+        await this.repo.setStatus(input.publicId, "completed", input.txHash);
+      }
+    });
+  }
+
+  /** A refund was observed on chain (`refund` edge). */
+  async recordRefund(input: {
+    publicId: string;
+    txHash: string;
+    writer?: string;
+  }): Promise<void> {
+    await this.advance({
+      publicId: input.publicId,
+      action: "refund",
+      txHash: input.txHash,
+      writer: input.writer,
+      isSameStep: () => true,
+      logMessage: "refund recorded",
+      apply: async () => {
+        await this.repo.setStatus(input.publicId, "refunded", input.txHash);
+      }
+    });
   }
 
   async getOrderMetrics(): Promise<OrderMetrics> {
@@ -418,6 +561,124 @@ interface AdvanceRequest {
 
   async getSnapshots(): Promise<OrderSnapshot[]> {
     return this.repo.getCompletedOrderSnapshots();
+  }
+
+  /**
+   * Persist a refused transition and throw a typed error carrying its stable
+   * code. The stored order status is never touched; only the audit trail
+   * (`order_events`) grows.
+   */
+  private async rejectTransition(info: TransitionRejectionInfo): Promise<never> {
+    await this.persistRejection(info);
+    throw new OrderTransitionRejectedError(info);
+  }
+
+  /**
+   * Record a refused transition in the audit trail: one `transition_rejected`
+   * event, one metric sample, one log line. The order row is left alone.
+   *
+   * `noisy` is false for an identical redelivery, which is normal for chain
+   * listeners and only worth a debug line (the metric still counts it).
+   */
+  private async persistRejection(
+    info: TransitionRejectionInfo,
+    { noisy = true }: { noisy?: boolean } = {}
+  ): Promise<void> {
+    await this.repo.recordRejectedTransition({
+      publicId: info.publicId,
+      from: info.from,
+      to: info.to,
+      action: info.action,
+      code: info.code,
+      reason: info.reason,
+      txHash: info.txHash ?? null,
+      writer: info.writer
+    });
+    illegalOrderTransitions.inc({ code: info.code });
+    const fields = {
+      publicId: info.publicId,
+      from: info.from,
+      to: info.to,
+      action: info.action,
+      code: info.code,
+      writer: info.writer,
+      txHash: info.txHash ?? null
+    };
+    if (noisy) {
+      this.log.warn(fields, "refused illegal order transition");
+    } else {
+      this.log.debug(fields, "step already applied, refusing the repeat");
+    }
+  }
+
+  /**
+   * Apply one legal edge, refusing (and recording) anything else.
+   *
+   * Order of operations per event:
+   *   1. load the order,
+   *   2. if it is already in the target status, decide redelivery vs conflict,
+   *   3. ask the state machine whether the edge is legal,
+   *   4. only then write.
+   */
+  private async advance(request: AdvanceRequest): Promise<void> {
+    const order = await this.repo.findByPublicId(request.publicId);
+    if (!order) throw new OrderValidationError(`unknown order ${request.publicId}`);
+
+    const to = ACTION_TARGET_STATUS[request.action];
+    const writer = request.writer ?? ORDER_SERVICE_WRITER;
+
+    if (order.status === to) {
+      const redelivery = request.isSameStep ? request.isSameStep(order) : true;
+      const code = redelivery
+        ? ORDER_FAILURE_CODES.REPEATED_STEP
+        : ORDER_FAILURE_CODES.CONFLICTING_STEP;
+      const info: TransitionRejectionInfo = {
+        publicId: request.publicId,
+        from: order.status,
+        to,
+        action: request.action,
+        code,
+        reason: describeTransitionFailure(code, order.status, to),
+        txHash: request.txHash ?? null,
+        writer
+      };
+      if (redelivery) {
+        // At-least-once delivery is normal for chain events: the step is
+        // already applied, so record the repeat but neither move the order
+        // nor fail the caller.
+        await this.persistRejection(info, { noisy: false });
+        return;
+      }
+      return this.rejectTransition(info);
+    }
+
+    const assessment = evaluateTransition(order.status, to, request.action);
+    if (!assessment.allowed) {
+      return this.rejectTransition({
+        publicId: request.publicId,
+        from: order.status,
+        to,
+        action: request.action,
+        code: assessment.code ?? ORDER_FAILURE_CODES.NOT_ALLOWED,
+        reason: assessment.reason ?? describeTransitionFailure(ORDER_FAILURE_CODES.NOT_ALLOWED, order.status, to),
+        txHash: request.txHash ?? null,
+        writer
+      });
+    }
+
+    await request.apply(order, to);
+    this.log.info(
+      {
+        publicId: order.publicId,
+        from: order.status,
+        to,
+        action: request.action,
+        writer,
+        ...request.logFields
+      },
+      request.logMessage
+    );
+    ordersTotal.inc({ status: to });
   }
 
   /**

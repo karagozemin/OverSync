@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { QuoteExpiredError, QuoteNotFoundError } from "../../services/quote-service.js";
+import {
+  AmountParseError,
+  QuoteExpiredError,
+  QuoteNotFoundError
+} from "../../services/quote-service.js";
 import type { QuoteService } from "../../services/quote-service.js";
 
 const quoteTermsSchema = z.object({
@@ -29,8 +33,27 @@ export function quotesRoutes(quotes: QuoteService): Router {
    */
   router.get("/quotes/eth-xlm", async (req, res, next) => {
     try {
-      const terms = quoteTermsSchema.parse(req.query);
-      const quote = await quotes.quoteEthXlm(terms);
+      const rawAmount = req.query.amount;
+      if (rawAmount !== undefined && typeof rawAmount !== "string") {
+        res.status(400).json({ error: "invalid_amount", message: "amount must be a single value" });
+        return;
+      }
+      const hasTerms = Object.keys(quoteTermsSchema.shape).some(
+        (key) => req.query[key] !== undefined
+      );
+      let quote;
+      try {
+        quote = await quotes.quoteEthXlm({
+          ...(hasTerms ? quoteTermsSchema.parse(req.query) : {}),
+          amountBaseUnits: rawAmount
+        });
+      } catch (err) {
+        if (err instanceof AmountParseError) {
+          res.status(400).json({ error: "invalid_amount", message: err.message });
+          return;
+        }
+        throw err;
+      }
       res.json({
         quoteId: quote.quoteId,
         pair: quote.pair,

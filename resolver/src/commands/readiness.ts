@@ -90,6 +90,7 @@ async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
   ok: boolean;
   chainId: number | null;
   detail: string;
+  rpcUrl: string | null;
 }> {
   let url: string;
   try {
@@ -101,7 +102,8 @@ async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
     return {
       ok: false,
       chainId: null,
-      detail: `RPC URL validation failed: ${err?.message ?? String(err)}`
+      detail: `RPC URL validation failed: ${err?.message ?? String(err)}`,
+      rpcUrl: null
     };
   }
   const displayUrl = redactRpcUrl(url);
@@ -120,19 +122,22 @@ async function pingEvmRpc(network: "testnet" | "mainnet"): Promise<{
       return {
         ok: true,
         chainId: cid,
-        detail: `URL=${displayUrl} chainId=${cid}`
+        detail: `URL=${displayUrl} chainId=${cid}`,
+        rpcUrl: url
       };
     }
     return {
       ok: false,
       chainId: cid,
-      detail: `URL=${displayUrl} — RPC reported chainId=${cid}, expected ${expectedChainId}`
+      detail: `URL=${displayUrl} — RPC reported chainId=${cid}, expected ${expectedChainId}`,
+      rpcUrl: url
     };
   } catch (err: any) {
     return {
       ok: false,
       chainId: null,
-      detail: `URL=${displayUrl} — error: ${rpcErrorDetail(err)}`
+      detail: `URL=${displayUrl} — error: ${rpcErrorDetail(err)}`,
+      rpcUrl: url
     };
   }
 }
@@ -241,7 +246,6 @@ export async function assessReadiness(): Promise<ReadinessResult> {
   });
 
   // ===== Resolver network agreement (EVM + Soroban match NETWORK_MODE) =====
-  const evmRpcUrl = resolveEthereumRpcUrl(network);
   const sorobanRpcUrl =
     process.env.SOROBAN_RPC_URL?.trim() ||
     (network === "mainnet" ? "https://mainnet.sorobanrpc.com" : "https://soroban-testnet.stellar.org");
@@ -249,12 +253,17 @@ export async function assessReadiness(): Promise<ReadinessResult> {
     ? "Public Global Stellar Network ; September 2015"
     : "Test SDF Network ; September 2015";
 
-  const resolverAgreement = await checkResolverNetworkAgreement(
-    network,
-    evmRpcUrl,
-    sorobanRpcUrl,
-    sorobanNetworkPassphrase
-  );
+  const resolverAgreement = evmPing.rpcUrl
+    ? await checkResolverNetworkAgreement(
+        network,
+        evmPing.rpcUrl,
+        sorobanRpcUrl,
+        sorobanNetworkPassphrase
+      )
+    : {
+        status: "fail" as const,
+        detail: "EVM RPC URL validation failed; network agreement could not be checked"
+      };
   checks.push({
     id: "resolver-network-agreement",
     label: "Resolver EVM and Soroban networks agree with NETWORK_MODE",

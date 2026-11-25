@@ -34,8 +34,10 @@ pnpm install
 pnpm dev
 ```
 
-By default the coordinator listens on `:3001` and writes to
-`./oversync.db`. Override with env vars (see `env.example`).
+By default the coordinator listens on `:3001` and creates a local SQLite file
+at `./oversync.db` when it starts if `DATABASE_URL` points at a SQLite file.
+The runtime database is created on demand and is not tracked in Git.
+Override the location with env vars (see `env.example`).
 
 ## Architecture
 
@@ -75,11 +77,13 @@ The coordinator stores order state in a local database. Two database engines are
 ### SQLite (Local Development - Default)
 
 We use Node's built-in `node:sqlite` driver — no native addons, no
-build step. By default, the coordinator writes to `./oversync.db` in the working directory.
+build step. If `DATABASE_URL` points at a SQLite file, the coordinator creates
+that file automatically on startup; it is local runtime state, not a committed
+artifact.
 
 ```bash
 pnpm dev
-# Writes to ./oversync.db (file:./oversync.db)
+# Creates ./oversync.db on first startup if DATABASE_URL is unset or set to a SQLite path
 ```
 
 ### PostgreSQL (Production)
@@ -205,13 +209,13 @@ Fixture data contains **no real secrets, preimages, or private keys**.
 
 Fixture orders can be removed in two ways:
 
-**1. Delete the database file (SQLite — local dev)**
+**1. Delete the generated SQLite file (SQLite — local dev)**
 
 ```bash
 rm -f ./oversync.db
 ```
 
-The coordinator will recreate the schema on next startup.
+The coordinator recreates the file and schema on the next startup.
 
 **2. Use the remove-fixtures script (any database engine)**
 

@@ -1,7 +1,13 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
 import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
-import { announceSchema, OrderService, OrderValidationError } from "../../services/order-service.js";
+import {
+  announceSchema,
+  isTransitionRejection,
+  OrderService,
+  OrderValidationError
+} from "../../services/order-service.js";
+import { evaluateRefundEligibility } from "../../utils/timelock-validator.js";
 import {
   encodeHistoryCursor,
   validateHistoryCursor,
@@ -39,6 +45,15 @@ function readHistoryAddress(query: Request["query"]): string {
 }
 
 function orderValidationResponse(err: OrderValidationError): { status: number; body: Record<string, unknown> } {
+  if (err.code === "QUOTE_EXPIRED") {
+    return { status: 400, body: { error: "quote_expired", message: err.message } };
+  }
+  if (err.code === "QUOTE_NOT_FOUND") {
+    return { status: 400, body: { error: "quote_not_found", message: err.message } };
+  }
+  if (err.code === "QUOTE_MISMATCH") {
+    return { status: 400, body: { error: "quote_mismatch", message: err.message } };
+  }
   // A refused lifecycle edge is a conflict with the stored order, not a bad
   // request: answer 409 with the stable failure code so clients can tell an
   // illegal transition apart from a malformed payload (issue #252).

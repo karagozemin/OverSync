@@ -1,0 +1,9 @@
+# Reviewed Hadolint configuration for resolver/Dockerfile and relayer/Dockerfile (issue #397).
+# High-severity findings (error and warning) are blocking in CI.
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - ghcr.io
+ignored:
+  # Base image tags and npm dependencies are governed by workspace manifests.
+  - DL3018

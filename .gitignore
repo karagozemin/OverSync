@@ -46,6 +46,20 @@ pids
 *.seed
 *.pid.lock
 
+# SQLite / local database runtime files (created on demand; never commit)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
@@ -115,7 +129,4 @@ temp/
 
 # Editor directories and files
 .vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json 
+!.vscode/extensions.json 

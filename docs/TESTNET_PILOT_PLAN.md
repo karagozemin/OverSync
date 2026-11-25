@@ -19,8 +19,7 @@ A concrete, measurable programme for validating OverSync v2 testnet
 readiness across four participant types. The pilot produces:
 
 - a quantitative record of swap success rates, latency, and resolver
-  uptime against the thresholds defined in
-  [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md)
+      uptime against the thresholds in [Section 5](#5-success-metrics-and-failure-thresholds)
 - a resolver onboarding record aligned with SCF Tranche 2 acceptance
   criteria in [`docs/SCF_TRANCHE_ACCEPTANCE.md`](SCF_TRANCHE_ACCEPTANCE.md)
 - a public post-pilot report that SCF reviewers and investors can use
@@ -220,7 +219,7 @@ plus the following pilot-specific items:
 | Week | Theme | Core activities | Exit gate |
 |---|---|---|---|
 | **Week 1** | Launch and onboarding | Recruit participants through Stellar Dev Discord `#oversync`, OverSync GitHub, and direct outreach to resolver operators. Publish the onboarding guide and pre-pilot checklist. Support participants through wallet setup, faucet funding, and resolver registration. Core team monitors coordinator health and confirms contract state is clean. | ≥ 15 wallet users onboarded; ≥ 3 resolver operators registered on-chain; ≥ 3 Soroban developers have run the test suite successfully |
-| **Week 2** | Volume and resolver dry-runs | All participant types begin executing swaps and dry-runs. Core team tracks swap success rate daily. Resolver operators complete their active fill dry-runs (both directions). Soroban developers submit their first test or issue. DeFi power users begin edge-case testing. Core team reviews coordinator logs for anomalies and publishes a mid-week status update in Discord. | Swap success rate ≥ 90% (Yellow threshold from KPI dashboard); ≥ 2 resolvers have completed fills in both directions |
+| **Week 2** | Volume and resolver dry-runs | All participant types begin executing swaps and dry-runs. Core team tracks swap success rate daily. Resolver operators complete their active fill dry-runs (both directions). Soroban developers submit their first test or issue. DeFi power users begin edge-case testing. Core team reviews coordinator logs for anomalies and publishes a mid-week status update in Discord. | Swap success rate ≥ 90% (Yellow threshold in Section 5); ≥ 2 resolvers have completed fills in both directions |
 | **Week 3** | Stress and edge cases | Power users execute refund-path scenarios and minimum-amount swaps. Resolver operators complete their 7-day uptime observation window. Core team runs a simulated coordinator-offline scenario to verify on-chain refund paths work independently. Soroban developers document any integration friction. Core team collects resolver evidence artifacts for the report. First-pass feedback forms distributed. | ≥ 5 refund-path transactions confirmed on-chain; ≥ 3 resolvers have completed 7-day uptime windows; no unresolved Red-threshold KPI breaches |
 | **Week 4** | Data collection and report | All participants complete feedback forms. Core team aggregates coordinator metrics, on-chain event counts, and resolver evidence. Draft post-pilot report circulated internally for review. Participants receive a summary of aggregated findings (no individual-level data). Final public report published (see §9). | All feedback forms collected from active participants; report template (§9.2) fully populated; every acceptance criterion in §5 verified as met or explicitly flagged as missed |
 
@@ -228,9 +227,8 @@ plus the following pilot-specific items:
 
 ## 5. Success Metrics and Failure Thresholds
 
-Thresholds are inherited directly from
-[`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md) and applied to
-the testnet pilot context. All metrics are measured on the
+Thresholds are defined in this plan and applied to the testnet pilot
+context. All metrics are measured on the
 `network: testnet` network designation only.
 
 ### 5.1 Decision metrics (pilot outcome gating)
@@ -552,8 +550,7 @@ the open action item.
 ## 10. Next Steps
 
 - [ ] Open issues for any unresolved P1/P2 findings
-- [ ] Update [`docs/KPI_DASHBOARD_SPEC.md`](KPI_DASHBOARD_SPEC.md)
-      thresholds if empirical data warrants revision
+- [ ] Update the Section 5 thresholds if empirical data warrants revision
 - [ ] Share resolver evidence with SCF as Tranche 2 artefact
 - [ ] Proceed to / defer mainnet audit gate per
       [`ROADMAP.md`](../ROADMAP.md)

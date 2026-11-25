@@ -40,8 +40,8 @@ contract HTLCEscrowFuzzTest is Test {
         return bound(sd, MIN_SD, 10 ether);
     }
 
-    function _hashlock(uint256 orderId, bytes memory preimage) internal pure returns (bytes32) {
-        return sha256(abi.encodePacked(orderId, preimage));
+    function _hashlock(bytes memory preimage) internal pure returns (bytes32) {
+        return sha256(preimage);
     }
 
     // ── fuzz: createOrder accepts any valid combination ───────────────────────
@@ -66,7 +66,7 @@ contract HTLCEscrowFuzzTest is Test {
 
         bytes memory preimage = abi.encodePacked(secret);
         uint256 orderId = htlc.nextOrderId();
-        bytes32 hashlock = _hashlock(orderId, preimage);
+        bytes32 hashlock = _hashlock(preimage);
 
         uint256 total = amount + safetyDeposit;
         vm.deal(address(this), total);
@@ -89,7 +89,7 @@ contract HTLCEscrowFuzzTest is Test {
         timelockSeconds = _boundTl(timelockSeconds);
         bytes memory preimage = abi.encodePacked(secret);
         uint256 orderId = htlc.nextOrderId();
-        bytes32 hashlock = _hashlock(orderId, preimage);
+        bytes32 hashlock = _hashlock(preimage);
 
         uint256 amount = 1 ether;
         uint256 sd     = MIN_SD;
@@ -117,7 +117,7 @@ contract HTLCEscrowFuzzTest is Test {
         bytes memory preimage      = abi.encodePacked(secret);
         bytes memory wrongPreimage = abi.encodePacked(wrongSecret);
         uint256 orderId = htlc.nextOrderId();
-        bytes32 hashlock = _hashlock(orderId, preimage);
+        bytes32 hashlock = _hashlock(preimage);
 
         uint256 amount = 1 ether;
         uint256 sd     = MIN_SD;
@@ -137,7 +137,7 @@ contract HTLCEscrowFuzzTest is Test {
     function testFuzz_refundOrder_afterExpiry(bytes32 secret, uint64 timelockSeconds) public {
         timelockSeconds = _boundTl(timelockSeconds);
         uint256 orderId = htlc.nextOrderId();
-        bytes32 hashlock = _hashlock(orderId, abi.encodePacked(secret));
+        bytes32 hashlock = _hashlock(abi.encodePacked(secret));
 
         uint256 amount = 1 ether;
         uint256 sd     = MIN_SD;
@@ -161,7 +161,7 @@ contract HTLCEscrowFuzzTest is Test {
     function testFuzz_refundOrder_beforeExpiry_reverts(bytes32 secret, uint64 timelockSeconds) public {
         timelockSeconds = _boundTl(timelockSeconds);
         uint256 orderId = htlc.nextOrderId();
-        bytes32 hashlock = _hashlock(orderId, abi.encodePacked(secret));
+        bytes32 hashlock = _hashlock(abi.encodePacked(secret));
 
         uint256 amount = 1 ether;
         uint256 sd     = MIN_SD;
@@ -207,8 +207,7 @@ contract HTLCHandler is Test {
         uint256 total  = amount + sd;
 
         bytes memory preimage = abi.encodePacked(secret);
-        uint256 predictedOrderId = htlc.nextOrderId();
-        bytes32 hashlock = sha256(abi.encodePacked(predictedOrderId, preimage));
+        bytes32 hashlock = sha256(preimage);
 
         vm.deal(address(this), total);
         uint256 orderId = htlc.createOrder{value: total}(
@@ -296,4 +295,3 @@ contract HTLCEscrowInvariantTest is Test {
         }
     }
 }
-

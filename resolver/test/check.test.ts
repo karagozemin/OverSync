@@ -67,7 +67,8 @@ vi.mock("../src/listeners/soroban.js", () => ({
   SorobanListener: class { start = mockSorobanStart; }
 }));
 vi.mock("../src/network-agreement.js", () => ({
-  checkCoordinatorNetwork: vi.fn().mockResolvedValue({ status: "ok" })
+  checkCoordinatorNetwork: vi.fn().mockResolvedValue({ status: "ok" }),
+  checkResolverNetworkAgreement: vi.fn().mockResolvedValue({ status: "ok", detail: "networks agree" })
 }));
 
 import { checkPreflight, buildJsonOutput, checkCommand } from "../src/commands/check.js";

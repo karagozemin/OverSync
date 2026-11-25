@@ -39,6 +39,10 @@ const {
   mockAssembleTransaction: vi.fn()
 }));
 
+vi.mock("../src/network-agreement.js", () => ({
+  checkResolverNetworkAgreement: async () => ({ status: "ok", detail: "networks agree" })
+}));
+
 // ---------------------------------------------------------------
 // Mock: config
 // ---------------------------------------------------------------
@@ -94,7 +98,8 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
         getTransaction: mockGetTransaction
       })),
       Api: {
-        isSimulationError: (sim: any) => Boolean((sim as any).error)
+        isSimulationError: (sim: any) => Boolean((sim as any).error),
+        isSimulationSuccess: (sim: any) => Boolean((sim as any).result)
       },
       assembleTransaction: mockAssembleTransaction
     },

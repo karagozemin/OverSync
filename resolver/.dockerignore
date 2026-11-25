@@ -1,0 +1,28 @@
+# Repository and local configuration
+.git
+.env
+.env.*
+*.env
+*.env.*
+
+# Dependencies, build output, coverage, and caches
+node_modules
+dist
+coverage
+.coverage
+.nyc_output
+*.lcov
+.cache
+.eslintcache
+.turbo
+.pnpm-store
+*.tsbuildinfo
+
+# Local workspace artifacts
+.vscode
+.idea
+*.code-workspace
+.DS_Store
+*.log
+tmp
+temp

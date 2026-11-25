@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { findDuplicateEnvKeys, parseEnvKeys } from './lib/env-keys.mjs';
+
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const SRC_DIRS = [
@@ -115,6 +117,12 @@ const ALLOWLIST = {
   'RESOLVER_POLL_INTERVAL_MS': 'Resolver internal config',
   'RELAYER_PRIVATE_KEY': 'Relayer secret key (superseded by coordinator)',
   'RELAYER_STELLAR_SECRET': 'Relayer stellar secret (superseded by coordinator)',
+  'APP_PRIVATE_KEY': 'Redaction test fixture, not real runtime config',
+  'SERVICE_BEARER_TOKEN': 'Redaction test fixture, not real runtime config',
+  'HTLC_PREIMAGE': 'Redaction test fixture, not real runtime config',
+  'PREIMAGE': 'E2E test script only',
+  'RESOLVER_REGISTRY_ADDRESS': 'Contract deployment param, not runtime config',
+  'V2_DRY_RUN': 'Contract deployment param, not runtime config',
 };
 
 function walkDir(dirPath) {
@@ -188,15 +196,8 @@ function parseEnvExample(filePath) {
   const vars = new Set();
   if (!fs.existsSync(filePath)) return vars;
   const content = fs.readFileSync(filePath, 'utf-8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-    const name = trimmed.slice(0, eqIdx).trim();
-    if (/^[A-Z_][A-Z0-9_]*$/.test(name)) {
-      vars.add(name);
-    }
+  for (const { name } of parseEnvKeys(content)) {
+    vars.add(name);
   }
   return vars;
 }
@@ -219,11 +220,30 @@ console.log('=== Env Docs Drift Check ===\n');
 // 1. Parse env.example files
 console.log('Env example files:');
 const documented = new Map();
+const duplicateKeys = [];
 for (const entry of ENV_EXAMPLE_FILES) {
   const fp = path.resolve(ROOT, entry.path);
   const vars = parseEnvExample(fp);
   documented.set(entry.pkg, { file: entry.path, vars });
+  if (fs.existsSync(fp)) {
+    for (const dup of findDuplicateEnvKeys(fs.readFileSync(fp, 'utf-8'))) {
+      duplicateKeys.push({ file: entry.path, ...dup });
+    }
+  }
   console.log(`  ${entry.path} (${vars.size} vars)`);
+}
+
+// 1b. Duplicate keys: a repeated key means an operator can edit one copy while
+// deployment reads the other (#355). Fail loudly instead of collapsing them.
+if (duplicateKeys.length > 0) {
+  console.log('\n--- Duplicate keys in env examples ---');
+  for (const dup of duplicateKeys) {
+    console.log(`  \u274C ${dup.file}: ${dup.name} declared ${dup.lines.length} times (lines ${dup.lines.join(', ')})`);
+  }
+  console.log('');
+  exitCode = 1;
+} else {
+  console.log('  \u2713 No duplicate keys\n');
 }
 
 // 2. Enumerate all source files

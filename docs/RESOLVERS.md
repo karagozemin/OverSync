@@ -127,6 +127,10 @@ docker build -t oversync-resolver .
 docker run --rm --env-file ../.env oversync-resolver run
 ```
 
+Images run without privileges: `resolver/Dockerfile` and `relayer/Dockerfile`
+declare `USER node` (uid 1000) in their final build stage, and
+`pnpm test:scripts` fails if that directive regresses.
+
 ## 4. Withdraw
 
 If you stop running the resolver, withdraw your stake:

@@ -4,6 +4,11 @@
   "description": "Cross-chain differential test harness (EVM HTLCEscrow ↔ Soroban oversync-htlc). Verifies the sha256 hashlock and preimage semantics round-trip across both chain clients using the shared @oversync/sdk secret helpers.",
   "type": "module",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karagozemin/OverSync.git",
+    "directory": "e2e"
+  },
   "scripts": {
     "pretest": "cd ../contracts && pnpm hardhat compile",
     "test": "pnpm --filter @oversync/contracts compile && vitest run",
@@ -22,5 +27,8 @@
     "typescript": "^5.3.0",
     "viem": "^2.31.7",
     "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=22.5.0"
   }
 }

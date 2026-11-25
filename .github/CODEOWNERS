@@ -1,0 +1,53 @@
+# CODEOWNERS — OverSync
+# Sensitive paths are reviewed by the maintainer. Rules are matched top to
+# bottom and the last matching pattern wins.
+
+# --- CI, release, and automation workflows -----------------------------
+/.github/workflows/          @karagozemin
+
+# --- Deployment manifests and deploy scripts ---------------------------
+/deployments.testnet.json                                      @karagozemin
+/packages/sdk/src/deployment-evidence/                         @karagozemin
+/frontend/src/config/deployment.ts                             @karagozemin
+/contracts/v2-bytecode-hashes.json                             @karagozemin
+/contracts/mainnet_htlc_bytecode.txt                           @karagozemin
+/scripts/lib/deployment-manifest.mjs                           @karagozemin
+/scripts/validate-deployments.mjs                              @karagozemin
+/scripts/deployed-hash-verifier.mjs                            @karagozemin
+/scripts/verify-deployed-hashes.mjs                            @karagozemin
+/scripts/verify-addresses.mjs                                  @karagozemin
+/contracts/scripts/                                            @karagozemin
+/soroban/scripts/                                              @karagozemin
+
+# --- Environment examples ---------------------------------------------
+/env.example                                                   @karagozemin
+
+# --- Bridge contracts (Solidity + Soroban) ---------------------------
+/contracts/contracts/                                          @karagozemin
+/contracts/foundry.toml                                        @karagozemin
+/contracts/hardhat.config.ts                                   @karagozemin
+/soroban/contracts/                                            @karagozemin
+
+# --- Resolver and relayer services ------------------------------------
+/resolver/                                                     @karagozemin
+/relayer/                                                      @karagozemin
+
+# --- Coordinator secret and order routes ------------------------------
+/coordinator/src/server/routes/secrets.ts                       @karagozemin
+/coordinator/src/server/routes/orders.ts                        @karagozemin
+/coordinator/src/services/secret-service.ts                     @karagozemin
+/coordinator/src/services/order-service.ts                      @karagozemin
+
+# --- Package manifests and lockfiles ----------------------------------
+/package.json                                                  @karagozemin
+/contracts/package.json                                         @karagozemin
+/stellar/package.json                                          @karagozemin
+/relayer/package.json                                          @karagozemin
+/resolver/package.json                                         @karagozemin
+/coordinator/package.json                                      @karagozemin
+/frontend/package.json                                          @karagozemin
+/e2e/package.json                                              @karagozemin
+/packages/sdk/package.json                                     @karagozemin
+/soroban/Cargo.toml                                            @karagozemin
+/soroban/Cargo.lock                                            @karagozemin
+/pnpm-lock.yaml                                                @karagozemin
