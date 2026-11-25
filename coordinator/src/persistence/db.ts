@@ -12,11 +12,25 @@ const __dirname = dirname(__filename);
 // is the recommended zero-install SQLite driver.
 const nodeRequire = createRequire(import.meta.url);
 const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
-
 export type Database = InstanceType<typeof DatabaseSync> | PostgresDatabase;
-
 export function isPostgresDatabase(db: Database): db is PostgresDatabase {
   return (db as any).getPool !== undefined;
+}
+
+/**
+ * Set SQLite busy timeout in milliseconds.
+ * This prevents concurrent writes from hanging indefinitely.
+ * A value of 0 means fail immediately, positive values wait up to the
+ * specified milliseconds before reporting that the database is locked.
+ */
+export function setSqliteBusyTimeout(db: Database, timeoutMs: number): void {
+  try {
+    // SQLite busy timeout is set per-connection.
+    // We use the built-in PRAGMA command.
+    db.exec(`PRAGMA busy_timeout = ${timeoutMs}`);
+  } catch {
+    // Best-effort: if we can't set the pragma, continue without error.
+  }
 }
 
 /**
@@ -159,6 +173,10 @@ function openSqliteDatabase(url: string): Database {
   const db = new DatabaseSync(filename);
   const schema = readFileSync(resolve(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
+  // Set a bounded busy timeout so concurrent writes fail predictably.
+  // Default to 5000ms (5 seconds) if not overridden.
+  const defaultBusyTimeoutMs = 5_000;
+  setSqliteBusyTimeout(db, defaultBusyTimeoutMs);
   return db;
 }
 
