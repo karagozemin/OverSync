@@ -42,6 +42,27 @@ export const DEFAULT_ALLOWED_ORIGINS =
 export const WS_POLICY_VIOLATION = 1008;
 
 /**
+ * WebSocket close code for an inbound message larger than the configured
+ * limit (RFC 6455 §7.4.1 "Message Too Big"). Stable so clients can tell an
+ * oversized frame apart from an origin/policy refusal (1008).
+ */
+export const WS_MESSAGE_TOO_BIG = 1009;
+
+/**
+ * Default maximum size in bytes of a single inbound WebSocket message.
+ * 64 KiB matches the coordinator's `COORDINATOR_MAX_BODY_BYTES` ceiling.
+ * Override with `RELAYER_WS_MAX_MESSAGE_BYTES`.
+ *
+ * The cap is enforced on the raw frame before it is buffered into a string
+ * or parsed as JSON, so an authenticated or allowlisted client cannot make
+ * the relayer hold an arbitrarily large message.
+ */
+export const DEFAULT_MAX_MESSAGE_BYTES = 65_536;
+
+/** Close reason sent with `WS_MESSAGE_TOO_BIG`; contains no message content. */
+export const WS_MESSAGE_TOO_BIG_REASON = 'message too big';
+
+/**
  * Parse a comma-separated origin allowlist exactly like the coordinator's
  * `parseCorsOrigins`, so the socket and the HTTP API admit the same set.
  */
@@ -78,6 +99,51 @@ export function isSocketOriginAllowed(origin: string | undefined, allowedOrigins
   if (!origin) return false;
   if (allowedOrigins.includes('*')) return true;
   return allowedOrigins.includes(origin);
+}
+
+// ---------------------------------------------------------------------------
+// Inbound message size limit
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate a configured inbound byte cap. A malformed or blank value throws
+ * instead of silently disabling the limit, mirroring the coordinator's
+ * config validation. Only an unset variable falls back to the default.
+ */
+export function parseMaxMessageBytes(raw: string | number | undefined): number {
+  if (raw === undefined) return DEFAULT_MAX_MESSAGE_BYTES;
+  if (typeof raw === 'number') {
+    if (!Number.isInteger(raw) || raw <= 0) {
+      throw new Error(`Invalid max message size: expected a positive integer, got ${raw}.`);
+    }
+    return raw;
+  }
+  const trimmed = raw.trim();
+  const value = Number(trimmed);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid RELAYER_WS_MAX_MESSAGE_BYTES: expected a positive integer, got "${raw}".`);
+  }
+  return value;
+}
+
+/** Read the inbound message cap from `RELAYER_WS_MAX_MESSAGE_BYTES`. */
+export function maxMessageBytesFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  return parseMaxMessageBytes(env.RELAYER_WS_MAX_MESSAGE_BYTES);
+}
+
+/**
+ * Byte length of one inbound frame as it arrived. Strings are measured as
+ * UTF-8 (not characters) and binary frames by their buffer, so a multi-byte
+ * or binary payload cannot slip past the cap.
+ */
+export function inboundByteLength(raw: unknown): number {
+  if (typeof raw === 'string') return Buffer.byteLength(raw, 'utf8');
+  if (raw instanceof ArrayBuffer) return raw.byteLength;
+  if (ArrayBuffer.isView(raw)) return raw.byteLength;
+  if (Array.isArray(raw)) {
+    return raw.reduce<number>((total, part) => total + inboundByteLength(part), 0);
+  }
+  return Buffer.byteLength(String(raw), 'utf8');
 }
 
 // ---------------------------------------------------------------------------
@@ -255,17 +321,25 @@ export class FusionWebSocketServer extends EventEmitter {
   private readonly PING_INTERVAL = 30000; // 30 seconds
   private isRunning = false;
   private readonly allowedOrigins: string[];
+  private readonly maxMessageBytes: number;
 
-  constructor(private port: number = 3002, allowedOrigins: string[] = allowedOriginsFromEnv()) {
+  constructor(
+    private port: number = 3002,
+    allowedOrigins: string[] = allowedOriginsFromEnv(),
+    maxMessageBytes: number = maxMessageBytesFromEnv()
+  ) {
     super();
     this.httpServer = createServer();
     this.allowedOrigins = allowedOrigins;
+    this.maxMessageBytes = parseMaxMessageBytes(maxMessageBytes);
   }
 
   /**
    * Admit a new socket. The connection is closed with 1008 before it is
    * registered (and therefore before any order message) when the Origin
-   * header is missing or not on the coordinator CORS allowlist.
+   * header is missing or not on the coordinator CORS allowlist. A frame
+   * larger than `maxMessageBytes` closes the connection with 1009 before it
+   * is decoded or parsed, and only its size is logged.
    *
    * Returns the registered client, or `null` when the socket was refused.
    */
@@ -299,6 +373,21 @@ export class FusionWebSocketServer extends EventEmitter {
     this.clients.set(client.id, client);
 
     socket.on('message', (raw: unknown) => {
+      // Measure the frame before turning it into a string: the size cap must
+      // apply to what actually arrived, not to a decoded copy of it.
+      const bytes = inboundByteLength(raw);
+      if (bytes > this.maxMessageBytes) {
+        // Only the size and the limit are logged — never the rejected body.
+        console.warn(
+          `🛑 Closing client ${client.id}: inbound message of ${bytes} bytes exceeds the ${this.maxMessageBytes}-byte limit`
+        );
+        // Drop the client first so no broadcast can be queued behind the
+        // close frame while the handshake is still in flight.
+        this.clients.delete(client.id);
+        socket.close(WS_MESSAGE_TOO_BIG, WS_MESSAGE_TOO_BIG_REASON);
+        return;
+      }
+
       let message: WebSocketMessage;
       try {
         message = JSON.parse(String(raw));
@@ -673,6 +762,11 @@ export class FusionWebSocketServer extends EventEmitter {
 
   getEventHistorySize(): number {
     return this.eventHistory.length;
+  }
+
+  /** Effective inbound message cap, in bytes. */
+  getMaxMessageBytes(): number {
+    return this.maxMessageBytes;
   }
 
   getClientInfo(): Array<{ id: string; subscriptions: string[]; filters: any; metadata: any }> {
