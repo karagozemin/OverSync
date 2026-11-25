@@ -1,12 +1,15 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { validateCoordinatorUrl } from './src/config/coordinator-url'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, process.cwd(), '')
   
+  validateCoordinatorUrl(env.VITE_API_BASE_URL, command === 'build');
+
   const isProduction = mode === 'production';
 
   return {

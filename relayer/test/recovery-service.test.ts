@@ -21,6 +21,8 @@ import {
 } from '../src/recovery-service.js';
 import {
   RelaySubmissionTracker,
+  computeOrderKey,
+  computeSubmissionKey,
   type RelayAction,
 } from '../src/relay-submission-tracker.js';
 
@@ -30,8 +32,9 @@ import {
 
 /** Build a RelayAction with sane defaults, optionally overriding fields. */
 const makeAction = (overrides: Partial<RelayAction> = {}): RelayAction => ({
-  kind: 'eth->xlm',
   orderId: 'order_abc',
+  side: 'eth_to_xlm',
+  action: 'claim',
   chain: 'stellar',
   destination: 'GUSER…',
   amount: '10.0000000',
@@ -62,13 +65,30 @@ async function seedInFlight(
   action: RelayAction,
   txHash: string
 ): Promise<{ release: () => void }> {
-  let _release!: (v: { hash: string }) => void;
-  tracker.submit(action, () => new Promise<{ hash: string }>((r) => (_release = r)));
-  await Promise.resolve(); // let the first attempt register
-  // Stamp the result so extractTxHash can find it
-  const record = tracker.getRecord(action) as any;
-  if (record) record.result = { hash: txHash };
-  return { release: () => _release({ hash: txHash }) };
+  seedRecord(tracker, action, txHash, 'pending');
+  return { release: () => {} };
+}
+
+function seedRecord(
+  tracker: RelaySubmissionTracker,
+  action: RelayAction,
+  txHash: string,
+  status: 'pending' | 'failed'
+): void {
+  const key = computeSubmissionKey(action);
+  const record = {
+    key,
+    orderKey: computeOrderKey(action.orderId, action.side),
+    action,
+    status,
+    attempts: 1,
+    maxAttempts: 3,
+    broadcasts: 1,
+    txHash,
+    result: { hash: txHash },
+    firstSeenAt: Date.now(),
+  };
+  (tracker as any).records.set(key, record);
 }
 
 /**
@@ -79,7 +99,10 @@ async function seedSucceeded(
   action: RelayAction,
   txHash: string
 ): Promise<void> {
-  await tracker.submit(action, () => Promise.resolve({ hash: txHash }));
+  await tracker.submit(action, () => ({
+    txHash,
+    broadcast: () => Promise.resolve({ hash: txHash }),
+  }));
 }
 
 /**
@@ -91,17 +114,7 @@ async function seedFailed(
   action: RelayAction,
   txHash: string
 ): Promise<void> {
-  const t = new RelaySubmissionTracker({ maxAttempts: 1, sleep: noSleep });
-  // We use a fresh tracker to exhaust the budget, then copy the record.
-  await t.submit(action, () => Promise.reject(new Error('rpc error'))).catch(() => undefined);
-  const src = t.getRecord(action) as any;
-  if (!src) return;
-  // Manually inject into the target tracker via forget+re-inject trick:
-  // Simply exhaust the real tracker's budget too.
-  const tgt = tracker as any;
-  // Directly insert into the internal map (same shape as SubmissionRecord)
-  src.result = { hash: txHash };
-  tgt.records.set(src.key, src);
+  seedRecord(tracker, action, txHash, 'failed');
 }
 
 function makeConfig(
@@ -181,7 +194,7 @@ describe('Confirmed hash — not replaced', () => {
 
     const report = await svc.recoverPendingRows();
 
-    expect(report.alreadyConfirmed).toContain(tracker.fingerprint(action));
+    expect(report.alreadyConfirmed).toContain(computeSubmissionKey(action));
     expect(report.replaced).toHaveLength(0);
 
     // The record should now be succeeded
@@ -217,11 +230,11 @@ describe('Confirmed hash — not replaced', () => {
 
     const report = await svc.recoverPendingRows();
 
-    expect(report.stillPending).toContain(tracker.fingerprint(action));
+    expect(report.stillPending).toContain(computeSubmissionKey(action));
     expect(report.replaced).toHaveLength(0);
 
-    // Record must still be in_flight — the duplicate gate remains armed
-    expect(tracker.getRecord(action)?.status).toBe('in_flight');
+    // The pending hash remains in the tracker and owns the duplicate gate.
+    expect(tracker.getRecord(action)?.status).toBe('pending');
 
     release();
   });
@@ -240,10 +253,13 @@ describe('Confirmed hash — not replaced', () => {
     await svc.recoverPendingRows();
 
     // Record is now succeeded — a second submit must return already_handled
-    const secondAttempt = await tracker.submit(action, () => {
-      executorCallCount.n++;
-      return Promise.resolve({ hash: '0xsecond' });
-    });
+    const secondAttempt = await tracker.submit(action, () => ({
+      txHash: '0xsecond',
+      broadcast: async () => {
+        executorCallCount.n++;
+        return { hash: '0xsecond' };
+      },
+    }));
 
     expect(secondAttempt.status).toBe('already_handled');
     expect(executorCallCount.n).toBe(0);
@@ -266,7 +282,7 @@ describe('Expired hash — replaced exactly once', () => {
     const svc = new RecoveryService(tracker, provider, makeConfig());
     const report = await svc.recoverPendingRows();
 
-    expect(report.replaced).toContain(tracker.fingerprint(action));
+    expect(report.replaced).toContain(computeSubmissionKey(action));
     expect(report.alreadyConfirmed).toHaveLength(0);
 
     // Record should be gone so a fresh submit is possible
@@ -284,7 +300,10 @@ describe('Expired hash — replaced exactly once', () => {
 
     // A replacement is now possible
     const replacementExecutor = vi.fn().mockResolvedValue({ hash: '0xnewtx' });
-    const outcome = await tracker.submit(action, replacementExecutor);
+    const outcome = await tracker.submit(action, () => ({
+      txHash: '0xnewtx',
+      broadcast: replacementExecutor,
+    }));
 
     expect(replacementExecutor).toHaveBeenCalledTimes(1);
     expect(outcome.status).toBe('succeeded');
@@ -292,7 +311,10 @@ describe('Expired hash — replaced exactly once', () => {
 
     // A SECOND call for the same action must NOT re-run the executor
     const secondExecutor = vi.fn().mockResolvedValue({ hash: '0xthirdtx' });
-    const second = await tracker.submit(action, secondExecutor);
+    const second = await tracker.submit(action, () => ({
+      txHash: '0xthirdtx',
+      broadcast: secondExecutor,
+    }));
     expect(secondExecutor).toHaveBeenCalledTimes(0);
     expect(second.status).toBe('already_handled');
   });
@@ -310,7 +332,10 @@ describe('Expired hash — replaced exactly once', () => {
     expect(report1.replaced).toHaveLength(1);
 
     // After a replacement submission the record is succeeded
-    await tracker.submit(action, () => Promise.resolve({ hash: '0xreplacement' }));
+    await tracker.submit(action, () => ({
+      txHash: '0xreplacement',
+      broadcast: () => Promise.resolve({ hash: '0xreplacement' }),
+    }));
 
     // Second recovery cycle: the record is now succeeded → not polled
     const report2 = await svc.recoverPendingRows();
@@ -330,7 +355,7 @@ describe('Expired hash — replaced exactly once', () => {
     const svc = new RecoveryService(tracker, provider, makeConfig());
 
     const report = await svc.recoverPendingRows();
-    expect(report.replaced).toContain(tracker.fingerprint(action));
+    expect(report.replaced).toContain(computeSubmissionKey(action));
 
     // The dangling in-flight promise resolves after forget; clean up.
     release();
@@ -404,7 +429,7 @@ describe('Unknown status and missing tx hash', () => {
     const svc = new RecoveryService(tracker, provider, makeConfig());
     const report = await svc.recoverPendingRows();
 
-    expect(report.unknown).toContain(tracker.fingerprint(action));
+    expect(report.unknown).toContain(computeSubmissionKey(action));
     expect(tracker.getRecord(action)).toBeDefined(); // not forgotten
   });
 
@@ -419,7 +444,7 @@ describe('Unknown status and missing tx hash', () => {
     const svc = new RecoveryService(tracker, provider, makeConfig());
     const report = await svc.recoverPendingRows();
 
-    expect(report.unknown).toContain(tracker.fingerprint(action));
+    expect(report.unknown).toContain(computeSubmissionKey(action));
     // Provider should NOT have been called because there was nothing to query
     expect(provider.impl).not.toHaveBeenCalled();
   });
@@ -457,14 +482,14 @@ describe('Multiple pending rows', () => {
     const svc = new RecoveryService(tracker, provider, makeConfig());
     const report = await svc.recoverPendingRows();
 
-    expect(report.alreadyConfirmed).toContain(tracker.fingerprint(aConfirmed));
-    expect(report.replaced).toContain(tracker.fingerprint(aExpired));
-    expect(report.stillPending).toContain(tracker.fingerprint(aPending));
+    expect(report.alreadyConfirmed).toContain(computeSubmissionKey(aConfirmed));
+    expect(report.replaced).toContain(computeSubmissionKey(aExpired));
+    expect(report.stillPending).toContain(computeSubmissionKey(aPending));
 
-    // Confirmed → succeeded; expired → gone; pending → still in_flight
+    // Confirmed → succeeded; expired → gone; pending → still pending
     expect(tracker.getRecord(aConfirmed)?.status).toBe('succeeded');
     expect(tracker.getRecord(aExpired)).toBeUndefined();
-    expect(tracker.getRecord(aPending)?.status).toBe('in_flight');
+    expect(tracker.getRecord(aPending)?.status).toBe('pending');
 
     relConf();
     relPend();

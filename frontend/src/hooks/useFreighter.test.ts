@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FreighterNetworkMismatchError, useFreighter } from './useFreighter';
 import freighterApi from '@stellar/freighter-api';
@@ -298,7 +298,7 @@ describe('useFreighter — Network Agreement & Refusal', () => {
 
       const { result } = renderHook(() => useFreighter());
 
-      const addr = await result.current.connect();
+      const addr = await act(() => result.current.connect());
 
       expect(addr).toBe(TEST_STELLAR_ADDRESS);
       expect(result.current.isConnected).toBe(true);

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { isOrderIdentifier, rejectInvalidOrderId } from "./order-identifiers.js";
 import type { SecretService } from "../../services/secret-service.js";
 import { isTransitionRejection } from "../../services/order-service.js";
 import type { RequestHandler } from "express";
@@ -13,6 +14,10 @@ export interface SecretsRoutesOptions {
 
 export function secretsRoutes(secrets: SecretService, options: SecretsRoutesOptions = {}): Router {
   const router = Router();
+  router.param("publicId", (_req, res, next, publicId) => {
+    if (isOrderIdentifier(publicId)) next();
+    else rejectInvalidOrderId(res);
+  });
 
   const revealSchema = z.object({
     publicId: z.string().min(1),
@@ -25,6 +30,10 @@ export function secretsRoutes(secrets: SecretService, options: SecretsRoutesOpti
   if (options.rateLimit) gates.push(options.rateLimit);
 
   router.post("/secrets/reveal", ...gates, async (req, res, next) => {
+    if (!isOrderIdentifier(req.body?.publicId)) {
+      rejectInvalidOrderId(res);
+      return;
+    }
     try {
       const body = revealSchema.parse(req.body);
       await secrets.reveal(body.publicId, body.preimage, body.txHash);

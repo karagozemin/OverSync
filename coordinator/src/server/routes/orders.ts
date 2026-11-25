@@ -1,5 +1,6 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
+import { isOrderIdentifier, rejectInvalidOrderId } from "./order-identifiers.js";
 import type { OrderRow, OrderSnapshot } from "../../persistence/orders-repo.js";
 import {
   announceSchema,
@@ -118,6 +119,10 @@ function serialiseOrder(order: OrderRow | null) {
 
 export function ordersRoutes(orders: OrderService, options: OrdersRouteOptions = {}): Router {
   const router = Router();
+  router.param("id", (_req, res, next, id) => {
+    if (isOrderIdentifier(id)) next();
+    else rejectInvalidOrderId(res);
+  });
   const network = options.network ?? defaultNetwork();
 
   router.post("/orders/announce", async (req, res, next) => {
@@ -271,7 +276,7 @@ export function ordersRoutes(orders: OrderService, options: OrdersRouteOptions =
     }
   });
   // Parameterized routes come AFTER specific routes
-router.get("/orders/:id", async (req, res, next) => {
+  router.get("/orders/:id", async (req, res, next) => {
     const id = req.params.id;
     try {
       const order = await orders.get(id);
@@ -293,6 +298,10 @@ router.get("/orders/:id", async (req, res, next) => {
   });
 
   router.post("/orders/:id/src-locked", async (req, res, next) => {
+    if (!isOrderIdentifier(req.body?.orderId)) {
+      rejectInvalidOrderId(res);
+      return;
+    }
     try {
       const body = lockSchema.parse(req.body);
       await orders.recordSrcLock({ publicId: req.params.id, ...body });
@@ -312,6 +321,10 @@ router.get("/orders/:id", async (req, res, next) => {
   });
 
   router.post("/orders/:id/dst-locked", async (req, res, next) => {
+    if (!isOrderIdentifier(req.body?.orderId)) {
+      rejectInvalidOrderId(res);
+      return;
+    }
     try {
       const body = lockSchema.extend({ resolver: z.string().nullable().optional() }).parse(req.body);
       await orders.recordDstLock({

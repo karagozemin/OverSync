@@ -2,9 +2,10 @@
 
 Reference resolver runner for the OverSync cross-chain bridge.
 
-Docker builds use this directory as their context. `.dockerignore` keeps local
-environment files, Git data, dependencies, coverage, caches, and editor artifacts
-out of that context while retaining the files required by `Dockerfile`.
+Docker builds use the repository root as their context so pnpm can resolve the
+shared SDK workspace dependency. `Dockerfile.dockerignore` limits that context
+to the resolver, SDK, and workspace manifests; `.dockerignore` covers local
+builds that use this directory as their context.
 
 ## Preflight Command
 

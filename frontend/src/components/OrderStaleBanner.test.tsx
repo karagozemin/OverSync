@@ -1,18 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
-import OrderStaleBanner from './OrderStaleBanner';
+import OrderRecoveryBanner from './OrderRecoveryBanner';
 
-describe('OrderStaleBanner', () => {
+describe('OrderRecoveryBanner', () => {
   it('does not render when order is fresh and there is no error', () => {
     const { container } = render(
-      <OrderStaleBanner isStale={false} freshnessError={null} />
+      <OrderRecoveryBanner isStale={false} freshnessError={null} />
     );
     expect(container.firstChild).toBeNull();
   });
 
   it('renders stale warning when isStale is true', () => {
-    render(<OrderStaleBanner isStale={true} freshnessError={null} />);
+    render(<OrderRecoveryBanner isStale={true} freshnessError={null} />);
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText(/Order is stale or expired/i)).toBeInTheDocument();
@@ -25,7 +25,7 @@ describe('OrderStaleBanner', () => {
     const onRetry = vi.fn();
 
     render(
-      <OrderStaleBanner
+      <OrderRecoveryBanner
         isStale={false}
         freshnessError="Network request timed out"
         onRetry={onRetry}
@@ -47,7 +47,7 @@ describe('OrderStaleBanner', () => {
 
   it('disables retry button when isRetrying is true', () => {
     render(
-      <OrderStaleBanner
+      <OrderRecoveryBanner
         isStale={false}
         freshnessError="Error"
         onRetry={vi.fn()}

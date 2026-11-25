@@ -13,6 +13,9 @@
 
 export const CURSOR_VERSION = 1;
 
+/** Cap the encoded token before allocating a decoded buffer or parsing JSON. */
+export const MAX_HISTORY_CURSOR_LENGTH = 512;
+
 /** `public_id` is 16 random bytes rendered as lowercase hex. */
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
 
@@ -76,7 +79,7 @@ export function encodeHistoryCursor(cursor: HistoryCursor): string {
  * this coordinator ever issued. Never throws.
  */
 export function decodeHistoryCursor(raw: unknown): HistoryCursor | null {
-  if (typeof raw !== "string" || raw.length === 0) return null;
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_HISTORY_CURSOR_LENGTH) return null;
 
   let parsed: unknown;
   try {

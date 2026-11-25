@@ -143,6 +143,11 @@ pnpm build
 # Serve dist/ via any static host (Vercel, Cloudflare Pages, Netlify).
 ```
 
+Set `VITE_API_BASE_URL=http://localhost:3001` when running the Vite dev
+server against a local coordinator. Frontend builds require an absolute HTTPS
+URL if this variable is set. Leave it unset to use the same-origin API proxy
+configured by the deployment.
+
 ### Frontend network mode
 
 By default the public UI is **testnet-only**:

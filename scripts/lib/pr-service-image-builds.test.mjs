@@ -30,7 +30,7 @@ describe("PR service image builds", () => {
     assert.equal(job.includes("packages: write"), false, "PR builds must not request packages:write");
 
     for (const [stepName, context] of [
-      ["Build resolver image", "./resolver"],
+      ["Build resolver image", "."],
       ["Build relayer image", "./relayer"],
     ]) {
       const step = buildStepBlock(job, stepName);
