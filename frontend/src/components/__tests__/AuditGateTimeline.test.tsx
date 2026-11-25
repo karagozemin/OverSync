@@ -2,16 +2,18 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { AuditGateTimeline } from '../AuditGateTimeline';
 import { useOrder } from '../../hooks/useOrder';
-import { OrderStatus } from '@over-sync/coordinator';
+import { vi } from 'vitest';
+import type { RecoveredOrder } from '../../lib/orderRecovery';
 
 // Mock the useOrder hook
-jest.mock('../../hooks/useOrder');
+vi.mock('../../hooks/useOrder');
 
-const mockUseOrder = useOrder as jest.MockedFunction<typeof useOrder>;
+const mockUseOrder = vi.mocked(useOrder);
 
 describe('AuditGateTimeline', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockUseOrder.mockReset();
+    mockUseOrder.mockReturnValue({ order: null, error: null });
   });
 
   it('renders all timeline steps', () => {
@@ -30,7 +32,7 @@ describe('AuditGateTimeline', () => {
     
     // Initial state
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Pending },
+      order: { status: 'announced' } as RecoveredOrder,
       error: null
     });
     rerender(<AuditGateTimeline orderId="123" />);
@@ -41,7 +43,7 @@ describe('AuditGateTimeline', () => {
     
     // Simulate coordinator status change to Escrowed
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Escrowed },
+      order: { status: 'src_locked' } as RecoveredOrder,
       error: null
     });
     rerender(<AuditGateTimeline orderId="123" />);
@@ -54,17 +56,17 @@ describe('AuditGateTimeline', () => {
 
   it('does not advance timeline on local click without status change', () => {
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Pending },
+      order: { status: 'announced' } as RecoveredOrder,
       error: null
     });
-    render(<AuditGateTimeline orderId="123" />);
+    const { rerender } = render(<AuditGateTimeline orderId="123" />);
     
     // Simulate local click (no status change)
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Pending },
+      order: { status: 'announced' } as RecoveredOrder,
       error: null
     });
-    render(<AuditGateTimeline orderId="123" />);
+    rerender(<AuditGateTimeline orderId="123" />);
     
     // Timeline should not advance
     expect(screen.getByText('Initiate').parentElement).toHaveClass('current');
@@ -74,17 +76,17 @@ describe('AuditGateTimeline', () => {
   it('does not move timeline backward for older order responses', () => {
     // Start with a more advanced status
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Escrowed },
+      order: { status: 'src_locked' } as RecoveredOrder,
       error: null
     });
-    render(<AuditGateTimeline orderId="123" />);
+    const { rerender } = render(<AuditGateTimeline orderId="123" />);
     
     // Simulate receiving an older response with Pending status
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Pending },
+      order: { status: 'announced' } as RecoveredOrder,
       error: null
     });
-    render(<AuditGateTimeline orderId="123" />);
+    rerender(<AuditGateTimeline orderId="123" />);
     
     // Timeline should remain at Escrow
     expect(screen.getByText('Initiate').parentElement).toHaveClass('complete');
@@ -94,7 +96,7 @@ describe('AuditGateTimeline', () => {
   it('shows error step for unknown status', () => {
     // Mock an unknown status (not in STATUS_TO_STEP)
     mockUseOrder.mockReturnValue({
-      order: { status: 'UNKNOWN' as OrderStatus },
+      order: { status: 'UNKNOWN' } as RecoveredOrder,
       error: null
     });
     render(<AuditGateTimeline orderId="123" />);
@@ -105,7 +107,7 @@ describe('AuditGateTimeline', () => {
 
   it('marks claim step complete only on coordinator claim status', () => {
     mockUseOrder.mockReturnValue({
-      order: { status: OrderStatus.Claimed },
+      order: { status: 'secret_revealed' } as RecoveredOrder,
       error: null
     });
     render(<AuditGateTimeline orderId="123" />);

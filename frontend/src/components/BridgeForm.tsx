@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Horizon, 
   Asset, 
@@ -12,7 +12,20 @@ import { parseHtlcReceipt } from '../lib/parseHtlcReceipt';
 import { sanitizeAmountInput, parseAmountToBaseUnits } from '../lib/sanitizeAmountInput';
 import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
 import { useBackendStatus } from '../lib/useBackendStatus';
-import { wakeBackend } from '../lib/wakeBackend';
+import NetworkMismatchBanner from './NetworkMismatchBanner';
+import OrderRecoveryBanner from './OrderRecoveryBanner';
+import {
+  getActiveOrderId,
+  getActiveOrder,
+  setActiveOrder,
+  clearActiveOrder,
+  isResponseForCurrentOrder,
+  type RecoveredOrder,
+} from '../lib/orderRecovery';
+import { isOrderStale, checkOrderFreshness } from '../lib/orderFreshness';
+import RefundDialog from '../features/refund/RefundDialog';
+import type { Address } from 'viem';
+
 
 // Web3 imports for contract interaction
 declare global {
@@ -30,6 +43,9 @@ export interface BridgeFormProps {
   signStellarTransaction: (xdr: string, networkPassphrase?: string) => Promise<string>;
   /** Network/wallet mismatch detector from App. If omitted, guardrails are skipped. */
   networkState?: NetworkModeState;
+  initialOrderId?: string | null;
+  onClaim?: (order: RecoveredOrder) => Promise<void>;
+  onRefund?: (order: RecoveredOrder) => Promise<void>;
 }
 
   // Fixed token information
@@ -164,9 +180,11 @@ const API_BASE_URL = import.meta.env.PROD
   : import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL;
 const ENABLE_MOCK_DATA = import.meta.env.VITE_ENABLE_MOCK_DATA === 'true';
 
-export default function BridgeForm({ ethAddress, stellarAddress, signStellarTransaction, networkState }: BridgeFormProps) {
+export default function BridgeForm({ ethAddress, stellarAddress, signStellarTransaction, networkState, initialOrderId, onClaim, onRefund }: BridgeFormProps) {
   const [direction, setDirection] = useState<'eth_to_xlm' | 'xlm_to_eth'>('eth_to_xlm');
-  const { status: backendStatus, isReady: backendReady, isLoading: backendLoading, refresh: refreshBackendStatus } = useBackendStatus();
+  const { status: backendStatus, retry: refreshBackendStatus } = useBackendStatus();
+  const backendReady = backendStatus === 'reachable';
+  const backendLoading = backendStatus === 'checking';
   const [isWakingBackend, setIsWakingBackend] = useState(false);
   const wakeInFlightRef = useRef(false);
   const [networkInfo, setNetworkInfo] = useState(() => {
@@ -225,8 +243,6 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
   // Unified active/restored order state
   const [order, setOrder] = useState<RecoveredOrder | null>(null);
-  const [_isOrderLoading, setIsOrderLoading] = useState(false);
-  const [_orderRecoveryError, setOrderRecoveryError] = useState<string | null>(null);
 
   // Freshness state
   const [isStale, setIsStale] = useState(false);
@@ -257,8 +273,6 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
     activeOrderIdRef.current = idToRestore;
     setOrderId(idToRestore);
-    setIsOrderLoading(true);
-    setOrderRecoveryError(null);
 
     // If an existing order was saved locally for this id, restore it immediately so the UI is visible
     const cachedOrder = getActiveOrder();
@@ -271,19 +285,19 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
       setIsStale(isOrderStale(cachedOrder));
     }
 
+    const controller = new AbortController();
     setIsCheckingFreshness(true);
 
-    checkOrderFreshness(idToRestore)
+    checkOrderFreshness(idToRestore, { signal: controller.signal })
       .then((result) => {
         // Late response guard: ignore response for a different or older order id
-        if (!isResponseForCurrentOrder(activeOrderIdRef.current, idToRestore)) {
+        if (controller.signal.aborted || !isResponseForCurrentOrder(activeOrderIdRef.current, idToRestore)) {
           return;
         }
 
         setOrder(result.order);
         setOrderId(result.order.id);
         setOrderCreated(true);
-        setActiveOrderId(result.order.id);
         setActiveOrder(result.order);
 
         if (result.order.direction) {
@@ -294,16 +308,16 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         setFreshnessError(null);
       })
       .catch((err: any) => {
-        if (!isResponseForCurrentOrder(activeOrderIdRef.current, idToRestore)) {
+        if (controller.signal.aborted || !isResponseForCurrentOrder(activeOrderIdRef.current, idToRestore)) {
           return;
         }
         // Keep the restored order visible if the freshness request fails, with an explicit retry
         setFreshnessError(err?.message || 'Freshness verification failed');
       })
       .finally(() => {
-        setIsOrderLoading(false);
-        setIsCheckingFreshness(false);
+        if (!controller.signal.aborted) setIsCheckingFreshness(false);
       });
+    return () => controller.abort();
   }, [initialOrderId]);
 
   // Freshness check with explicit retry; keeps restored order visible on failure
@@ -333,14 +347,17 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   const targetNetworkMode: 'testnet' | 'mainnet' =
     order?.networkMode ?? (networkInfo.isTestnet ? 'testnet' : 'mainnet');
 
-  const isWalletNetworkMismatch = Boolean(networkState.hasAnyMismatch);
+  const isWalletNetworkMismatch = Boolean(networkState?.hasAnyMismatch);
   const isOrderNetworkMismatch = Boolean(
-    networkState.hasAnyMismatch ||
-    (order?.networkMode && networkState.mode !== order.networkMode)
+    networkState?.hasAnyMismatch ||
+    (order?.networkMode && (networkState?.mode ?? (networkInfo.isTestnet ? 'testnet' : 'mainnet')) !== order.networkMode)
   );
 
+  const canActOnOrder = backendReady && order && !isStale && !isOrderNetworkMismatch &&
+    !isCheckingFreshness && !freshnessError && !networkState?.guard?.disableUiActions;
+
   const handleClaim = async () => {
-    if (!order || isStale || isOrderNetworkMismatch || isClaiming) return;
+    if (!canActOnOrder || isClaiming) return;
     setIsClaiming(true);
     try {
       if (onClaim) {
@@ -356,7 +373,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   };
 
   const handleRefund = async () => {
-    if (!order || isStale || isOrderNetworkMismatch || isRefunding) return;
+    if (!canActOnOrder || isRefunding) return;
     setIsRefunding(true);
     try {
       if (onRefund) {
@@ -590,6 +607,12 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
       return;
     }
     
+    const amountBaseUnits = parseAmountToBaseUnits(amount, fromToken.decimals);
+    if (amountBaseUnits === null || amountBaseUnits === 0n) {
+      alert(`Enter a positive amount with at most ${fromToken.decimals} decimal places.`);
+      return;
+    }
+
     setIsSubmitting(true);
     setStatusMessage('Hazırlanıyor...');
     
@@ -1310,10 +1333,8 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
     setOrder(null);
     activeOrderIdRef.current = null;
     clearActiveOrder();
-    clearActiveOrderId();
     setIsStale(false);
     setFreshnessError(null);
-    setOrderRecoveryError(null);
   };
 
   // Check if wallets are connected
@@ -1324,8 +1345,8 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
   const backendStatusLabel = useMemo(() => {
     if (backendLoading) return 'Checking coordinator...';
     if (!backendReady) {
-      if (backendStatus === 'down') return 'Coordinator is down';
-      if (backendStatus === 'not-ready') return 'Coordinator is starting up';
+      if (backendStatus === 'unavailable') return 'Coordinator is down';
+      if (backendStatus === 'degraded') return 'Coordinator is starting up';
       return 'Coordinator is not ready';
     }
     return null;
@@ -1337,7 +1358,6 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
     setIsWakingBackend(true);
     try {
       // Wake must only re-check health; it must never post an order.
-      await wakeBackend();
       await refreshBackendStatus();
     } catch (err) {
       console.warn('wakeBackend failed:', err);
@@ -1389,7 +1409,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
     <div className="w-full rounded-[1.25rem] p-4 swap-card-bg swap-card-border md:p-5 lg:p-6">
       {orderCreated ? (
         <div className="space-y-6 text-center">
-          {isOrderNetworkMismatch && (
+          {isOrderNetworkMismatch && networkState && (
             <div className="mb-4 text-left">
               <NetworkMismatchBanner
                 networkState={networkState}
@@ -1400,7 +1420,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
           )}
 
           <div className="text-left">
-            <OrderStaleBanner
+            <OrderRecoveryBanner
               order={order}
               isStale={isStale}
               freshnessError={freshnessError}
@@ -1449,7 +1469,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             <button
               type="button"
               onClick={handleClaim}
-              disabled={isStale || isOrderNetworkMismatch || isClaiming}
+              disabled={!canActOnOrder || isClaiming}
               aria-label="Claim order"
               className="button-hover-scale flex-1 rounded-full py-3 font-semibold transition bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-50 border border-cyan-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -1458,7 +1478,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
             <button
               type="button"
               onClick={handleRefund}
-              disabled={isStale || isOrderNetworkMismatch || isRefunding}
+              disabled={!canActOnOrder || isRefunding}
               aria-label="Refund order"
               className="button-hover-scale flex-1 rounded-full py-3 font-semibold transition bg-amber-500/20 hover:bg-amber-500/30 text-amber-50 border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -1476,7 +1496,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
-          {isWalletNetworkMismatch && (
+          {isWalletNetworkMismatch && networkState && (
             <div className="mb-3">
               <NetworkMismatchBanner networkState={networkState} />
             </div>
@@ -1742,9 +1762,10 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         </form>
       )}
 
-      {showRefundDialog && order?.src?.orderId && ethAddress && (
+      {showRefundDialog && canActOnOrder && order.src?.orderId && ethAddress && (
         <RefundDialog
           userAddress={ethAddress as Address}
+          coordinatorOrderId={order.id}
           orderId={order.src.orderId}
           timelockUnixSeconds={order.src.timelock ?? 0}
           amountWei={order.src.amount ?? '0'}

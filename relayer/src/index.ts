@@ -764,6 +764,10 @@ async function initializeRelayer() {
     res.json({ message: 'FusionBridge Relayer API', status: 'running' });
   });
   
+  app.get(['/health', '/api/health'], (_req, res) => {
+    res.json({ status: 'ok' });
+  });
+
   // Simple test endpoints
   app.get('/test', (req, res) => {
     res.json({ message: 'ROOT test working!', timestamp: new Date().toISOString() });
