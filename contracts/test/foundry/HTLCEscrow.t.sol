@@ -200,9 +200,12 @@ contract HTLCHandler is Test {
         htlc = _htlc;
     }
 
-    function createOrder(bytes32 secret, uint64 tl) external payable {
+    receive() external payable {}
+
+    function createOrder(bytes32 secret, uint64 tl, uint256 rawAmount) external {
         tl = uint64(bound(tl, MIN_TL, MAX_TL));
-        uint256 amount = bound(msg.value, 1, 10 ether);
+        // Fund orders from the handler so a fuzzed caller cannot spend escrow ETH.
+        uint256 amount = bound(rawAmount, 1, 10 ether);
         uint256 sd     = MIN_SD;
         uint256 total  = amount + sd;
 
