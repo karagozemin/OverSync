@@ -6,15 +6,37 @@ import {
   QuoteNotFoundError
 } from "../../services/quote-service.js";
 import type { QuoteService } from "../../services/quote-service.js";
+import { validationErrorResponse } from "./validation-error.js";
 
-const quoteTermsSchema = z.object({
-  srcChain: z.enum(["ethereum", "stellar"]),
-  srcAsset: z.string().min(1),
-  srcAmount: z.string().regex(/^\d+$/),
-  dstChain: z.enum(["ethereum", "stellar"]),
-  dstAsset: z.string().min(1),
-  dstAmount: z.string().regex(/^\d+$/)
-});
+const quoteTermsSchema = z
+  .object({
+    srcChain: z.enum(["ethereum", "stellar"]),
+    srcAsset: z.string().min(1),
+    srcAmount: z.string().regex(/^\d+$/),
+    dstChain: z.enum(["ethereum", "stellar"]),
+    dstAsset: z.string().min(1),
+    dstAmount: z.string().regex(/^\d+$/)
+  })
+  .strict();
+
+const QUOTE_TERM_KEYS = [
+  "srcChain",
+  "srcAsset",
+  "srcAmount",
+  "dstChain",
+  "dstAsset",
+  "dstAmount"
+] as const;
+
+/**
+ * Strict query contract. Clients either send the whole set of terms or none of
+ * them; `amount` may accompany either form. Any other query key (including a
+ * misspelled term such as `srcAmout`) is rejected instead of ignored.
+ */
+const quoteQuerySchema = quoteTermsSchema
+  .partial()
+  .extend({ amount: z.string().optional() })
+  .strict();
 
 export function quotesRoutes(quotes: QuoteService): Router {
   const router = Router();
@@ -38,14 +60,22 @@ export function quotesRoutes(quotes: QuoteService): Router {
         res.status(400).json({ error: "invalid_amount", message: "amount must be a single value" });
         return;
       }
-      const hasTerms = Object.keys(quoteTermsSchema.shape).some(
-        (key) => req.query[key] !== undefined
-      );
+      const parsedQuery = quoteQuerySchema.parse(req.query);
+      const hasTerms = QUOTE_TERM_KEYS.some((key) => parsedQuery[key] !== undefined);
       let quote;
       try {
         quote = await quotes.quoteEthXlm({
-          ...(hasTerms ? quoteTermsSchema.parse(req.query) : {}),
-          amountBaseUnits: rawAmount
+          ...(hasTerms
+            ? quoteTermsSchema.parse({
+                srcChain: parsedQuery.srcChain,
+                srcAsset: parsedQuery.srcAsset,
+                srcAmount: parsedQuery.srcAmount,
+                dstChain: parsedQuery.dstChain,
+                dstAsset: parsedQuery.dstAsset,
+                dstAmount: parsedQuery.dstAmount
+              })
+            : {}),
+          amountBaseUnits: parsedQuery.amount
         });
       } catch (err) {
         if (err instanceof AmountParseError) {
@@ -74,7 +104,7 @@ export function quotesRoutes(quotes: QuoteService): Router {
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        res.status(400).json(validationErrorResponse(err));
         return;
       }
       next(err);

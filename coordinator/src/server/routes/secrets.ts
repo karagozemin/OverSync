@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SecretService } from "../../services/secret-service.js";
 import { isTransitionRejection } from "../../services/order-service.js";
 import type { RequestHandler } from "express";
+import { validationErrorResponse } from "./validation-error.js";
 
 export interface SecretsRoutesOptions {
   /** CORS middleware to gate the secret route. */
@@ -14,11 +15,16 @@ export interface SecretsRoutesOptions {
 export function secretsRoutes(secrets: SecretService, options: SecretsRoutesOptions = {}): Router {
   const router = Router();
 
-  const revealSchema = z.object({
-    publicId: z.string().min(1),
-    preimage: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "preimage must be 0x + 64 hex chars"),
-    txHash: z.string().min(1)
-  });
+  // Strict: a misspelled `preimage` or `txHash` is rejected rather than
+  // silently dropped, so a reveal can never succeed without the fields the
+  // client meant to send.
+  const revealSchema = z
+    .object({
+      publicId: z.string().min(1),
+      preimage: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "preimage must be 0x + 64 hex chars"),
+      txHash: z.string().min(1)
+    })
+    .strict();
 
   const gates: RequestHandler[] = [];
   if (options.cors) gates.push(options.cors);
@@ -31,7 +37,7 @@ export function secretsRoutes(secrets: SecretService, options: SecretsRoutesOpti
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        res.status(400).json(validationErrorResponse(err));
         return;
       }
       // The state machine refused the reveal: the order is not escrowed yet,

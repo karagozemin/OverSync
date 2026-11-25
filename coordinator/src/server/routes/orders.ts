@@ -13,6 +13,7 @@ import {
   validateHistoryCursor,
   type HistoryCursor
 } from "./cursor-utils.js";
+import { validationErrorResponse } from "./validation-error.js";
 
 export interface OrdersRouteOptions {
   /**
@@ -127,7 +128,7 @@ export function ordersRoutes(orders: OrderService, options: OrdersRouteOptions =
       res.status(201).json(serialiseOrder(order));
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        res.status(400).json(validationErrorResponse(err));
         return;
       }
       if (err instanceof OrderValidationError) {
@@ -285,12 +286,17 @@ router.get("/orders/:id", async (req, res, next) => {
     }
   });
 
-  const lockSchema = z.object({
-    orderId: z.string().min(1),
-    txHash: z.string().min(1),
-    blockNumber: z.coerce.number().int().nonnegative(),
-    timelock: z.coerce.number().int().nonnegative()
-  });
+  // Strict on purpose: a misspelled `timelock` must be rejected rather than
+  // dropped, otherwise the recorded lock would claim a safety window the
+  // client never actually set.
+  const lockSchema = z
+    .object({
+      orderId: z.string().min(1),
+      txHash: z.string().min(1),
+      blockNumber: z.coerce.number().int().nonnegative(),
+      timelock: z.coerce.number().int().nonnegative()
+    })
+    .strict();
 
   router.post("/orders/:id/src-locked", async (req, res, next) => {
     try {
@@ -299,7 +305,7 @@ router.get("/orders/:id", async (req, res, next) => {
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        res.status(400).json(validationErrorResponse(err));
         return;
       }
       if (err instanceof OrderValidationError) {
@@ -313,7 +319,10 @@ router.get("/orders/:id", async (req, res, next) => {
 
   router.post("/orders/:id/dst-locked", async (req, res, next) => {
     try {
-      const body = lockSchema.extend({ resolver: z.string().nullable().optional() }).parse(req.body);
+      const body = lockSchema
+        .extend({ resolver: z.string().nullable().optional() })
+        .strict()
+        .parse(req.body);
       await orders.recordDstLock({
         publicId: req.params.id,
         orderId: body.orderId,
@@ -325,7 +334,7 @@ router.get("/orders/:id", async (req, res, next) => {
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ error: "validation_error", details: err.errors });
+        res.status(400).json(validationErrorResponse(err));
         return;
       }
       if (err instanceof OrderValidationError) {

@@ -17,18 +17,23 @@ All error responses share the same JSON envelope:
 
 ## HTTP 400 — Validation Error
 
-Returned when the request body is syntactically valid JSON but fails schema validation.
+Returned when the request body or query is syntactically valid but fails schema validation. Order, quote and secret request schemas are **strict**: a field the route does not define is rejected instead of silently ignored. Error bodies name the offending fields only — submitted values are never echoed back.
 
 ```json
 {
   "error": "validation_error",
-  "details": [
-    {
-      "code": "invalid_type",
-      "path": ["srcAmount"],
-      "message": "Required"
-    }
-  ]
+  "message": "Request payload failed validation",
+  "fields": ["srcAmount"]
+}
+```
+
+A payload whose only problem is an unknown field gets a stable code of its own, so a client can tell a misspelled `hashlock`, `timelock` or `preimage` apart from a value that failed a rule:
+
+```json
+{
+  "error": "unknown_field",
+  "message": "Request payload contains unknown fields",
+  "fields": ["hashlockd"]
 }
 ```
 
