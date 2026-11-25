@@ -2,6 +2,7 @@ import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
+import { DEFAULT_MAX_RPC_RESPONSE_BYTES, parseMaxResponseBytes } from "./rpc-response-limit.js";
 
 dotenvConfig({ path: resolve(process.cwd(), ".env") });
 
@@ -19,6 +20,15 @@ const configSchema = z.object({
   pollIntervalMs: z.coerce.number().int().positive().default(15_000),
   /** Maximum allowed JSON request body size in bytes. Default: 64 KiB. */
   maxRequestBodyBytes: z.coerce.number().int().positive().default(65_536),
+  /**
+   * Maximum size of a single JSON-RPC response read by the chain listeners,
+   * enforced before the body is parsed. Default: 8 MiB.
+   */
+  maxRpcResponseBytes: z
+    .number()
+    .int()
+    .positive()
+    .default(DEFAULT_MAX_RPC_RESPONSE_BYTES),
   // Opt-in fixture mode. We previously used `z.coerce.boolean()`, which
   // is unsafe because `Boolean("false") === true` — meaning the
   // default `"false"` literal from the env fallback would re-enable
@@ -82,6 +92,7 @@ export function loadConfig(): CoordinatorConfig {
       "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
     pollIntervalMs: process.env.COORDINATOR_POLL_INTERVAL_MS ?? "15000",
     maxRequestBodyBytes: process.env.COORDINATOR_MAX_BODY_BYTES ?? "65536",
+    maxRpcResponseBytes: parseMaxResponseBytes(process.env.RPC_MAX_RESPONSE_BYTES),
     // Pass through as-is so the enum schema's default("false") fires
     // when the env var is unset; previously this branch substituted
     // "false" and z.coerce.boolean() turned it into true.

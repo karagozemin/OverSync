@@ -7,6 +7,7 @@ import {
 import { sepolia, mainnet } from "viem/chains";
 import { type Logger } from "pino";
 import type { EthereumConfig } from "../config.js";
+import { createBoundedFetch, DEFAULT_MAX_RPC_RESPONSE_BYTES } from "../rpc-response-limit.js";
 
 /**
  * Stream HTLCEscrow events from the configured Ethereum chain.
@@ -30,12 +31,20 @@ export class EthereumListener {
   private unwatchOrderClaimed?: () => void;
   private unwatchOrderRefunded?: () => void;
 
-  constructor(cfg: EthereumConfig, log: Logger) {
+  constructor(
+    cfg: EthereumConfig,
+    log: Logger,
+    maxResponseBytes: number = DEFAULT_MAX_RPC_RESPONSE_BYTES
+  ) {
     this.cfg = cfg;
     this.log = log.child({ component: "EthereumListener" });
     this.client = createPublicClient({
       chain: cfg.chainId === 1 ? mainnet : sepolia,
-      transport: http(cfg.rpcUrl)
+      // Every JSON-RPC body is read through the listener's byte cap, so a
+      // hostile endpoint cannot exhaust memory before viem parses it.
+      transport: http(cfg.rpcUrl, {
+        fetchFn: createBoundedFetch("ethereum", maxResponseBytes)
+      })
     });
   }
 

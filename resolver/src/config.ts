@@ -26,6 +26,11 @@ export interface SorobanConfig {
 export interface ResolverConfig {
   network: Network;
   pollIntervalMs: number;
+  /**
+   * Maximum size of a single JSON-RPC response read by a chain listener,
+   * enforced before the body is parsed. Default: 8 MiB.
+   */
+  maxRpcResponseBytes: number;
   coordinatorUrl: string;
   logLevel: "trace" | "debug" | "info" | "warn" | "error";
   ethereum: EthereumConfig;
@@ -34,6 +39,7 @@ export interface ResolverConfig {
 
 import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
 import { redactUrl } from "./network-agreement.js";
+import { parseMaxResponseBytes } from "./rpc-response-limit.js";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -63,6 +69,7 @@ export function loadConfig(): ResolverConfig {
   const config: ResolverConfig = {
     network,
     pollIntervalMs: Number(process.env.RESOLVER_POLL_INTERVAL_MS ?? 15_000),
+    maxRpcResponseBytes: parseMaxResponseBytes(process.env.RPC_MAX_RESPONSE_BYTES),
     coordinatorUrl: process.env.COORDINATOR_URL ?? "http://localhost:3001",
     logLevel: (process.env.LOG_LEVEL as ResolverConfig["logLevel"]) ?? "info",
     ethereum: {

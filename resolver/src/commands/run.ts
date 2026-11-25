@@ -57,8 +57,8 @@ export async function runCommand(opts: RunOptions = {}): Promise<void> {
     }
   }
 
-  const eth = new EthereumListener(cfg.ethereum, log);
-  const stellar = new SorobanListener(cfg.soroban, cfg.pollIntervalMs, log);
+  const eth = new EthereumListener(cfg.ethereum, log, cfg.maxRpcResponseBytes);
+  const stellar = new SorobanListener(cfg.soroban, cfg.pollIntervalMs, log, cfg.maxRpcResponseBytes);
 
   await eth.start({
     onOrderCreated: (e) => {

@@ -1,6 +1,8 @@
-import { rpc, Address } from "@stellar/stellar-sdk";
+import type { rpc } from "@stellar/stellar-sdk";
 import type { Logger } from "pino";
 import type { SorobanConfig } from "../config.js";
+import { DEFAULT_MAX_RPC_RESPONSE_BYTES } from "../rpc-response-limit.js";
+import { createSorobanRpcClient, type SorobanRpcClient } from "../soroban-rpc.js";
 
 /**
  * Polls the Soroban RPC for HTLC contract events.
@@ -17,18 +19,26 @@ import type { SorobanConfig } from "../config.js";
  * it waited, is rejected and never submitted.
  */
 export class SorobanListener {
-  private readonly server: rpc.Server;
+  private readonly server: SorobanRpcClient;
   private readonly log: Logger;
   private readonly cfg: SorobanConfig;
   private readonly pollMs: number;
   private cursor: string | undefined;
   private stopped = false;
 
-  constructor(cfg: SorobanConfig, pollMs: number, log: Logger) {
+  constructor(
+    cfg: SorobanConfig,
+    pollMs: number,
+    log: Logger,
+    maxResponseBytes: number = DEFAULT_MAX_RPC_RESPONSE_BYTES
+  ) {
     this.cfg = cfg;
     this.pollMs = pollMs;
     this.log = log.child({ component: "SorobanListener" });
-    this.server = new rpc.Server(cfg.rpcUrl, { allowHttp: cfg.rpcUrl.startsWith("http://") });
+    this.server = createSorobanRpcClient(cfg.rpcUrl, {
+      allowHttp: cfg.rpcUrl.startsWith("http://"),
+      maxResponseBytes
+    });
   }
 
   async start(handlers: SorobanEventHandlers): Promise<void> {
