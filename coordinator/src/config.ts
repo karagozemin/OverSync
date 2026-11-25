@@ -2,6 +2,7 @@ import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { resolveEthereumRpcUrl } from "./ethereum-rpc-url.js";
+import { serverTimeoutsFromEnv, serverTimeoutsSchema } from "./server/timeouts.js";
 
 dotenvConfig({ path: resolve(process.cwd(), ".env") });
 
@@ -19,6 +20,8 @@ const configSchema = z.object({
   pollIntervalMs: z.coerce.number().int().positive().default(15_000),
   /** Maximum allowed JSON request body size in bytes. Default: 64 KiB. */
   maxRequestBodyBytes: z.coerce.number().int().positive().default(65_536),
+  /** Hard limits on how long a client may hold a connection. See server/timeouts.ts. */
+  serverTimeouts: serverTimeoutsSchema,
   // Opt-in fixture mode. We previously used `z.coerce.boolean()`, which
   // is unsafe because `Boolean("false") === true` — meaning the
   // default `"false"` literal from the env fallback would re-enable
@@ -82,6 +85,7 @@ export function loadConfig(): CoordinatorConfig {
       "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
     pollIntervalMs: process.env.COORDINATOR_POLL_INTERVAL_MS ?? "15000",
     maxRequestBodyBytes: process.env.COORDINATOR_MAX_BODY_BYTES ?? "65536",
+    serverTimeouts: serverTimeoutsFromEnv(),
     // Pass through as-is so the enum schema's default("false") fires
     // when the env var is unset; previously this branch substituted
     // "false" and z.coerce.boolean() turned it into true.

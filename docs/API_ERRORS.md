@@ -191,3 +191,5 @@ Returned for unexpected server-side errors. Stack traces are never exposed.
 | Env var | Default | Description |
 |---------|---------|-------------|
 | `COORDINATOR_MAX_BODY_BYTES` | `65536` | Maximum JSON body size in bytes (64 KiB) |
+| `COORDINATOR_REQUEST_TIMEOUT_MS` | `30000` | Longest a client may take to send a complete request, headers and body. Allowed range 1000 to 300000; a slower client is answered `408` and disconnected |
+| `COORDINATOR_HEADERS_TIMEOUT_MS` | `10000` | Longest a client may take to send the request line and headers. Same range, and not more than `COORDINATOR_REQUEST_TIMEOUT_MS`. The coordinator will not start with an invalid value |
