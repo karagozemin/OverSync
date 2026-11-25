@@ -7,6 +7,7 @@ import {
 import { sepolia, mainnet } from "viem/chains";
 import { type Logger } from "pino";
 import type { EthereumConfig } from "../config.js";
+import { createJsonRpcFetch } from "@oversync/sdk";
 
 /**
  * Stream HTLCEscrow events from the configured Ethereum chain.
@@ -35,7 +36,9 @@ export class EthereumListener {
     this.log = log.child({ component: "EthereumListener" });
     this.client = createPublicClient({
       chain: cfg.chainId === 1 ? mainnet : sepolia,
-      transport: http(cfg.rpcUrl)
+      transport: http(cfg.rpcUrl, {
+        fetchFn: createJsonRpcFetch()
+      })
     });
   }
 

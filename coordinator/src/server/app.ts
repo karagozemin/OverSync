@@ -10,6 +10,7 @@ import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";
 import { createReadinessRateLimiter } from "./readiness-rate-limit.js";
+import { publicSecurityHeaders } from "./public-security-headers.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
 import type { QuoteService } from "../services/quote-service.js";
@@ -29,6 +30,7 @@ export interface AppDeps {
 export function createApp(deps: AppDeps): Express {
   const { maxRequestBodyBytes } = deps;
   const app = express();
+  app.use(publicSecurityHeaders);
   app.use(pinoHttp({ logger: deps.log }));
   app.use(express.json({ limit: maxRequestBodyBytes }));
   app.use(createCorsMiddleware(deps.corsOrigins));

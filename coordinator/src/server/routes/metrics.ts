@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { registry } from "../../metrics.js";
 import type { OrderService } from "../../services/order-service.js";
+import { publicSecurityHeaders } from "../public-security-headers.js";
 
 export function metricsRoutes(): Router {
   const router = Router();
+  router.use(publicSecurityHeaders);
 
   router.get("/metrics", async (_req, res) => {
     try {
@@ -19,6 +21,7 @@ export function metricsRoutes(): Router {
 
 export function orderMetricsRoutes(orders: OrderService): Router {
   const router = Router();
+  router.use(publicSecurityHeaders);
 
   router.get("/metrics", async (_req, res, next) => {
     try {

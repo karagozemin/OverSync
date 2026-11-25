@@ -10,6 +10,7 @@ import {
   type Keypair,
   type Transaction
 } from "@stellar/stellar-sdk";
+import { createSorobanRpcServer } from "../rpc-response.js";
 import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
 import { assertValidSecretFormat } from "../secrets/index.js";
 import * as Errors from "../errors/index.js";
@@ -53,7 +54,9 @@ export class SorobanHTLCClient {
 
   constructor(opts: SorobanHTLCClientOptions) {
     this.contractId = opts.contractId;
-    this.server = new rpc.Server(opts.rpcUrl, { allowHttp: opts.allowHttp ?? false });
+    this.server = createSorobanRpcServer(opts.rpcUrl, {
+      allowHttp: opts.allowHttp ?? false
+    });
     this.contract = new Contract(opts.contractId);
     this.networkPassphrase = opts.networkPassphrase ?? Networks.TESTNET;
   }

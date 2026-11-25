@@ -1,6 +1,7 @@
 import { rpc, Address } from "@stellar/stellar-sdk";
 import type { Logger } from "pino";
 import type { SorobanConfig } from "../config.js";
+import { createSorobanRpcServer } from "@oversync/sdk";
 
 /**
  * Polls the Soroban RPC for HTLC contract events.
@@ -28,7 +29,9 @@ export class SorobanListener {
     this.cfg = cfg;
     this.pollMs = pollMs;
     this.log = log.child({ component: "SorobanListener" });
-    this.server = new rpc.Server(cfg.rpcUrl, { allowHttp: cfg.rpcUrl.startsWith("http://") });
+    this.server = createSorobanRpcServer(cfg.rpcUrl, {
+      allowHttp: cfg.rpcUrl.startsWith("http://")
+    });
   }
 
   async start(handlers: SorobanEventHandlers): Promise<void> {

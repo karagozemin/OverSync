@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createPublicClient, http } from "viem";
 import { sepolia, mainnet } from "viem/chains";
 import { rpc } from "@stellar/stellar-sdk";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 
 export type SupportedNetwork = "testnet" | "mainnet";
 
@@ -121,7 +122,13 @@ export async function checkResolverNetworkAgreement(
   // Check Ethereum RPC
   try {
     const chain = network === "mainnet" ? mainnet : sepolia;
-    const client = createPublicClient({ chain, transport: http(evmRpcUrl, { timeout: 4000 }) });
+    const client = createPublicClient({
+      chain,
+      transport: http(evmRpcUrl, {
+        timeout: 4000,
+        fetchFn: createJsonRpcFetch()
+      })
+    });
     observedEvmChainId = await client.getChainId();
     if (observedEvmChainId !== expectedChainId) {
       mismatches.push(
@@ -134,7 +141,7 @@ export async function checkResolverNetworkAgreement(
 
   // Check Soroban RPC
   try {
-    const server = new rpc.Server(sorobanRpcUrl, {
+    const server = createSorobanRpcServer(sorobanRpcUrl, {
       allowHttp: sorobanRpcUrl.startsWith("http://"),
       timeout: 4000
     });

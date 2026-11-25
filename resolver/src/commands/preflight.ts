@@ -4,6 +4,7 @@ import { sepolia, mainnet } from "viem/chains";
 import { rpc, Contract, Keypair, TransactionBuilder, Networks, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
 import { loadConfig } from "../config.js";
 import { checkResolverNetworkAgreement } from "../network-agreement.js";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 
 const EVM_KEY_RE = /^0x[0-9a-fA-F]{64}$/;
 const EVM_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -123,7 +124,13 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
     // Try pinging EVM RPC
     try {
       const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
-      const client = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl, { timeout: 4000 }) });
+      const client = createPublicClient({
+        chain,
+        transport: http(cfg.ethereum.rpcUrl, {
+          timeout: 4000,
+          fetchFn: createJsonRpcFetch()
+        })
+      });
       const chainId = await client.getChainId();
       const expectedChainId = cfg.network === "mainnet" ? 1 : 11_155_111;
       if (chainId === expectedChainId) {
@@ -160,7 +167,13 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
   } else {
     try {
       const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
-      const client = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl, { timeout: 4000 }) });
+      const client = createPublicClient({
+        chain,
+        transport: http(cfg.ethereum.rpcUrl, {
+          timeout: 4000,
+          fetchFn: createJsonRpcFetch()
+        })
+      });
       const minStake = (await client.readContract({
         address: evmRegistry as Address,
         abi: REGISTRY_ABI,
@@ -215,7 +228,13 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
   } else {
     try {
       const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
-      const client = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl, { timeout: 4000 }) });
+      const client = createPublicClient({
+        chain,
+        transport: http(cfg.ethereum.rpcUrl, {
+          timeout: 4000,
+          fetchFn: createJsonRpcFetch()
+        })
+      });
       const active = (await client.readContract({
         address: evmRegistry as Address,
         abi: REGISTRY_ABI,
@@ -315,7 +334,7 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
     });
   } else {
     try {
-      const server = new rpc.Server(cfg.soroban.rpcUrl, {
+      const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
         allowHttp: cfg.soroban.rpcUrl.startsWith("http://"),
         timeout: 4000
       });
@@ -365,7 +384,7 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
     });
   } else {
     try {
-      const server = new rpc.Server(cfg.soroban.rpcUrl, {
+      const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
         allowHttp: cfg.soroban.rpcUrl.startsWith("http://"),
         timeout: 4000
       });
@@ -425,7 +444,7 @@ export async function runPreflightChecks(): Promise<PreflightCheckResult[]> {
     });
   } else {
     try {
-      const server = new rpc.Server(cfg.soroban.rpcUrl, {
+      const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
         allowHttp: cfg.soroban.rpcUrl.startsWith("http://"),
         timeout: 4000
       });

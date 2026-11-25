@@ -5,7 +5,7 @@ import type { CoordinatorConfig } from "../config.js";
 import type { OrderService } from "../services/order-service.js";
 import { listenerLastBlock } from "../metrics.js";
 import { OrderEventApplier, type BridgeOrderEvent } from "./order-events.js";
-import type { ChainEventProcessor, SettlementEvent } from "../services/chain-events.js";
+import { createJsonRpcFetch } from "@oversync/sdk";
 
 const ORDER_CREATED = parseAbiItem(
   "event OrderCreated(uint256 indexed orderId, address indexed sender, address indexed beneficiary, address token, uint256 amount, uint256 safetyDeposit, bytes32 hashlock, uint64 timelock)"
@@ -37,7 +37,9 @@ export class EthereumListener {
     this.applier = new OrderEventApplier(orders, this.log, "ethereum-listener");
     this.client = createPublicClient({
       chain: cfg.ethereum.chainId === 1 ? mainnet : sepolia,
-      transport: http(cfg.ethereum.rpcUrl)
+      transport: http(cfg.ethereum.rpcUrl, {
+        fetchFn: createJsonRpcFetch()
+      })
     });
   }
 

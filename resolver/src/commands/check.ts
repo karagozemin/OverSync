@@ -4,6 +4,7 @@ import { sepolia, mainnet } from "viem/chains";
 import { rpc, Contract, Keypair, TransactionBuilder, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
 import { loadConfig, type ResolverConfig } from "../config.js";
 import { getLogger } from "../logger.js";
+import { createJsonRpcFetch, createSorobanRpcServer } from "@oversync/sdk";
 
 const REGISTRY_ABI = parseAbi([
   "function isActive(address resolver) view returns (bool)"
@@ -23,7 +24,10 @@ export async function checkDeploymentAddresses(cfg: ResolverConfig): Promise<voi
   let ethereumRegistry: Address;
   try {
     const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
-    const client = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl) });
+    const client = createPublicClient({
+      chain,
+      transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+    });
     ethereumRegistry = await client.readContract({
       address: cfg.ethereum.htlcEscrow,
       abi: ESCROW_ABI,
@@ -35,7 +39,9 @@ export async function checkDeploymentAddresses(cfg: ResolverConfig): Promise<voi
 
   let sorobanRegistry: unknown;
   try {
-    const server = new rpc.Server(cfg.soroban.rpcUrl, { allowHttp: cfg.soroban.rpcUrl.startsWith("http://") });
+    const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
+      allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
+    });
     const contract = new Contract(cfg.soroban.htlc);
     const source = await server.getAccount(Keypair.fromSecret(cfg.soroban.resolverSecret).publicKey());
     const tx = new TransactionBuilder(source, {
@@ -104,7 +110,10 @@ export async function checkPreflight(): Promise<CheckResult[]> {
     try {
       const account = privateKeyToAccount(cfg.ethereum.resolverPrivateKey);
       const chain = cfg.ethereum.chainId === 1 ? mainnet : sepolia;
-      const client = createPublicClient({ chain, transport: http(cfg.ethereum.rpcUrl) });
+      const client = createPublicClient({
+        chain,
+        transport: http(cfg.ethereum.rpcUrl, { fetchFn: createJsonRpcFetch() })
+      });
 
       const active = await client.readContract({
         address: cfg.ethereum.resolverRegistry as Address,
@@ -134,7 +143,9 @@ export async function checkPreflight(): Promise<CheckResult[]> {
   } else {
     try {
       const kp = Keypair.fromSecret(cfg.soroban.resolverSecret);
-      const server = new rpc.Server(cfg.soroban.rpcUrl, { allowHttp: cfg.soroban.rpcUrl.startsWith("http://") });
+      const server = createSorobanRpcServer(cfg.soroban.rpcUrl, {
+        allowHttp: cfg.soroban.rpcUrl.startsWith("http://")
+      });
       const contract = new Contract(cfg.soroban.resolverRegistry);
 
       // Build a simple read transaction
