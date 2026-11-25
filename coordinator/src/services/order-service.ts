@@ -57,29 +57,36 @@ export const ORDER_SERVICE_WRITER = "order-service";
 /** Page size used when a caller asks for history without naming a limit. */
 const DEFAULT_HISTORY_LIMIT = 50;
 
-export const announceSchema = z.object({
-  direction: z.enum(["eth_to_xlm", "xlm_to_eth"]),
-  hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars").refine(
-    (v) => v.toLowerCase() !== ZERO_HASHLOCK.toLowerCase(),
-    "hashlock must not be all zeros"
-  ),
-  srcChain: z.enum(["ethereum", "stellar"]),
-  srcAddress: z.string(),
-  srcAsset: z.string().min(1),
-  srcAmount: z.string().regex(/^\d+$/, "srcAmount must be a decimal integer string"),
-  srcSafetyDeposit: z.string().regex(/^\d+$/, "srcSafetyDeposit must be a decimal integer string"),
-  dstChain: z.enum(["ethereum", "stellar"]),
-  dstAddress: z.string(),
-  dstAsset: z.string().min(1),
-  dstAmount: z.string().regex(/^\d+$/, "dstAmount must be a decimal integer string"),
-  /**
-   * Optional: the `quoteId` returned by `GET /api/quotes/eth-xlm`.
-   * When present, the coordinator validates that the quote has not
-   * expired before accepting the announcement, ensuring fills cannot
-   * be based on stale pricing.
-   */
-  quoteId: z.string().optional()
-});
+/**
+ * Strict request contract for `POST /api/orders/announce`. Unknown fields are
+ * rejected: a client that misspells `hashlock` or `srcSafetyDeposit` must not
+ * be told the order was accepted with the safety setting it intended.
+ */
+export const announceSchema = z
+  .object({
+    direction: z.enum(["eth_to_xlm", "xlm_to_eth"]),
+    hashlock: z.string().regex(HEX32, "hashlock must be 0x + 64 hex chars").refine(
+      (v) => v.toLowerCase() !== ZERO_HASHLOCK.toLowerCase(),
+      "hashlock must not be all zeros"
+    ),
+    srcChain: z.enum(["ethereum", "stellar"]),
+    srcAddress: z.string(),
+    srcAsset: z.string().min(1),
+    srcAmount: z.string().regex(/^\d+$/, "srcAmount must be a decimal integer string"),
+    srcSafetyDeposit: z.string().regex(/^\d+$/, "srcSafetyDeposit must be a decimal integer string"),
+    dstChain: z.enum(["ethereum", "stellar"]),
+    dstAddress: z.string(),
+    dstAsset: z.string().min(1),
+    dstAmount: z.string().regex(/^\d+$/, "dstAmount must be a decimal integer string"),
+    /**
+     * Optional: the `quoteId` returned by `GET /api/quotes/eth-xlm`.
+     * When present, the coordinator validates that the quote has not
+     * expired before accepting the announcement, ensuring fills cannot
+     * be based on stale pricing.
+     */
+    quoteId: z.string().optional()
+  })
+  .strict();
 
 export type AnnounceInput = z.infer<typeof announceSchema>;
 
