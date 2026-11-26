@@ -20,3 +20,4 @@ node scripts/release-dry-run.mjs --tag v1.2.3 --build
 - Never calls `docker login` or authenticates to `ghcr.io`.
 - Validates that the release tag matches `vMAJOR.MINOR.PATCH` and that the build context (`./resolver`) and Dockerfile (`./resolver/Dockerfile`) declared in `.github/workflows/release.yml` exist.
 - Constructs the exact `docker buildx build` invocation with target platforms (`linux/amd64,linux/arm64`), image tags, and OCI labels while keeping `--push` disabled.
+- Mirrors the tag rules in `.github/workflows/release.yml` and rejects moving alias tags such as `{{major}}` or `{{major}}.{{minor}}`. Only immutable version tags are published; see [release-image-tags.md](./release-image-tags.md).

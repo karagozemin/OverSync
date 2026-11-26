@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import {
   buildReleaseDryRunPlan,
   parseReleaseWorkflowConfig,
+  parseReleaseWorkflowTagRules,
   validateReleaseDryRunPlan,
 } from "./release-dry-run.mjs";
 
@@ -45,8 +46,49 @@ describe("release dry-run workflow path", () => {
     assert.deepEqual(plan.tags, [
       "ghcr.io/karagozemin/oversync-resolver:v1.2.3",
       "ghcr.io/karagozemin/oversync-resolver:1.2.3",
-      "ghcr.io/karagozemin/oversync-resolver:1.2",
     ]);
+  });
+
+  it("publishes only immutable version tags from release.yml", () => {
+    const workflowText = readFileSync(workflowPath, "utf8");
+    const rules = parseReleaseWorkflowTagRules(workflowText);
+    const semverPatterns = rules
+      .filter((rule) => rule.type === "semver")
+      .map((rule) => rule.pattern);
+
+    assert.deepEqual(semverPatterns, ["{{version}}"]);
+    assert.equal(
+      rules.some((rule) => rule.pattern === "{{major}}"),
+      false,
+      "release.yml must not publish a mutable major-only tag",
+    );
+    assert.equal(
+      rules.some((rule) => rule.pattern === "{{major}}.{{minor}}"),
+      false,
+      "release.yml must not publish a mutable major.minor tag",
+    );
+  });
+
+  it("rejects a release workflow that reintroduces a mutable alias tag", () => {
+    const workflowText = readFileSync(workflowPath, "utf8").replace(
+      "            type=semver,pattern={{version}}",
+      "            type=semver,pattern={{version}}\n            type=semver,pattern={{major}}",
+    );
+
+    const plan = buildReleaseDryRunPlan({
+      workflowText,
+      tag: "v1.2.3",
+      repoRoot,
+    });
+    const validation = validateReleaseDryRunPlan(plan);
+
+    assert.equal(validation.ok, false);
+    assert.ok(
+      validation.violations.some((violation) =>
+        violation.includes("mutable alias tag"),
+      ),
+      `unexpected violations: ${validation.violations.join("; ")}`,
+    );
   });
 
   it("rejects malformed tags and any plan that enables login or push", () => {
