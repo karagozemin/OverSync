@@ -102,6 +102,15 @@ abstract class BaseHtlcSim {
     this.now += seconds;
   }
 
+  setRegistryEnabled(enabled: boolean): void {
+    this.registryEnabled = enabled;
+  }
+
+  setResolverActive(resolver: string, active: boolean): void {
+    if (active) this.activeResolvers.add(resolver.toLowerCase());
+    else this.activeResolvers.delete(resolver.toLowerCase());
+  }
+
   nextOrderId(): bigint {
     return this.nextId;
   }

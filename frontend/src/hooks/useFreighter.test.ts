@@ -301,7 +301,7 @@ describe('useFreighter — Network Agreement & Refusal', () => {
       const addr = await result.current.connect();
 
       expect(addr).toBe(TEST_STELLAR_ADDRESS);
-      expect(result.current.isConnected).toBe(true);
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
       expect(result.current.address).toBe(TEST_STELLAR_ADDRESS);
       expect(result.current.network).toBe('TESTNET');
       expect(result.current.networkPassphrase).toBe(TESTNET_PASSPHRASE);

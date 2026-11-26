@@ -50,10 +50,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/oversync-resolver
+          # Publish immutable version tags only (issue #403).
+          # `type=ref,event=tag` -> v1.2.3, `type=semver,pattern={{version}}` -> 1.2.3.
+          # Never add mutable alias tags such as {{major}} or {{major}}.{{minor}}:
+          # they let a published image be silently replaced under a tag consumers
+          # cannot pin. See docs/ci/release-image-tags.md.
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
           labels: |
             org.opencontainers.image.licenses=MIT
 

@@ -52,6 +52,25 @@ describe("resolver and relayer Dockerfile linting", () => {
     );
   });
 
+  it("does not lint continuation lines as standalone instructions", () => {
+    const multilineHealthcheck = [
+      "FROM node:22-alpine",
+      "HEALTHCHECK --interval=30s --timeout=5s \\",
+      '  CMD node -e "process.exit(0)"',
+      'CMD ["npm", "start"]',
+    ].join("\n");
+
+    const result = lintDockerfile(multilineHealthcheck, {
+      file: "healthcheck/Dockerfile",
+    });
+    assert.equal(
+      result.ok,
+      true,
+      `unexpected findings: ${JSON.stringify(result.blockingFindings)}`,
+    );
+    assert.equal(result.findings.some((f) => f.code === "DL3025"), false);
+  });
+
   it("flags untagged FROM images and undeclared COPY --from aliases", () => {
     const untagged = [
       "FROM node AS runtime",

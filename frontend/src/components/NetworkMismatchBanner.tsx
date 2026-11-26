@@ -60,7 +60,8 @@ export default function NetworkMismatchBanner({
     refreshWalletNetworks,
   } = networkState;
 
-  const targetMode = expectedNetwork ?? order?.networkMode ?? mode;
+  const targetMode: 'testnet' | 'mainnet' =
+    expectedNetwork ?? order?.networkMode ?? mode;
   const isOrderNetworkMismatch = Boolean(
     (expectedNetwork && mode !== expectedNetwork) ||
     (order?.networkMode && mode !== order.networkMode)

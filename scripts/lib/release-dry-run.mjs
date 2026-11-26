@@ -12,6 +12,10 @@ import { resolve } from "node:path";
 
 const SEMVER_TAG_RE = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
+// Major-only (`:1`) and major.minor (`:1.2`) container tags move on every
+// release, so a digest pulled through them is not reproducible (issue #403).
+const MUTABLE_TAG_SUFFIX_RE = /:\d+(\.\d+)?$/;
+
 /**
  * Extracts the release build configuration from `.github/workflows/release.yml`.
  */
@@ -29,6 +33,62 @@ export function parseReleaseWorkflowConfig(workflowText) {
     dockerfile: fileMatch ? fileMatch[1].trim() : null,
     platforms: platformsMatch ? platformsMatch[1].trim() : null,
   };
+}
+
+/**
+ * Extracts the `docker/metadata-action` tag rules from `.github/workflows/release.yml`.
+ * Each rule is a `type=...` line such as `type=semver,pattern={{version}}`.
+ */
+export function parseReleaseWorkflowTagRules(workflowText) {
+  const rules = [];
+  for (const line of String(workflowText).split(/\r?\n/)) {
+    const match = line.match(/^\s*type=(.+?)\s*$/);
+    if (!match) {
+      continue;
+    }
+    const [type, ...pairs] = match[1].split(",");
+    const attrs = {};
+    for (const pair of pairs) {
+      const separator = pair.indexOf("=");
+      if (separator !== -1) {
+        attrs[pair.slice(0, separator)] = pair.slice(separator + 1);
+      }
+    }
+    rules.push({ type, ...attrs });
+  }
+  return rules;
+}
+
+/**
+ * Expands metadata-action tag rules into concrete image tag suffixes.
+ *
+ * `{{major}}` and `{{major}}.{{minor}}` are moving aliases, so they only
+ * appear here if the workflow reintroduces them. Release validation rejects
+ * those plans (issue #403).
+ */
+export function expandReleaseTagRules(rules, { tag, version, major, minor }) {
+  const suffixes = [];
+  for (const rule of rules) {
+    if (rule.type === "ref" && rule.event === "tag") {
+      suffixes.push(tag);
+    } else if (rule.type === "semver") {
+      switch (rule.pattern) {
+        case "{{version}}":
+        case "{{major}}.{{minor}}.{{patch}}":
+          suffixes.push(version);
+          break;
+        case "{{major}}":
+          suffixes.push(major);
+          break;
+        case "{{major}}.{{minor}}":
+          suffixes.push(`${major}.${minor}`);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  return [...new Set(suffixes)];
 }
 
 /**
@@ -83,11 +143,14 @@ export function buildReleaseDryRunPlan({
     }
   }
 
-  const tags = [
-    `${image}:${cleanTag}`,
-    `${image}:${version}`,
-    `${image}:${major}.${minor}`,
-  ];
+  const tagRules = parseReleaseWorkflowTagRules(workflowText);
+  const tagSuffixes = expandReleaseTagRules(tagRules, {
+    tag: cleanTag,
+    version,
+    major,
+    minor,
+  });
+  const tags = tagSuffixes.map((suffix) => `${image}:${suffix}`);
 
   const labels = [
     "org.opencontainers.image.title=oversync-resolver",
@@ -146,6 +209,14 @@ export function validateReleaseDryRunPlan(plan) {
 
   if (!Array.isArray(plan.tags) || plan.tags.length === 0) {
     violations.push("dry-run metadata must produce at least one image tag");
+  } else {
+    for (const tag of plan.tags) {
+      if (MUTABLE_TAG_SUFFIX_RE.test(tag)) {
+        violations.push(
+          `release plan publishes mutable alias tag ${tag}; publish immutable version tags only`,
+        );
+      }
+    }
   }
 
   if (!Array.isArray(plan.labels) || plan.labels.length === 0) {

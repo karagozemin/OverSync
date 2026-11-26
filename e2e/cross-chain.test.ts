@@ -1,8 +1,21 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, beforeAll, afterAll, afterEach } from "vitest";
 import { generateSecret, hashSecret, hashOrderPreimage, verifyPreimage } from "@oversync/sdk/secrets";
-import { EvmHtlcSim, SorobanHtlcSim, type HtlcSim } from "./sim.js";
-import { startEvmFixture, type RealEvmHtlcFixture } from "./evm-fixture.js";
+import {
+  EvmHtlcSim,
+  SorobanHtlcSim,
+  assertEscrowReleasedTogether,
+  OneSidedReleaseError,
+  DEFAULT_ESCROW_AMOUNT,
+  type HtlcSim,
+  type CrossChainLeg
+} from "./sim.js";
+import {
+  startEvmFixture,
+  HARDHAT_TEST_KEYS,
+  ESCROW_AMOUNT,
+  type RealEvmHtlcFixture
+} from "./evm-fixture.js";
 
 const TIMELOCK_SECONDS = 600;
 const PAST_TIMELOCK = TIMELOCK_SECONDS + 1;
@@ -136,15 +149,17 @@ describe("cross-chain HTLC differential harness", () => {
     function fundedPair(secret: ReturnType<typeof generateSecret>) {
       const evm = new EvmHtlcSim();
       const stellar = new SorobanHtlcSim();
+      const evmNextId = evm.nextOrderId();
       const evmId = evm.createOrder({
-        hashlock: secret.sha256,
+        hashlock: hashOrderPreimage(evmNextId, secret.preimage),
         timelockSeconds: TIMELOCK_SECONDS,
         amount: AMOUNT,
         maker: "evm-maker",
         recipient: "evm-recipient"
       });
+      const stellarNextId = stellar.nextOrderId();
       const stellarId = stellar.createOrder({
-        hashlock: secret.sha256,
+        hashlock: hashOrderPreimage(stellarNextId, secret.preimage),
         timelockSeconds: TIMELOCK_SECONDS,
         amount: AMOUNT,
         maker: "stellar-maker",

@@ -1,4 +1,5 @@
-import type { Chain, Direction } from "@oversync/sdk/types";
+export type Chain = "ethereum" | "stellar";
+export type Direction = "eth_to_xlm" | "xlm_to_eth";
 
 /**
  * A source-chain order observed by a listener, normalised so the
