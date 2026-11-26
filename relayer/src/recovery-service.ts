@@ -323,9 +323,11 @@ export class RecoveryService {
         this.tracker.forget(record.key);
         // Re-submit with an executor that immediately resolves with the
         // original result so the duplicate gate is armed.
-        await this.tracker.submit(record.action, () =>
-          Promise.resolve(record.result)
-        );
+        await this.tracker.submit(record.action, () => ({
+          txHash,
+          network: record.network,
+          broadcast: async () => record.result,
+        }));
         report.alreadyConfirmed.push(record.key);
         break;
       }

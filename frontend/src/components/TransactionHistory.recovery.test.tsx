@@ -77,11 +77,11 @@ describe('TransactionHistory recovery', () => {
       expect(screen.getByText('ETH Sepolia')).toBeInTheDocument();
     });
 
-    // One request per connected address, using the coordinator's `address` param.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // One paginated request carries both connected addresses.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const requestedUrls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(requestedUrls.some((u) => u.includes('address=0xEthAddress'))).toBe(true);
-    expect(requestedUrls.some((u) => u.includes('address=GSTELLARADDRESS'))).toBe(true);
+    expect(requestedUrls[0]).toContain('eth=0xEthAddress');
+    expect(requestedUrls[0]).toContain('stellar=GSTELLARADDRESS');
 
     // Recovered order persisted to local storage for the next reload.
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');

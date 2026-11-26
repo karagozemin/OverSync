@@ -138,8 +138,25 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
       // Keyed by order id, so a row that shifted between pages shows up once.
       // Earlier pages stay on the list: a page is added, never swapped in.
       const local = loadFromStorage();
+      // A cached row created before the coordinator assigned the final id is the
+      // same order when an on-chain hash matches. Drop only the cached copy so
+      // the authoritative coordinator row (with its final id) is the one kept;
+      // earlier pages fetched from the coordinator stay in the list.
+      const remoteHashes = new Set(
+        remote
+          .flatMap((tx) => [tx.txHash, tx.ethTxHash, tx.stellarTxHash])
+          .filter((hash): hash is string => typeof hash === 'string' && hash.length > 0)
+      );
+      const isRemoteDuplicate = (tx: Transaction) =>
+        [tx.txHash, tx.ethTxHash, tx.stellarTxHash].some(
+          (hash) => typeof hash === 'string' && remoteHashes.has(hash)
+        );
+      const dedupedLocal = local.filter((tx) => !isRemoteDuplicate(tx));
       const base = seedFromCache
-        ? mergeHistoryPage<Transaction>(transactionsRef.current, local)
+        ? mergeHistoryPage<Transaction>(
+            transactionsRef.current.filter((tx) => !isRemoteDuplicate(tx)),
+            dedupedLocal
+          )
         : transactionsRef.current;
       const merged = mergeHistoryPage<Transaction>(base, remote).sort(
         (a, b) => b.timestamp - a.timestamp
@@ -421,17 +438,6 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
           </button>
         ))}
       </div>
-
-      {cursor && !isLoading && (
-        <button
-          onClick={refreshFromCoordinator}
-          disabled={isLoading}
-          className="button-hover-scale flex items-center justify-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-200/[0.12] px-4 py-2 text-sm font-semibold text-cyan-50 shadow-[0_12px_34px_rgba(0,226,255,0.12)] transition hover:border-cyan-100/45 hover:bg-cyan-200/[0.18] disabled:opacity-60"
-        >
-          <ArrowRight className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Load More
-        </button>
-      )}
 
       <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1">
         {filteredTransactions.length === 0 ? (

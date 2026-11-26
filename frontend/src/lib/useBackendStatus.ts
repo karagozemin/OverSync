@@ -27,7 +27,7 @@ export function useBackendStatus(): BackendStatusState {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const requestId = ++requestIdRef;
+    const requestId = ++requestIdRef.current;
     const timerId = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     setStatus('checking');

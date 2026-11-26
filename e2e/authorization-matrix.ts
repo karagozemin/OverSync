@@ -1,4 +1,4 @@
-import { generateSecret } from "@oversync/sdk/secrets";
+import { generateSecret, hashOrderPreimage } from "@oversync/sdk/secrets";
 import { SimError, type HtlcSim, type SimErrorCode } from "./sim.js";
 
 /**
@@ -58,12 +58,15 @@ export function strangerAddress(sim: HtlcSim): string {
 
 function newOrder(sim: HtlcSim, sender?: string): { id: bigint; preimage: `0x${string}` } {
   const secret = generateSecret();
-  const id = sim.createOrder({
-    hashlock: secret.sha256,
+  // The hashlock binds the order id before the order exists, exactly as
+  // both on-chain contracts do with `nextOrderId()`.
+  const id = sim.nextOrderId();
+  const created = sim.createOrder({
+    hashlock: hashOrderPreimage(id, secret.preimage),
     timelockSeconds: TIMELOCK_SECONDS,
     sender
   });
-  return { id, preimage: secret.preimage };
+  return { id: created, preimage: secret.preimage };
 }
 
 function enableRegistry(sim: HtlcSim): string {

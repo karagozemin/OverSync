@@ -1,6 +1,7 @@
-import type { Chain, Direction } from "@oversync/sdk/types";
 import type { ResolverConfig } from "../config.js";
 import type {
+  Chain,
+  Direction,
   ObservedSourceOrder,
   DestinationOrderParams,
   FillPlan,
