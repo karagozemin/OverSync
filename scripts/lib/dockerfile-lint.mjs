@@ -116,6 +116,22 @@ export function lintDockerfile(dockerfileText, options = {}) {
   const declaredStages = new Set();
   const findings = [];
 
+  // Continuation lines such as the command of a multi-line HEALTHCHECK are
+  // part of the previous instruction, not instructions of their own. Linting
+  // them standalone made `  CMD node -e "..."` look like shell-form CMD.
+  const instructionStarts = new Set();
+  let inContinuation = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmedLine = lines[i].trim();
+    if (inContinuation) {
+      inContinuation = trimmedLine.endsWith("\\");
+      continue;
+    }
+    if (!trimmedLine || trimmedLine.startsWith("#")) continue;
+    instructionStarts.add(i + 1);
+    inContinuation = trimmedLine.endsWith("\\");
+  }
+
   function addFinding(line, code, severity, message) {
     if (ignoredSet.has(code)) return;
     const rank = SEVERITY_RANK[severity] ?? 0;
@@ -132,7 +148,9 @@ export function lintDockerfile(dockerfileText, options = {}) {
   for (let i = 0; i < lines.length; i += 1) {
     const lineNum = i + 1;
     const trimmed = lines[i].trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (!trimmed || trimmed.startsWith("#") || !instructionStarts.has(lineNum)) {
+      continue;
+    }
 
     const fromMatch = trimmed.match(/^FROM\s+([^\s]+)(?:\s+AS\s+([A-Za-z0-9_-]+))?$/i);
     if (fromMatch) {
