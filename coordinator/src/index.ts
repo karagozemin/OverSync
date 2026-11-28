@@ -17,7 +17,9 @@ async function main(): Promise<void> {
   const log = getLogger(cfg.logLevel);
   log.info({ network: cfg.network, port: cfg.port }, "OverSync coordinator starting");
 
-  const db = await openDatabase(cfg.databaseUrl);
+  const db = await openDatabase(cfg.databaseUrl, {
+    sqliteBusyTimeoutMs: cfg.sqliteBusyTimeoutMs
+  });
   const repo = new OrdersRepository(db);
 
   if (cfg.demoFixtures) {

@@ -86,6 +86,19 @@ pnpm dev
 # Creates ./oversync.db on first startup if DATABASE_URL is unset or set to a SQLite path
 ```
 
+#### Busy timeout
+
+SQLite allows only one writer at a time. Each coordinator connection sets a
+bounded `busy_timeout` so a short lock (`VACUUM`, a backup, another process on
+the same file) is waited out, while a stuck writer cannot block a request
+forever. The default is **5000 ms** and can be overridden with
+`COORDINATOR_SQLITE_BUSY_TIMEOUT_MS`; values must be integers between **0** and
+**60000**, and an invalid value fails startup. `0` fails immediately instead of
+waiting. When the timeout expires the driver's `SQLITE_BUSY` error is replaced
+with `503 storage_unavailable` (`"Storage is temporarily unavailable"`) so the
+API does not leak the database path or lock details. PostgreSQL URLs ignore
+this setting.
+
 ### PostgreSQL (Production)
 
 For production deployments, swap the database to Postgres by setting the
