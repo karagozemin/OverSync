@@ -173,6 +173,25 @@ This check fires **before** any route business logic runs, so no partial process
 
 ---
 
+## HTTP 503 — Storage Unavailable
+
+Returned when a SQLite write cannot acquire the database lock before the
+configured busy timeout expires (default **5000 ms**). The message is stable and
+redacted: it never includes the database path, SQLite error text or lock holder.
+
+```json
+{
+  "error": "storage_unavailable",
+  "message": "Storage is temporarily unavailable"
+}
+```
+
+The timeout is bounded to **0–60000 ms** and configured with
+`COORDINATOR_SQLITE_BUSY_TIMEOUT_MS`; an invalid value fails coordinator startup.
+PostgreSQL deployments do not use this setting.
+
+---
+
 ## HTTP 500 — Internal Error
 
 Returned for unexpected server-side errors. Stack traces are never exposed.
@@ -191,3 +210,4 @@ Returned for unexpected server-side errors. Stack traces are never exposed.
 | Env var | Default | Description |
 |---------|---------|-------------|
 | `COORDINATOR_MAX_BODY_BYTES` | `65536` | Maximum JSON body size in bytes (64 KiB) |
+| `COORDINATOR_SQLITE_BUSY_TIMEOUT_MS` | `5000` | SQLite lock wait in ms, bounded 0–60000; invalid values fail startup |

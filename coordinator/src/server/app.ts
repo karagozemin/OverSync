@@ -10,6 +10,10 @@ import { secretsRoutes } from "./routes/secrets.js";
 import { quotesRoutes } from "./routes/quotes.js";
 import { createCorsMiddleware, createStrictCorsMiddleware } from "./cors.js";
 import { createReadinessRateLimiter } from "./readiness-rate-limit.js";
+import {
+  STORAGE_UNAVAILABLE_CODE,
+  STORAGE_UNAVAILABLE_MESSAGE
+} from "../persistence/db.js";
 import type { OrderService } from "../services/order-service.js";
 import type { SecretService } from "../services/secret-service.js";
 import type { QuoteService } from "../services/quote-service.js";
@@ -87,6 +91,13 @@ export function createApp(deps: AppDeps): Express {
       _next: express.NextFunction
     ) => {
       deps.log.error({ err }, "unhandled error");
+      if ((err as Error & { code?: string }).code === STORAGE_UNAVAILABLE_CODE) {
+        res.status(503).json({
+          error: STORAGE_UNAVAILABLE_CODE,
+          message: STORAGE_UNAVAILABLE_MESSAGE
+        });
+        return;
+      }
       res.status(500).json({ error: "internal_error", message: err.message });
     }
   );

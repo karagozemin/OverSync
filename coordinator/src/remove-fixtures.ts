@@ -21,7 +21,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const db = await openDatabase(cfg.databaseUrl);
+  const db = await openDatabase(cfg.databaseUrl, {
+    sqliteBusyTimeoutMs: cfg.sqliteBusyTimeoutMs
+  });
   const repo = new OrdersRepository(db);
 
   const before = await repo.countFixtures();

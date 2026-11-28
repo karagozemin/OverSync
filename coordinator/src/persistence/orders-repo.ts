@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Database } from "./db.js";
+import { toStorageError, type Database } from "./db.js";
 import type {
   OrderFailureCode,
   OrderTransitionAction
@@ -437,31 +437,43 @@ export class OrdersRepository {
   }
 
   private async run(stmt: Statement, ...params: any[]): Promise<StatementResult> {
-    const asyncStmt = stmt as AsyncCapableStatement;
-    if (asyncStmt.runAsync) {
-      return asyncStmt.runAsync(...params);
+    try {
+      const asyncStmt = stmt as AsyncCapableStatement;
+      if (asyncStmt.runAsync) {
+        return await asyncStmt.runAsync(...params);
+      }
+      const result = stmt.run(...params);
+      return {
+        changes: Number(result.changes),
+        lastInsertRowid: Number(result.lastInsertRowid)
+      };
+    } catch (error) {
+      throw toStorageError(error);
     }
-    const result = stmt.run(...params);
-    return {
-      changes: Number(result.changes),
-      lastInsertRowid: Number(result.lastInsertRowid)
-    };
   }
 
   private async get<T>(stmt: Statement, ...params: any[]): Promise<T | undefined> {
-    const asyncStmt = stmt as AsyncCapableStatement;
-    if (asyncStmt.getAsync) {
-      return ((await asyncStmt.getAsync(...params)) ?? undefined) as T | undefined;
+    try {
+      const asyncStmt = stmt as AsyncCapableStatement;
+      if (asyncStmt.getAsync) {
+        return ((await asyncStmt.getAsync(...params)) ?? undefined) as T | undefined;
+      }
+      return stmt.get(...params) as T | undefined;
+    } catch (error) {
+      throw toStorageError(error);
     }
-    return stmt.get(...params) as T | undefined;
   }
 
   private async all<T>(stmt: Statement, ...params: any[]): Promise<T[]> {
-    const asyncStmt = stmt as AsyncCapableStatement;
-    if (asyncStmt.allAsync) {
-      return (await asyncStmt.allAsync(...params)) as T[];
+    try {
+      const asyncStmt = stmt as AsyncCapableStatement;
+      if (asyncStmt.allAsync) {
+        return (await asyncStmt.allAsync(...params)) as T[];
+      }
+      return stmt.all(...params) as T[];
+    } catch (error) {
+      throw toStorageError(error);
     }
-    return stmt.all(...params) as T[];
   }
 
   /** Returns the public id of the new order. */
