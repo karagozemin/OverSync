@@ -1,4 +1,4 @@
-import { readFileSync, chmod } from "node:fs";
+import { chmodSync, closeSync, existsSync, openSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -18,15 +18,43 @@ export function isPostgresDatabase(db: Database): db is PostgresDatabase {
 }
 
 /**
- * Set SQLite database file permissions to owner-only (0o600).
- * This prevents other users on the host from reading the coordinator's
- * database, which contains order state and secret-related data.
+ * Files SQLite may create for a database at `filename`.
+ *
+ * `-wal` and `-shm` belong to WAL mode (the coordinator's default) and
+ * `-journal` belongs to the rollback journal used while a write transaction
+ * is in flight. Both can contain the same sensitive order state as the main
+ * database file.
+ */
+export function sqliteDatabaseFileNames(filename: string): string[] {
+  return [filename, `${filename}-wal`, `${filename}-shm`, `${filename}-journal`];
+}
+
+/**
+ * Create the SQLite database file (if needed) with owner-only permissions and
+ * tighten the mode of an existing file plus any journal/WAL sidecars.
+ *
+ * This runs before the schema or any order data is written, so a newly created
+ * database is never briefly world-readable. `openSync(..., "a", 0o600)` creates
+ * a missing file without truncating an existing one; `chmodSync` then tightens
+ * an existing file (the mode passed to `open` is ignored for existing files).
+ *
+ * Permission errors are intentionally not swallowed: if owner-only access
+ * cannot be established, the coordinator must not continue writing order state
+ * to a database other local users may be able to read.
+ *
+ * Platform note: on POSIX systems the mode is enforced as Unix permissions. On
+ * Windows, Node maps the mode onto the read-only attribute and does not change
+ * the file's NTFS ACLs; see `coordinator/README.md` for the documented handling.
  */
 export function setSqliteDatabasePermissions(filename: string): void {
-  try {
-    chmod(filename, 0o600);
-  } catch {
-    // Best-effort: if we can't set permissions, continue without error.
+  const fd = openSync(filename, "a", 0o600);
+  closeSync(fd);
+  chmodSync(filename, 0o600);
+
+  // SQLite creates the sidecars lazily. Tighten whichever ones already exist;
+  // ones created later inherit the database file's mode from SQLite itself.
+  for (const sidecar of sqliteDatabaseFileNames(filename).slice(1)) {
+    if (existsSync(sidecar)) chmodSync(sidecar, 0o600);
   }
 }
 
@@ -167,11 +195,19 @@ export async function openDatabase(url: string): Promise<Database> {
 
 function openSqliteDatabase(url: string): Database {
   const filename = url.startsWith("file:") ? url.slice("file:".length) : url;
+  const isMemory = filename === ":memory:" || filename === "";
+
+  // Secure the file before the driver opens it: opening creates the file and
+  // applying the schema writes order-table content immediately.
+  if (!isMemory) setSqliteDatabasePermissions(filename);
+
   const db = new DatabaseSync(filename);
   const schema = readFileSync(resolve(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
-  // Set owner-only permissions on the SQLite database file.
-  setSqliteDatabasePermissions(filename);
+
+  // WAL/SHM files are usually created by the schema write above. Re-run after
+  // the schema so those sidecars are tightened in the same startup pass.
+  if (!isMemory) setSqliteDatabasePermissions(filename);
   return db;
 }
 
