@@ -294,6 +294,17 @@ export interface RelayTrackerConfig {
 }
 
 /** Base class for every error this module raises. */
+/** A deterministic refusal that must never be retried. */
+export class RelayRefusalError extends Error {
+  readonly code: string;
+
+  constructor(code: string) {
+    super(code);
+    this.name = 'RelayRefusalError';
+    this.code = code;
+  }
+}
+
 export class RelaySubmissionError extends Error {
   readonly key: string;
   constructor(key: string, message: string) {
@@ -397,17 +408,6 @@ export class RelayOrderBusyError extends RelayInFlightError {
         : `Order ${requested.orderId} (${requested.side}) already has an in-flight ${blocking.action.action} ` +
           `submission (${blocking.status}${blocking.txHash ? `, tx ${blocking.txHash}` : ''}); ` +
           `refusing ${requested.action}`;
-  }
-}
-
-/** A deterministic refusal that must never be retried. */
-export class RelayRefusalError extends Error {
-  readonly code: string;
-
-  constructor(code: string) {
-    super(code);
-    this.name = 'RelayRefusalError';
-    this.code = code;
   }
 }
 
@@ -557,6 +557,13 @@ function serializableResult(result: unknown): unknown {
   }
 }
 
+/** Runtime check for the two-phase staging contract. */
+function isStagedSubmission<R>(value: unknown): value is StagedSubmission<R> {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { broadcast?: unknown };
+  return typeof candidate.broadcast === 'function';
+}
+
 export class RelaySubmissionTracker {
   private readonly records = new Map<string, SubmissionRecord>();
   /** Keys with a reconciler currently polling them. Prevents poll fan-out. */
@@ -596,6 +603,11 @@ export class RelaySubmissionTracker {
   }
 
   key(action: RelayAction): string {
+    return computeSubmissionKey(action);
+  }
+
+  /** Stable idempotency key for an action (used by recovery reports). */
+  fingerprint(action: RelayAction): string {
     return computeSubmissionKey(action);
   }
 
@@ -642,7 +654,12 @@ export class RelaySubmissionTracker {
    *   or times out, the retry budget is spent polling that stored hash through
    *   `confirm` — the stager is never called a second time.
    */
-  async submit<R>(action: RelayAction, stager: RelayStager<R>): Promise<RelayOutcome<R>> {
+  async submit<R>(action: RelayAction, stager: RelayStager<R>): Promise<RelayOutcome<R>>;
+  async submit<R>(action: RelayAction, executor: () => Promise<R>): Promise<RelayOutcome<R>>;
+  async submit<R>(
+    action: RelayAction,
+    stager: RelayStager<R> | (() => Promise<R>)
+  ): Promise<RelayOutcome<R>> {
     const key = computeSubmissionKey(action);
     const existing = this.records.get(key) as SubmissionRecord<R> | undefined;
 
@@ -674,7 +691,7 @@ export class RelaySubmissionTracker {
           this.records.delete(key);
           this.persist();
           this.assertOrderAvailable(action, key);
-          return this.submit(action, stager);
+          return this.submit(action, stager as RelayStager<R>);
         }
         this.emit('terminal_failure', existing);
         throw new RelayTerminalError(
@@ -724,42 +741,132 @@ export class RelaySubmissionTracker {
     return this.track(key, () => this.broadcastOnce(record, stager));
   }
 
-      try {
-        const result = await withTimeout(
-          executor(),
-          this.cfg.timeoutMs,
-          `Relay ${key} timed out after ${this.cfg.timeoutMs}ms (attempt ${record.attempts}/${this.cfg.maxAttempts})`
-        );
-        record.status = 'succeeded';
-        record.result = result;
-        record.completedAt = this.cfg.now();
-        this.emit('success', record);
+  /**
+   * Submit through a single-phase executor that both performs the work and
+   * resolves with its result. Used by callers that cannot stage a hash ahead
+   * of time (the coordinator quote gate and recovery reconciliation), while
+   * keeping the duplicate and per-order single-flight guarantees of
+   * {@link submit}.
+   *
+   * Unlike the stager path there is no stored hash to reconcile, so a record
+   * left `pending` by an earlier two-phase submission is never re-executed
+   * here: it is refused as in-flight instead of risking a second broadcast.
+   */
+  async submitExecutor<R>(
+    action: RelayAction,
+    executor: () => Promise<R>
+  ): Promise<RelayOutcome<R>> {
+    const key = computeSubmissionKey(action);
+    const existing = this.records.get(key) as SubmissionRecord<R> | undefined;
+
+    if (existing) {
+      if (existing.status === 'succeeded') {
+        this.duplicatesSkipped++;
+        this.emit('duplicate_skipped', existing);
         this.cfg.logger?.log?.(
-          `✅ Relay ${key} succeeded on attempt ${record.attempts}/${this.cfg.maxAttempts}`
+          `↪️  Relay ${key} already settled (tx ${existing.txHash ?? 'unknown'}); not resubmitting`
         );
-        return { status: 'succeeded', result, record, duplicate: false };
-      } catch (err) {
-        record.lastError = errorMessage(err);
-        const retryable = !(err instanceof RelayRefusalError) && this.cfg.isRetryable(err);
-        const budgetLeft = record.attempts < this.cfg.maxAttempts;
+        return {
+          status: 'already_handled',
+          result: existing.result as R,
+          record: existing,
+          duplicate: true,
+          txHash: existing.txHash,
+          network: existing.network,
+        };
+      }
+      if (existing.status === 'failed') {
+        this.emit('terminal_failure', existing);
+        throw new RelayTerminalError(
+          key,
+          existing.attempts,
+          existing.lastError,
+          existing.terminalReason ?? 'failed'
+        );
+      }
 
-        if (retryable && budgetLeft) {
-          this.emit('retry', record);
-          this.cfg.logger?.warn?.(
-            `⚠️  Relay ${key} attempt ${record.attempts}/${this.cfg.maxAttempts} failed: ${record.lastError}. Retrying...`
+      const running = this.inflight.get(key) as Promise<RelayOutcome<R>> | undefined;
+      if (running) {
+        this.inFlightSkipped++;
+        this.emit('in_flight_skipped', existing);
+        const settled = await running;
+        return { ...settled, status: 'already_handled', duplicate: true };
+      }
+
+      // `in_flight` or `pending`: another caller owns the broadcast.
+      this.inFlightSkipped++;
+      this.emit('in_flight_skipped', existing);
+      throw new RelayInFlightError(key);
+    }
+
+    this.assertOrderAvailable(action, key);
+
+    const record: SubmissionRecord<R> = {
+      key,
+      orderKey: computeOrderKey(action.orderId, action.side),
+      action,
+      status: 'in_flight',
+      attempts: 0,
+      maxAttempts: this.cfg.maxAttempts,
+      broadcasts: 0,
+      firstSeenAt: this.cfg.now(),
+    };
+    this.records.set(key, record as SubmissionRecord);
+    this.persist();
+
+    return this.track(key, async () => {
+      for (;;) {
+        record.attempts++;
+        record.lastAttemptAt = this.cfg.now();
+        this.emit('attempt', record);
+        try {
+          const result = await withTimeout(
+            executor(),
+            this.cfg.timeoutMs,
+            `Relay ${key} timed out after ${this.cfg.timeoutMs}ms (attempt ${record.attempts}/${record.maxAttempts})`
           );
-          await this.cfg.sleep(this.delayFor(record.attempts));
-          continue;
+          record.status = 'succeeded';
+          record.result = result;
+          record.completedAt = this.cfg.now();
+          this.persist();
+          this.emit('success', record);
+          this.cfg.logger?.log?.(
+            `✅ Relay ${key} succeeded on attempt ${record.attempts}/${record.maxAttempts}`
+          );
+          return { status: 'succeeded', result, record, duplicate: false };
+        } catch (err) {
+          record.lastError = errorMessage(err);
+          this.persist();
+          const retryable =
+            !(err instanceof RelayRefusalError) && this.cfg.isRetryable(err);
+          if (retryable && record.attempts < record.maxAttempts) {
+            this.emit('retry', record);
+            this.cfg.logger?.warn?.(
+              `⚠️  Relay ${key} attempt ${record.attempts}/${record.maxAttempts} failed: ${record.lastError}. Retrying...`
+            );
+            await this.cfg.sleep(this.delayFor(record.attempts));
+            continue;
+          }
+          this.fail(record, 'failed');
+          this.cfg.logger?.error?.(
+            `❌ Relay ${key} failed terminally after ${record.attempts}/${record.maxAttempts} attempt(s): ${record.lastError}`
+          );
+          throw new RelayTerminalError(key, record.attempts, record.lastError);
         }
+      }
+    });
+  }
 
-        // Non-retryable error, or retry budget exhausted → terminal failure.
-        record.status = 'failed';
-        record.completedAt = this.cfg.now();
-        this.emit('terminal_failure', record);
-        this.cfg.logger?.error?.(
-          `❌ Relay ${key} failed terminally after ${record.attempts}/${this.cfg.maxAttempts} attempt(s): ${record.lastError}`
-        );
-        throw new RelayTerminalError(key, record.attempts, record.lastError);
+  /**
+   * Register the in-flight operation for a key so overlapping callers join it
+   * rather than starting a second one.
+   */
+  private track<R>(key: string, run: () => Promise<RelayOutcome<R>>): Promise<RelayOutcome<R>> {
+    const promise = run();
+    this.inflight.set(key, promise as Promise<RelayOutcome<unknown>>);
+    const clear = () => {
+      if (this.inflight.get(key) === (promise as Promise<RelayOutcome<unknown>>)) {
+        this.inflight.delete(key);
       }
     };
     promise.then(clear, clear);
@@ -771,15 +878,15 @@ export class RelaySubmissionTracker {
    */
   private async broadcastOnce<R>(
     record: SubmissionRecord<R>,
-    stager: RelayStager<R>
+    stager: RelayStager<R> | (() => Promise<R>)
   ): Promise<RelayOutcome<R>> {
     record.attempts++;
     record.lastAttemptAt = this.cfg.now();
     this.emit('attempt', record);
 
-    let staged: StagedSubmission<R>;
+    let produced: StagedSubmission<R> | R;
     try {
-      staged = await withTimeout(
+      produced = await withTimeout(
         (async () => stager())(),
         this.cfg.timeoutMs,
         `Relay ${record.key} staging timed out after ${this.cfg.timeoutMs}ms`
@@ -791,6 +898,23 @@ export class RelaySubmissionTracker {
       this.cfg.logger?.error?.(`❌ Relay ${record.key} could not be staged: ${record.lastError}`);
       throw new RelayTerminalError(record.key, record.attempts, record.lastError, retryable ? 'staging_failed' : 'non_retryable');
     }
+
+    // Legacy single-phase callers pass an executor that resolves with the
+    // final result instead of a stager that resolves with a staged hash.
+    // The work has already happened, so settle the record directly.
+    if (!isStagedSubmission<R>(produced)) {
+      record.status = 'succeeded';
+      record.result = produced;
+      record.completedAt = this.cfg.now();
+      this.persist();
+      this.emit('success', record);
+      this.cfg.logger?.log?.(
+        `✅ Relay ${record.key} settled after ${record.attempts} attempt(s)`
+      );
+      return { status: 'succeeded', result: produced, record, duplicate: false };
+    }
+
+    const staged = produced;
 
     // Invariant guard: the two-phase contract exists so the hash is known
     // before the transaction can land. Without it we could never reconcile.

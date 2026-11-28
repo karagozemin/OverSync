@@ -106,9 +106,21 @@ export function buildPublicOrderEvidence(order: unknown): PublicOrderEvidence {
 
   const txHashes = collectPublicTxHashes(raw);
 
+  // Snapshot-shaped orders nest the timestamps; serialised order rows put
+  // them at the top level. Accept both public shapes.
   const timestamps = raw.timestamps ?? {};
-  const createdAt = typeof timestamps.createdAt === 'number' ? timestamps.createdAt : null;
-  const updatedAt = typeof timestamps.updatedAt === 'number' ? timestamps.updatedAt : null;
+  const createdAt =
+    typeof timestamps.createdAt === 'number'
+      ? timestamps.createdAt
+      : typeof raw.createdAt === 'number'
+        ? raw.createdAt
+        : null;
+  const updatedAt =
+    typeof timestamps.updatedAt === 'number'
+      ? timestamps.updatedAt
+      : typeof raw.updatedAt === 'number'
+        ? raw.updatedAt
+        : null;
 
   return {
     orderId,

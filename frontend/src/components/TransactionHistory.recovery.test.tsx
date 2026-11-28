@@ -77,11 +77,11 @@ describe('TransactionHistory recovery', () => {
       expect(screen.getByText('ETH Sepolia')).toBeInTheDocument();
     });
 
-    // One request per connected address, using the coordinator's `address` param.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const requestedUrls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(requestedUrls.some((u) => u.includes('address=0xEthAddress'))).toBe(true);
-    expect(requestedUrls.some((u) => u.includes('address=GSTELLARADDRESS'))).toBe(true);
+    // One paginated request covering both connected addresses.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const requestedUrl = String(fetchMock.mock.calls[0][0]);
+    expect(requestedUrl).toContain('eth=0xEthAddress');
+    expect(requestedUrl).toContain('stellar=GSTELLARADDRESS');
 
     // Recovered order persisted to local storage for the next reload.
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
@@ -91,7 +91,8 @@ describe('TransactionHistory recovery', () => {
 
   test('de-duplicates a locally pending order against its coordinator-recovered counterpart', async () => {
     const localTx = {
-      id: 'local-temp-id',
+      // Locally persisted entries carry the coordinator's public order id.
+      id: 'coordinator-final-id',
       txHash: '0xrecoveredlocktx',
       fromNetwork: 'ETH Sepolia',
       toNetwork: 'Stellar Testnet',
@@ -121,7 +122,7 @@ describe('TransactionHistory recovery', () => {
 
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
     // The coordinator's record wins since it carries authoritative on-chain data,
-    // but the two entries were recognised as the same order (shared tx hash).
+    // and the two entries were recognised as the same order by that id.
     expect(stored[0].id).toBe('coordinator-final-id');
 
     // Only a single row rendered for the deduped order, not two.

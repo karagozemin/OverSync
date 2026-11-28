@@ -26,6 +26,26 @@ const STATUS_CONFIG = {
     label: 'Coordinator degraded',
     strip: 'border-amber-400/30 bg-amber-500/10 text-amber-200',
   },
+  ready: {
+    dot: 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.55)]',
+    label: 'Coordinator reachable',
+    strip: 'border-white/5 bg-white/[0.03] text-slate-400',
+  },
+  'not-ready': {
+    dot: 'bg-amber-400',
+    label: 'Coordinator is starting up',
+    strip: 'border-amber-400/30 bg-amber-500/10 text-amber-200',
+  },
+  loading: {
+    dot: 'bg-amber-400 animate-pulse',
+    label: 'Checking coordinator…',
+    strip: 'border-white/5 bg-white/[0.03] text-slate-400',
+  },
+  down: {
+    dot: 'bg-red-400',
+    label: 'Coordinator unavailable',
+    strip: 'border-red-400/30 bg-red-500/10 text-red-200',
+  },
 } as const;
 
 function formatTime(date: Date): string {

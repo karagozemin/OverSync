@@ -16,7 +16,9 @@ describe("Slither Foundry setup", () => {
   it("installs Foundry once and checks forge before analysis", () => {
     const workflow = readFileSync(resolve(repoRoot, ".github/workflows/contracts.yml"), "utf8");
     const slither = jobBlock(workflow, "slither");
-    const setups = slither.match(/foundry-rs\/foundry-toolchain@v1/g) ?? [];
+    // Actions may be referenced by a version tag or pinned to a commit SHA.
+    const setups =
+      slither.match(/foundry-rs\/foundry-toolchain@(?:v\d+(?:\.\d+)*|[0-9a-f]{40})/g) ?? [];
     assert.equal(setups.length, 1);
     const versionAt = slither.indexOf("forge --version");
     const analysisAt = slither.indexOf("slither contracts/v2");

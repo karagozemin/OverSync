@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Horizon, 
   Asset, 
@@ -7,12 +7,27 @@ import {
   Memo
 } from '@stellar/stellar-sdk';
 import { isTestnet, getCurrentNetwork } from '../config/networks';
-import type { NetworkModeState } from '../lib/useNetworkMode';
+import { useNetworkMode, type NetworkModeState } from '../lib/useNetworkMode';
 import { parseHtlcReceipt } from '../lib/parseHtlcReceipt';
 import { sanitizeAmountInput, parseAmountToBaseUnits } from '../lib/sanitizeAmountInput';
 import { AlertTriangle, ArrowDownUp, CheckCircle2, Loader2, RefreshCw, Settings2 } from 'lucide-react';
 import { useBackendStatus } from '../lib/useBackendStatus';
 import { wakeBackend } from '../lib/wakeBackend';
+import NetworkMismatchBanner from './NetworkMismatchBanner';
+import OrderStaleBanner from './OrderStaleBanner';
+import RefundDialog from '../features/refund/RefundDialog';
+import type { Address } from 'viem';
+import {
+  clearActiveOrder,
+  clearActiveOrderId,
+  getActiveOrder,
+  getActiveOrderId,
+  isResponseForCurrentOrder,
+  setActiveOrder,
+  setActiveOrderId,
+  type RecoveredOrder,
+} from '../lib/orderRecovery';
+import { checkOrderFreshness, isOrderStale } from '../lib/orderFreshness';
 
 // Web3 imports for contract interaction
 declare global {
@@ -30,6 +45,10 @@ export interface BridgeFormProps {
   signStellarTransaction: (xdr: string, networkPassphrase?: string) => Promise<string>;
   /** Network/wallet mismatch detector from App. If omitted, guardrails are skipped. */
   networkState?: NetworkModeState;
+  /** Order id to restore on mount (e.g. from the URL or history). */
+  initialOrderId?: string | null;
+  onClaim?: (order: RecoveredOrder) => Promise<void>;
+  onRefund?: (order: RecoveredOrder) => Promise<void>;
 }
 
   // Fixed token information
@@ -164,7 +183,17 @@ const API_BASE_URL = import.meta.env.PROD
   : import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_BASE_URL;
 const ENABLE_MOCK_DATA = import.meta.env.VITE_ENABLE_MOCK_DATA === 'true';
 
-export default function BridgeForm({ ethAddress, stellarAddress, signStellarTransaction, networkState }: BridgeFormProps) {
+export default function BridgeForm({
+  ethAddress,
+  stellarAddress,
+  signStellarTransaction,
+  networkState: propNetworkState,
+  initialOrderId,
+  onClaim,
+  onRefund,
+}: BridgeFormProps) {
+  const fallbackNetworkState = useNetworkMode({ ethAddress, stellarAddress });
+  const networkState = propNetworkState ?? fallbackNetworkState;
   const [direction, setDirection] = useState<'eth_to_xlm' | 'xlm_to_eth'>('eth_to_xlm');
   const { status: backendStatus, isReady: backendReady, isLoading: backendLoading, refresh: refreshBackendStatus } = useBackendStatus();
   const [isWakingBackend, setIsWakingBackend] = useState(false);
@@ -665,13 +694,20 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
         'DIRECTION': direction
       });
       
+      // Base-unit integer the coordinator binds the quote to. The form's
+      // decimals must match the source asset (18 for ETH, 7 for XLM).
+      const amountBaseUnits =
+        typeof parseAmountToBaseUnits === 'function'
+          ? parseAmountToBaseUnits(amount, direction === 'eth_to_xlm' ? 18 : 7)
+          : null;
+
       const orderRequest = {
         fromChain: direction === 'eth_to_xlm' ? 'ethereum' : 'stellar',
         toChain: direction === 'eth_to_xlm' ? 'stellar' : 'ethereum',
         fromToken: direction === 'eth_to_xlm' ? 'ETH' : 'XLM',
         toToken: direction === 'eth_to_xlm' ? 'XLM' : 'ETH',
         amount: amount,
-        amountBaseUnits: amountBaseUnits.toString(),
+        amountBaseUnits: (amountBaseUnits ?? 0n).toString(),
         ethAddress: ethAddress,
         stellarAddress: stellarAddress,
         direction: direction,
@@ -1401,7 +1437,6 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
           <div className="text-left">
             <OrderStaleBanner
-              order={order}
               isStale={isStale}
               freshnessError={freshnessError}
               onRetry={handleRetryFreshness}
@@ -1744,6 +1779,7 @@ export default function BridgeForm({ ethAddress, stellarAddress, signStellarTran
 
       {showRefundDialog && order?.src?.orderId && ethAddress && (
         <RefundDialog
+          coordinatorOrderId={order.id}
           userAddress={ethAddress as Address}
           orderId={order.src.orderId}
           timelockUnixSeconds={order.src.timelock ?? 0}

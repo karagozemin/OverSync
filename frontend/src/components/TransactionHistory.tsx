@@ -135,8 +135,10 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
         .map(mapCoordinatorOrderToTransaction)
         .filter(isRealTransaction);
 
-      // Keyed by order id, so a row that shifted between pages shows up once.
-      // Earlier pages stay on the list: a page is added, never swapped in.
+      // Keyed by order id, so a row that shifted between pages — or a locally
+      // created pending swap (written with the coordinator's order id) — shows
+      // up exactly once. Earlier pages stay on the list: a page is added,
+      // never swapped in.
       const local = loadFromStorage();
       const base = seedFromCache
         ? mergeHistoryPage<Transaction>(transactionsRef.current, local)
@@ -421,17 +423,6 @@ export default function TransactionHistory({ ethAddress, stellarAddress }: Trans
           </button>
         ))}
       </div>
-
-      {cursor && !isLoading && (
-        <button
-          onClick={refreshFromCoordinator}
-          disabled={isLoading}
-          className="button-hover-scale flex items-center justify-center gap-2 rounded-full border border-cyan-200/30 bg-cyan-200/[0.12] px-4 py-2 text-sm font-semibold text-cyan-50 shadow-[0_12px_34px_rgba(0,226,255,0.12)] transition hover:border-cyan-100/45 hover:bg-cyan-200/[0.18] disabled:opacity-60"
-        >
-          <ArrowRight className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Load More
-        </button>
-      )}
 
       <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1">
         {filteredTransactions.length === 0 ? (
