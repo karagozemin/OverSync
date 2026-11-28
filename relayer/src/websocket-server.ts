@@ -56,16 +56,60 @@ export const WS_POLICY_VIOLATION = 1008;
 export const DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION = 1000;
 
 /**
+ * Validate and return a subscription limit as a bounded whole integer.
+ * @param value - The value to validate (number or string)
+ * @param source - Description of the source for error messages
+ * @returns Validated integer limit
+ * @throws Error if the value is not a valid bounded positive integer
+ */
+export function validateSubscriptionLimit(value: number | string | undefined, source: string): number {
+  if (value === undefined) {
+    throw new Error(`${source}: limit is required`);
+  }
+
+  const parsed = typeof value === 'string' ? parseInt(value, 10) : value;
+
+  // Check if it's a valid number
+  if (isNaN(parsed)) {
+    throw new Error(`${source}: "${value}" is not a valid number`);
+  }
+
+  // Check if it's a whole integer (no decimals)
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`${source}: "${value}" must be a whole integer (no decimals)`);
+  }
+
+  // Check if it's positive
+  if (parsed < 1) {
+    throw new Error(`${source}: "${parsed}" must be a positive integer (at least 1)`);
+  }
+
+  // Check if it's within safe integer bounds
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`${source}: "${parsed}" exceeds safe integer bounds (max ${Number.MAX_SAFE_INTEGER})`);
+  }
+
+  // Check reasonable upper bound (prevent absurd values)
+  const MAX_REASONABLE_LIMIT = 1_000_000;
+  if (parsed > MAX_REASONABLE_LIMIT) {
+    throw new Error(`${source}: "${parsed}" exceeds reasonable limit (max ${MAX_REASONABLE_LIMIT})`);
+  }
+
+  return parsed;
+}
+
+/**
  * Parse the max subscriptions limit from environment or use default.
  */
 export function getMaxSubscriptionsPerConnection(env: NodeJS.ProcessEnv = process.env): number {
   const configured = env.WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION;
   if (!configured) return DEFAULT_MAX_SUBSCRIPTIONS_PER_CONNECTION;
-  const parsed = parseInt(configured, 10);
-  if (isNaN(parsed) || parsed < 1) {
-    throw new Error(`Invalid WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION: "${configured}". Must be a positive integer.`);
+  
+  try {
+    return validateSubscriptionLimit(configured, 'WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION');
+  } catch (error) {
+    throw new Error(`Invalid WEBSOCKET_MAX_SUBSCRIPTIONS_PER_CONNECTION: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return parsed;
 }
 
 /**
@@ -292,7 +336,16 @@ export class FusionWebSocketServer extends EventEmitter {
     super();
     this.httpServer = createServer();
     this.allowedOrigins = allowedOrigins;
-    this.maxSubscriptionsPerConnection = maxSubscriptionsPerConnection ?? getMaxSubscriptionsPerConnection();
+    
+    // Validate constructor-provided limit if present
+    if (maxSubscriptionsPerConnection !== undefined) {
+      this.maxSubscriptionsPerConnection = validateSubscriptionLimit(
+        maxSubscriptionsPerConnection,
+        'Constructor maxSubscriptionsPerConnection'
+      );
+    } else {
+      this.maxSubscriptionsPerConnection = getMaxSubscriptionsPerConnection();
+    }
   }
 
   /**
